@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+coverage/
+dist/
+web-build/
+assets/
+ios/
+android/
+expo-env.d.ts
+*.tsbuildinfo
+.eslintcache
+package-lock.json

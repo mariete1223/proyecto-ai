@@ -12,22 +12,55 @@ Aplicación personal para registrar y consultar recuerdos, aprendizajes, tareas 
 
 - Node.js LTS y npm.
 - Python 3.11 o posterior.
+- [uv](https://docs.astral.sh/uv/) para instalar y ejecutar el entorno Python.
 
-## Instalar y ejecutar las pruebas
+## Instalar dependencias
 
-Desde la raíz del repositorio, ejecuta estos pasos en PowerShell:
+Desde la raíz del repositorio, las instalaciones reproducibles usan los archivos
+de bloqueo versionados:
 
 ```powershell
 npm.cmd --prefix frontend ci
-Push-Location backend
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[test]"
-Pop-Location
-npm.cmd --prefix frontend test
-.\backend\.venv\Scripts\python.exe -m pytest backend\tests
+uv sync --directory backend --frozen
 ```
 
-La primera prueba renderiza la pantalla inicial de Expo. La segunda comprueba el endpoint de salud de FastAPI sin necesitar una base de datos ni servicios externos.
+## Comprobaciones de calidad
+
+Los comandos de comprobación no modifican archivos. Para ejecutar todas las
+comprobaciones de cada entorno:
+
+```powershell
+npm.cmd --prefix frontend run check
+uv run --directory backend python scripts/check.py
+```
+
+También pueden ejecutarse por separado desde la raíz:
+
+```powershell
+# Frontend
+npm.cmd --prefix frontend run format:check
+npm.cmd --prefix frontend run lint
+npm.cmd --prefix frontend run typecheck
+npm.cmd --prefix frontend run test
+
+# Backend
+uv run --directory backend ruff format --check app scripts tests
+uv run --directory backend ruff check app scripts tests
+uv run --directory backend mypy app scripts tests
+uv run --directory backend pytest
+```
+
+Para aplicar formato de manera intencionada, usa comandos separados de las
+comprobaciones:
+
+```powershell
+npm.cmd --prefix frontend run format
+uv run --directory backend ruff format app scripts tests
+```
+
+La prueba del frontend renderiza la pantalla inicial de Expo. La del backend
+comprueba el endpoint de salud de FastAPI sin necesitar una base de datos ni
+servicios externos.
 
 Para arrancar la app Expo desde la raíz:
 
@@ -39,6 +72,6 @@ Para arrancar la API localmente:
 
 ```powershell
 Push-Location backend
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 Pop-Location
 ```
