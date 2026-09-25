@@ -1,6 +1,6 @@
 # Proyecto AI
 
-Aplicación personal para registrar y consultar recuerdos, aprendizajes, tareas y eventos. La especificación funcional y la arquitectura acordada están en [`_docs/`](./_docs/).
+Aplicación personal para registrar y consultar recuerdos, aprendizajes, tareas y eventos. La [especificación funcional](./_docs/spec.md), la [arquitectura](./_docs/arch.md) y el [modelo de dominio v0.1](./_docs/domain-model-v0.1.md) están en [`_docs/`](./_docs/).
 
 ## Estructura
 

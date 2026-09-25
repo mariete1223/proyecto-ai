@@ -10,6 +10,8 @@ Documento de arquitectura · iPhone-first · offline-first · infraestructura pr
 
 **Propósito.** Definir la arquitectura acordada para el MVP, separando claramente las decisiones estructurales de los detalles de implementación que se concretarán después.
 
+El contrato compartido de entidades, tipos y relaciones se concreta en el [modelo de dominio v0.1](./domain-model-v0.1.md).
+
 # 1. Objetivos arquitectónicos
 - Mobile-first, con iPhone como dispositivo principal y acceso web desde ordenador.
 - Offline-first: registrar y editar información sin depender de que el PC esté encendido o accesible.
@@ -201,7 +203,7 @@ Una futura migración a un VPS, servidor doméstico dedicado o proveedor cloud d
 # 14. Decisiones deliberadamente aplazadas
 
 Los siguientes puntos son detalles de diseño o implementación y no forman parte de esta arquitectura base:
-- Modelo de datos definitivo, relaciones y contrato exacto de endpoints.
+- Contrato exacto de endpoints y traducción física del [modelo de dominio v0.1](./domain-model-v0.1.md) a SQLite y PostgreSQL.
 - Algoritmo y formato preciso del protocolo de sincronización.
 - Reglas exactas del parser de comandos hablados.
 - Librerías de estado, diseño visual y componentes UI del frontend.

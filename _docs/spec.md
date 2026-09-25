@@ -1,5 +1,7 @@
 # Especificación funcional — MVP v0.1
 
+Las entidades, campos, relaciones e invariantes que materializan esta especificación se definen en el [modelo de dominio v0.1](./domain-model-v0.1.md).
+
 ## 1. Visión del producto
 
 La aplicación será una herramienta personal para **registrar, organizar y consultar información relevante de la vida diaria**.
