@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { createLocalCategory } from "../db/categories";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
@@ -64,22 +64,23 @@ describe("PendingTasksView Component", () => {
     );
 
     // Change status to IN_PROGRESS
-    fireEvent.press(getByTestId(`status-inprogress-${task1.id}`));
+    await act(async () => {
+      fireEvent.press(getByTestId(`status-inprogress-${task1.id}`));
+    });
 
     await waitFor(() => {
       expect(getByText("Estado actual: En progreso")).toBeTruthy();
     });
 
     // Change status to DONE (which removes it from pending dateless list)
-    fireEvent.press(getByTestId(`status-done-${task1.id}`));
+    await act(async () => {
+      fireEvent.press(getByTestId(`status-done-${task1.id}`));
+    });
 
-    await waitFor(
-      () => {
-        expect(queryByText("Comprar leche")).toBeNull();
-        expect(getByTestId("empty-container")).toBeTruthy();
-      },
-      { timeout: 3000 },
-    );
+    await waitFor(() => {
+      expect(queryByText("Comprar leche")).toBeNull();
+      expect(getByTestId("empty-container")).toBeTruthy();
+    });
   });
 
   test("renders error state when fetchTasks throws error", async () => {
@@ -91,12 +92,13 @@ describe("PendingTasksView Component", () => {
       <PendingTasksView db={db} userId={userId} fetchTasks={fetchError} />,
     );
 
-    await waitFor(
-      () => {
-        expect(getByTestId("error-container")).toBeTruthy();
-        expect(getByText("DB failure")).toBeTruthy();
-      },
-      { timeout: 3000 },
-    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("error-container")).toBeTruthy();
+      expect(getByText("DB failure")).toBeTruthy();
+    });
   });
 });
