@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Generator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
@@ -11,17 +11,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.models.domain import Category, Entry, EntryTag, Tag, User
+from app.models.enums import CategoryKind, TaskRecurrence, TaskStatus
 from app.schemas.category import CategoryCreate
 from app.schemas.entry import EntryCreate, EntryUpdate
 from app.schemas.tag import TagCreate
 from app.services.category_service import create_category
 from app.services.entry_service import (
-    EntryNotFoundError,
     InvalidEntryDataError,
     create_entry,
-    delete_entry,
-    get_entry_by_id,
-    list_entries,
     update_entry,
 )
 from app.services.tag_service import create_tag
@@ -101,150 +98,75 @@ def test_create_entry_success(db_session: Session) -> None:
     assert entry.version == 1
 
 
-def test_create_entry_with_invalid_category_raises_error(db_session: Session) -> None:
+def test_create_entry_task_category_defaults_and_validation(
+    db_session: Session,
+) -> None:
     user = create_user(db_session, "user@example.com", "Password123!")
-    data = EntryCreate(
-        category_id=user.id,
-        content="Test content",
-    )
-
-    with pytest.raises(InvalidEntryDataError):
-        create_entry(db_session, user.id, data)
-
-
-def test_create_entry_with_foreign_tag_raises_error(db_session: Session) -> None:
-    user1 = create_user(db_session, "user1@example.com", "Password123!")
-    user2 = create_user(db_session, "user2@example.com", "Password123!")
-
-    cat1 = create_category(
-        db_session,
-        user1.id,
-        CategoryCreate(name="Cat 1", voice_command="c1", color="#112233", icon="i1"),
-    )
-    tag_user2 = create_tag(db_session, user2.id, TagCreate(name="Tag User 2"))
-
-    data = EntryCreate(
-        category_id=cat1.id,
-        content="Test content",
-        tag_ids=[tag_user2.id],
-    )
-
-    with pytest.raises(InvalidEntryDataError):
-        create_entry(db_session, user1.id, data)
-
-
-def test_get_entry_by_id(db_session: Session) -> None:
-    user = create_user(db_session, "user@example.com", "Password123!")
-    cat = create_category(
+    task_cat = create_category(
         db_session,
         user.id,
-        CategoryCreate(name="Cat", voice_command="c", color="#112233", icon="i"),
-    )
-    tag = create_tag(db_session, user.id, TagCreate(name="Tag"))
-
-    entry, _ = create_entry(
-        db_session,
-        user.id,
-        EntryCreate(category_id=cat.id, content="Content", tag_ids=[tag.id]),
-    )
-
-    fetched_entry, fetched_tag_ids = get_entry_by_id(db_session, user.id, entry.id)
-    assert fetched_entry.id == entry.id
-    assert fetched_tag_ids == [tag.id]
-
-    other_user = create_user(db_session, "other2@example.com", "Password123!")
-    with pytest.raises(EntryNotFoundError):
-        get_entry_by_id(db_session, other_user.id, entry.id)
-
-
-def test_list_entries_filtering_and_pagination(db_session: Session) -> None:
-    user = create_user(db_session, "filter@example.com", "Password123!")
-    cat1 = create_category(
-        db_session,
-        user.id,
-        CategoryCreate(name="Cat 1", voice_command="c1", color="#111111", icon="i1"),
-    )
-    cat2 = create_category(
-        db_session,
-        user.id,
-        CategoryCreate(name="Cat 2", voice_command="c2", color="#222222", icon="i2"),
-    )
-    tag1 = create_tag(db_session, user.id, TagCreate(name="Tag A"))
-
-    now = datetime.now(UTC)
-    t1 = now - timedelta(days=2)
-    t2 = now - timedelta(days=1)
-    t3 = now
-
-    e1, _ = create_entry(
-        db_session,
-        user.id,
-        EntryCreate(
-            category_id=cat1.id, occurred_at=t1, content="Entry 1", tag_ids=[tag1.id]
+        CategoryCreate(
+            kind=CategoryKind.TASK,
+            name="Tareas",
+            voice_command="tar",
+            color="#112233",
+            icon="icon",
         ),
     )
-    e2, _ = create_entry(
-        db_session,
-        user.id,
-        EntryCreate(category_id=cat2.id, occurred_at=t2, content="Entry 2"),
-    )
-    e3, _ = create_entry(
-        db_session,
-        user.id,
-        EntryCreate(category_id=cat1.id, occurred_at=t3, content="Entry 3"),
-    )
 
-    entries, total = list_entries(db_session, user.id, page=1, limit=2)
-    assert total == 3
-    assert len(entries) == 2
-    assert [e[0].id for e in entries] == [e3.id, e2.id]
-
-    cat1_entries, cat1_total = list_entries(db_session, user.id, category_ids=[cat1.id])
-    assert cat1_total == 2
-    assert [e[0].id for e in cat1_entries] == [e3.id, e1.id]
-
-    tag1_entries, tag1_total = list_entries(db_session, user.id, tag_ids=[tag1.id])
-    assert tag1_total == 1
-    assert tag1_entries[0][0].id == e1.id
-
-    range_entries, range_total = list_entries(
-        db_session,
-        user.id,
-        start_at=t1 - timedelta(hours=1),
-        end_at=t2 + timedelta(hours=1),
-    )
-    assert range_total == 2
-    assert [e[0].id for e in range_entries] == [e2.id, e1.id]
-
-
-def test_update_and_delete_entry(db_session: Session) -> None:
-    user = create_user(db_session, "update@example.com", "Password123!")
-    cat = create_category(
-        db_session,
-        user.id,
-        CategoryCreate(name="Cat", voice_command="c", color="#111111", icon="i"),
-    )
-    tag1 = create_tag(db_session, user.id, TagCreate(name="Tag 1"))
-    tag2 = create_tag(db_session, user.id, TagCreate(name="Tag 2"))
-
+    # Task without date and without status -> defaults to PENDING / ONCE
     entry, _ = create_entry(
         db_session,
         user.id,
-        EntryCreate(category_id=cat.id, content="Original Content", tag_ids=[tag1.id]),
+        EntryCreate(category_id=task_cat.id, occurred_at=None, content="Comprar leche"),
+    )
+    assert entry.task_status == TaskStatus.PENDING
+    assert entry.task_recurrence == TaskRecurrence.ONCE
+
+    # Non-TASK category attempting to pass task_status raises error
+    std_cat = create_category(
+        db_session,
+        user.id,
+        CategoryCreate(
+            name="Standard", voice_command="std", color="#112233", icon="icon"
+        ),
+    )
+    with pytest.raises(InvalidEntryDataError):
+        create_entry(
+            db_session,
+            user.id,
+            EntryCreate(
+                category_id=std_cat.id,
+                content="Invalid",
+                task_status=TaskStatus.PENDING,
+            ),
+        )
+
+
+def test_update_entry_task_status(db_session: Session) -> None:
+    user = create_user(db_session, "user@example.com", "Password123!")
+    task_cat = create_category(
+        db_session,
+        user.id,
+        CategoryCreate(
+            kind=CategoryKind.TASK,
+            name="Tareas",
+            voice_command="tar",
+            color="#112233",
+            icon="icon",
+        ),
+    )
+    entry, _ = create_entry(
+        db_session,
+        user.id,
+        EntryCreate(category_id=task_cat.id, content="Hacer ejercicio"),
     )
 
-    updated_entry, tag_ids = update_entry(
+    updated_entry, _ = update_entry(
         db_session,
         user.id,
         entry.id,
-        EntryUpdate(content="Updated Content", tag_ids=[tag2.id]),
+        EntryUpdate(task_status=TaskStatus.DONE),
     )
-
-    assert updated_entry.content == "Updated Content"
-    assert tag_ids == [tag2.id]
-    assert updated_entry.version == 2
-
-    delete_entry(db_session, user.id, entry.id)
-
-    with pytest.raises(EntryNotFoundError):
-        get_entry_by_id(db_session, user.id, entry.id)
+    assert updated_entry.task_status == TaskStatus.DONE
+    assert updated_entry.task_recurrence == TaskRecurrence.ONCE

@@ -13,6 +13,8 @@ class EntryCreate(BaseModel):
     category_id: UUID
     occurred_at: datetime | None = None
     content: str = Field(min_length=1, max_length=10000)
+    task_status: TaskStatus | None = None
+    task_recurrence: TaskRecurrence | None = None
     tag_ids: list[UUID] = Field(default_factory=list)
 
     @field_validator("content", mode="before")
@@ -27,6 +29,8 @@ class EntryUpdate(BaseModel):
     category_id: UUID | None = None
     occurred_at: datetime | None = None
     content: str | None = Field(default=None, min_length=1, max_length=10000)
+    task_status: TaskStatus | None = None
+    task_recurrence: TaskRecurrence | None = None
     tag_ids: list[UUID] | None = None
 
     @field_validator("content", mode="before")

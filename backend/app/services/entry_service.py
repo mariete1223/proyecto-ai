@@ -7,6 +7,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.domain import Category, Entry, EntryTag, Tag
+from app.models.enums import CategoryKind, TaskRecurrence, TaskStatus
 from app.schemas.entry import EntryCreate, EntryUpdate
 
 
@@ -33,6 +34,25 @@ def create_entry(
     if category is None:
         raise InvalidEntryDataError("Category not found or does not belong to user.")
 
+    if category.kind == CategoryKind.TASK:
+        if data.task_status is None and data.task_recurrence is None:
+            task_status = TaskStatus.PENDING
+            task_recurrence = TaskRecurrence.ONCE
+        elif data.task_status is not None and data.task_recurrence is not None:
+            task_status = data.task_status
+            task_recurrence = data.task_recurrence
+        else:
+            raise InvalidEntryDataError(
+                "Task status and task recurrence must both be provided or both omitted."
+            )
+    else:
+        if data.task_status is not None or data.task_recurrence is not None:
+            raise InvalidEntryDataError(
+                "Task fields can only be set for categories of kind TASK."
+            )
+        task_status = None
+        task_recurrence = None
+
     distinct_tag_ids = list(dict.fromkeys(data.tag_ids))
     if distinct_tag_ids:
         stmt_tags = select(Tag.id).where(
@@ -51,8 +71,8 @@ def create_entry(
         category_id=data.category_id,
         occurred_at=occurred_at,
         content=content,
-        task_status=None,
-        task_recurrence=None,
+        task_status=task_status,
+        task_recurrence=task_recurrence,
         capture_session_id=None,
         created_at=now,
         updated_at=now,
@@ -155,15 +175,48 @@ def update_entry(
     entry, current_tag_ids = get_entry_by_id(db, user_id, entry_id)
     now = datetime.now(UTC)
 
+    stmt_curr_cat = select(Category).where(
+        Category.id == entry.category_id, Category.user_id == user_id
+    )
+    target_category = db.execute(stmt_curr_cat).scalar_one()
+
     if data.category_id is not None and data.category_id != entry.category_id:
         stmt_cat = select(Category).where(
             Category.id == data.category_id, Category.user_id == user_id
         )
-        if db.execute(stmt_cat).scalar_one_or_none() is None:
+        target_category_or_none = db.execute(stmt_cat).scalar_one_or_none()
+        if target_category_or_none is None:
             raise InvalidEntryDataError(
                 "Category not found or does not belong to user."
             )
+        target_category = target_category_or_none
         entry.category_id = data.category_id
+
+    if target_category.kind == CategoryKind.TASK:
+        new_status = (
+            data.task_status if data.task_status is not None else entry.task_status
+        )
+        new_recurrence = (
+            data.task_recurrence
+            if data.task_recurrence is not None
+            else entry.task_recurrence
+        )
+        if new_status is None and new_recurrence is None:
+            new_status = TaskStatus.PENDING
+            new_recurrence = TaskRecurrence.ONCE
+        elif new_status is None or new_recurrence is None:
+            raise InvalidEntryDataError(
+                "Task status and task recurrence must both be paired."
+            )
+        entry.task_status = new_status
+        entry.task_recurrence = new_recurrence
+    else:
+        if data.task_status is not None or data.task_recurrence is not None:
+            raise InvalidEntryDataError(
+                "Task fields can only be set for categories of kind TASK."
+            )
+        entry.task_status = None
+        entry.task_recurrence = None
 
     if data.content is not None:
         cleaned_content = data.content.strip()
@@ -171,7 +224,7 @@ def update_entry(
             raise InvalidEntryDataError("Entry content cannot be empty.")
         entry.content = cleaned_content
 
-    if data.occurred_at is not None:
+    if "occurred_at" in data.model_fields_set:
         entry.occurred_at = data.occurred_at
 
     updated_tag_ids = current_tag_ids
