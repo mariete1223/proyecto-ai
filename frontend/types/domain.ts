@@ -36,6 +36,22 @@ export interface Tag {
   sync_status: SyncStatus;
 }
 
+export interface Entry {
+  id: string;
+  user_id: string;
+  category_id: string;
+  occurred_at: string | null;
+  content: string;
+  task_status: TaskStatus | null;
+  task_recurrence: TaskRecurrence | null;
+  capture_session_id: string | null;
+  created_at: string;
+  updated_at: string;
+  version: number;
+  sync_status: SyncStatus;
+  tag_ids: string[];
+}
+
 export function normalizeTextKey(text: string): string {
   return text.trim().toLowerCase();
 }

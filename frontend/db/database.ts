@@ -318,30 +318,30 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
       }
 
       const conds = whereClause.split(/\s+AND\s+/i);
-      const whereCols: string[] = [];
-      const isNotEqual: boolean[] = [];
+      let paramIdx = 0;
+      const parsedConds: { col: string; notEq: boolean; val: unknown }[] = [];
 
       for (const cond of conds) {
-        if (cond.includes("!=")) {
-          const colName = cond.split("!=")[0].trim();
-          whereCols.push(colName);
-          isNotEqual.push(true);
+        const notEq = cond.includes("!=");
+        const parts = cond.split(notEq ? "!=" : "=").map((s) => s.trim());
+        const col = parts[0];
+        const valStr = parts[1];
+
+        let val: unknown;
+        if (valStr === "?") {
+          val = params[paramIdx++];
         } else {
-          const colName = cond.split("=")[0].trim();
-          whereCols.push(colName);
-          isNotEqual.push(false);
+          val = valStr ? valStr.replace(/^'|'$/g, "") : "";
         }
+        parsedConds.push({ col, notEq, val });
       }
 
       const filtered = table.filter((row) => {
-        for (let i = 0; i < whereCols.length; i++) {
-          const col = whereCols[i];
-          const notEq = isNotEqual[i];
-          const expectedVal = params[i];
-          if (notEq) {
-            if (row[col] === expectedVal) return false;
+        for (const c of parsedConds) {
+          if (c.notEq) {
+            if (row[c.col] === c.val) return false;
           } else {
-            if (row[col] !== expectedVal) return false;
+            if (row[c.col] !== c.val) return false;
           }
         }
         return true;
