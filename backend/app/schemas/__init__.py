@@ -12,6 +12,7 @@ from app.schemas.category import (
 from app.schemas.entry import (
     EntryCreate,
     EntryResponse,
+    PaginatedEntriesResponse,
 )
 from app.schemas.tag import (
     TagCreate,
@@ -27,6 +28,7 @@ __all__ = [
     "EntryResponse",
     "LoginRequest",
     "MessageResponse",
+    "PaginatedEntriesResponse",
     "TagCreate",
     "TagResponse",
     "TagUpdate",

@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.models.domain import User
-from app.schemas.entry import EntryCreate, EntryResponse
+from app.schemas.entry import EntryCreate, EntryResponse, PaginatedEntriesResponse
 from app.services.entry_service import (
     EntryNotFoundError,
     InvalidEntryDataError,
     create_entry,
     get_entry_by_id,
+    list_entries,
 )
 
 router = APIRouter(prefix="/entries", tags=["entries"])
@@ -30,6 +32,48 @@ def create_new_entry(
         response_data = EntryResponse.model_validate(entry)
         response_data.tag_ids = tag_ids
         return response_data
+    except InvalidEntryDataError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+
+@router.get("", response_model=PaginatedEntriesResponse)
+def get_user_entries(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    start_at: Annotated[datetime | None, Query()] = None,
+    end_at: Annotated[datetime | None, Query()] = None,
+    category_ids: Annotated[list[uuid.UUID] | None, Query()] = None,
+    tag_ids: Annotated[list[uuid.UUID] | None, Query()] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> PaginatedEntriesResponse:
+    try:
+        results, total = list_entries(
+            db=db,
+            user_id=current_user.id,
+            start_at=start_at,
+            end_at=end_at,
+            category_ids=category_ids,
+            tag_ids=tag_ids,
+            page=page,
+            limit=limit,
+        )
+        items: list[EntryResponse] = []
+        for entry, t_ids in results:
+            item = EntryResponse.model_validate(entry)
+            item.tag_ids = t_ids
+            items.append(item)
+
+        has_more = (page * limit) < total
+        return PaginatedEntriesResponse(
+            items=items,
+            total=total,
+            page=page,
+            limit=limit,
+            has_more=has_more,
+        )
     except InvalidEntryDataError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)

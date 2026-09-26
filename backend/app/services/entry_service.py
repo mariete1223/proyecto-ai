@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.domain import Category, Entry, EntryTag, Tag
@@ -91,3 +91,58 @@ def get_entry_by_id(
     )
     tag_ids = list(db.execute(stmt_tags).scalars().all())
     return entry, tag_ids
+
+
+def list_entries(
+    db: Session,
+    user_id: uuid.UUID,
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
+    category_ids: list[uuid.UUID] | None = None,
+    tag_ids: list[uuid.UUID] | None = None,
+    page: int = 1,
+    limit: int = 20,
+) -> tuple[list[tuple[Entry, list[uuid.UUID]]], int]:
+    """List and filter entries owned by user with pagination."""
+    if page < 1:
+        raise InvalidEntryDataError("Page must be greater than or equal to 1.")
+    if limit < 1 or limit > 100:
+        raise InvalidEntryDataError("Limit must be between 1 and 100.")
+
+    stmt = select(Entry).where(Entry.user_id == user_id)
+
+    if start_at is not None:
+        stmt = stmt.where(Entry.occurred_at >= start_at)
+    if end_at is not None:
+        stmt = stmt.where(Entry.occurred_at <= end_at)
+    if category_ids:
+        stmt = stmt.where(Entry.category_id.in_(category_ids))
+    if tag_ids:
+        tag_subquery = select(EntryTag.entry_id).where(
+            EntryTag.tag_id.in_(tag_ids), EntryTag.user_id == user_id
+        )
+        stmt = stmt.where(Entry.id.in_(tag_subquery))
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total_count = db.execute(count_stmt).scalar() or 0
+
+    ordered_stmt = stmt.order_by(
+        Entry.occurred_at.desc().nulls_last(), Entry.created_at.desc(), Entry.id
+    )
+    paginated_stmt = ordered_stmt.offset((page - 1) * limit).limit(limit)
+    entries = list(db.execute(paginated_stmt).scalars().all())
+
+    results: list[tuple[Entry, list[uuid.UUID]]] = []
+    if entries:
+        entry_ids = [e.id for e in entries]
+        stmt_entry_tags = select(EntryTag.entry_id, EntryTag.tag_id).where(
+            EntryTag.entry_id.in_(entry_ids), EntryTag.user_id == user_id
+        )
+        tag_map: dict[uuid.UUID, list[uuid.UUID]] = {}
+        for eid, tid in db.execute(stmt_entry_tags).all():
+            tag_map.setdefault(eid, []).append(tid)
+
+        for entry in entries:
+            results.append((entry, tag_map.get(entry.id, [])))
+
+    return results, total_count

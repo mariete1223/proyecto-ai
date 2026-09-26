@@ -15,6 +15,7 @@ from app.services.entry_service import (
     InvalidEntryDataError,
     create_entry,
     get_entry_by_id,
+    list_entries,
 )
 from app.services.tag_service import (
     InvalidTagDataError,
@@ -57,6 +58,7 @@ __all__ = [
     "get_entry_by_id",
     "get_tag_by_id",
     "list_categories",
+    "list_entries",
     "list_tags",
     "normalize_email",
     "normalize_tag_name",

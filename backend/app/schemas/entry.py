@@ -38,3 +38,11 @@ class EntryResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     version: int
+
+
+class PaginatedEntriesResponse(BaseModel):
+    items: list[EntryResponse]
+    total: int
+    page: int
+    limit: int
+    has_more: bool
