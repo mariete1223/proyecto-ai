@@ -3,6 +3,7 @@ from __future__ import annotations
 import unicodedata
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,6 +23,50 @@ class CategoryAlreadyExistsError(ValueError):
 
 class InvalidCategoryDataError(ValueError):
     """Raised when category validation fails."""
+
+
+INITIAL_CATEGORIES: list[dict[str, Any]] = [
+    {
+        "kind": CategoryKind.TASK,
+        "name": "Tarea",
+        "voice_command": "tarea",
+        "description": "Categoría predeterminada para tareas y cosas pendientes",
+        "color": "#E53935",
+        "icon": "check-square",
+    },
+    {
+        "kind": CategoryKind.EVENT,
+        "name": "Evento",
+        "voice_command": "evento",
+        "description": "Categoría predeterminada para eventos de calendario",
+        "color": "#1E88E5",
+        "icon": "calendar",
+    },
+    {
+        "kind": CategoryKind.CAPTURE,
+        "name": "Captura",
+        "voice_command": "captura",
+        "description": "Categoría predeterminada para capturas rápidas",
+        "color": "#7CB342",
+        "icon": "mic",
+    },
+    {
+        "kind": CategoryKind.STANDARD,
+        "name": "Recuerdo",
+        "voice_command": "recuerdo",
+        "description": "Categoría para recuerdos y momentos personales",
+        "color": "#8E24AA",
+        "icon": "bookmark",
+    },
+    {
+        "kind": CategoryKind.STANDARD,
+        "name": "Aprendizaje",
+        "voice_command": "aprendizaje",
+        "description": "Categoría para notas de estudio y aprendizajes",
+        "color": "#FDD835",
+        "icon": "book-open",
+    },
+]
 
 
 def normalize_text_key(text_val: str) -> str:
@@ -82,6 +127,39 @@ def create_category(db: Session, user_id: uuid.UUID, data: CategoryCreate) -> Ca
     db.add(category)
     db.flush()
     return category
+
+
+def seed_initial_categories(db: Session, user_id: uuid.UUID) -> list[Category]:
+    """Idempotently seed standard MVP initial categories for a user."""
+    created_categories: list[Category] = []
+    for item in INITIAL_CATEGORIES:
+        kind = item["kind"]
+        name = item["name"]
+        name_norm = normalize_text_key(name)
+
+        if kind != CategoryKind.STANDARD:
+            stmt_check = select(Category).where(
+                Category.user_id == user_id, Category.kind == kind
+            )
+        else:
+            stmt_check = select(Category).where(
+                Category.user_id == user_id, Category.name_normalized == name_norm
+            )
+
+        if db.execute(stmt_check).scalar_one_or_none() is not None:
+            continue
+
+        cat_create = CategoryCreate(
+            kind=kind,
+            name=name,
+            voice_command=item["voice_command"],
+            description=item["description"],
+            color=item["color"],
+            icon=item["icon"],
+        )
+        created_categories.append(create_category(db, user_id, cat_create))
+
+    return created_categories
 
 
 def get_category_by_id(

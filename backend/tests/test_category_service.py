@@ -19,6 +19,7 @@ from app.services.category_service import (
     delete_category,
     get_category_by_id,
     list_categories,
+    seed_initial_categories,
     update_category,
 )
 from app.services.user_service import create_user
@@ -207,3 +208,24 @@ def test_update_and_delete_category(db_session: Session) -> None:
 
     with pytest.raises(CategoryNotFoundError):
         get_category_by_id(db_session, user.id, cat.id)
+
+
+def test_seed_initial_categories_is_idempotent(db_session: Session) -> None:
+    user = create_user(db_session, "seed_user@example.com", "Password123!")
+
+    first_seed = seed_initial_categories(db_session, user.id)
+    assert len(first_seed) == 5
+
+    all_categories = list_categories(db_session, user.id)
+    assert len(all_categories) == 5
+
+    kinds = {c.kind for c in all_categories}
+    assert CategoryKind.TASK in kinds
+    assert CategoryKind.EVENT in kinds
+    assert CategoryKind.CAPTURE in kinds
+
+    second_seed = seed_initial_categories(db_session, user.id)
+    assert len(second_seed) == 0
+
+    all_after_second = list_categories(db_session, user.id)
+    assert len(all_after_second) == 5

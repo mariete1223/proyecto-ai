@@ -7,6 +7,7 @@ from app.services.category_service import (
     get_category_by_id,
     list_categories,
     normalize_text_key,
+    seed_initial_categories,
     update_category,
 )
 from app.services.user_service import (
@@ -31,6 +32,7 @@ __all__ = [
     "list_categories",
     "normalize_email",
     "normalize_text_key",
+    "seed_initial_categories",
     "update_category",
     "validate_email",
     "validate_password",
