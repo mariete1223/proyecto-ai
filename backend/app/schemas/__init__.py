@@ -24,6 +24,14 @@ from app.schemas.preference import (
     SavePreferenceResponse,
     SavePreferenceUpdate,
 )
+from app.schemas.sync import (
+    PushResultStatus,
+    SyncAction,
+    SyncClientChange,
+    SyncPushChangeResult,
+    SyncPushRequest,
+    SyncPushResponse,
+)
 from app.schemas.tag import (
     TagCreate,
     TagResponse,
@@ -42,8 +50,14 @@ __all__ = [
     "LoginRequest",
     "MessageResponse",
     "PaginatedEntriesResponse",
+    "PushResultStatus",
     "SavePreferenceResponse",
     "SavePreferenceUpdate",
+    "SyncAction",
+    "SyncClientChange",
+    "SyncPushChangeResult",
+    "SyncPushRequest",
+    "SyncPushResponse",
     "TagCreate",
     "TagResponse",
     "TagUpdate",
