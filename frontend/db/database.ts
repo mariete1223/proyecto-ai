@@ -163,7 +163,7 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
     sql: string,
     params: unknown[] = [],
   ): Promise<{ lastInsertRowId: number; changes: number }> {
-    const trimmed = sql.trim();
+    const trimmed = sql.trim().replace(/;$/, "");
 
     if (trimmed.toUpperCase().startsWith("INSERT INTO SCHEMA_MIGRATIONS")) {
       const version = params[0] as number;
@@ -297,7 +297,9 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
   }
 
   async getAllAsync<T>(sql: string, params: unknown[] = []): Promise<T[]> {
-    if (sql.toUpperCase().includes("MAX(VERSION)")) {
+    const trimmed = sql.trim().replace(/;$/, "");
+
+    if (trimmed.toUpperCase().includes("MAX(VERSION)")) {
       if (this.migrations.length === 0) {
         return [{ max_v: null }] as unknown as T[];
       }
@@ -305,13 +307,16 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
       return [{ max_v: maxV }] as unknown as T[];
     }
 
-    const match = sql.match(
-      /SELECT\s+.*?\s+FROM\s+([a-z0-9_]+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY.+)?;/i,
+    const match = trimmed.match(
+      /SELECT\s+.*?\s+FROM\s+([a-z0-9_]+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY.+)?$/i,
     );
     if (match && match[1]) {
       const tableName = match[1].toLowerCase();
       const table = this.tables.get(tableName) ?? [];
-      const whereClause = match[2];
+      let whereClause = match[2];
+      if (whereClause) {
+        whereClause = whereClause.replace(/\s+ORDER\s+BY.+$/i, "").trim();
+      }
 
       if (!whereClause) {
         return table as unknown as T[];
