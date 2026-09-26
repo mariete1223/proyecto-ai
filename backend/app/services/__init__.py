@@ -10,6 +10,12 @@ from app.services.category_service import (
     seed_initial_categories,
     update_category,
 )
+from app.services.entry_service import (
+    EntryNotFoundError,
+    InvalidEntryDataError,
+    create_entry,
+    get_entry_by_id,
+)
 from app.services.tag_service import (
     InvalidTagDataError,
     TagAlreadyExistsError,
@@ -33,18 +39,22 @@ from app.services.user_service import (
 __all__ = [
     "CategoryAlreadyExistsError",
     "CategoryNotFoundError",
+    "EntryNotFoundError",
     "InvalidCategoryDataError",
+    "InvalidEntryDataError",
     "InvalidTagDataError",
     "InvalidUserDataError",
     "TagAlreadyExistsError",
     "TagNotFoundError",
     "UserAlreadyExistsError",
     "create_category",
+    "create_entry",
     "create_tag",
     "create_user",
     "delete_category",
     "delete_tag",
     "get_category_by_id",
+    "get_entry_by_id",
     "get_tag_by_id",
     "list_categories",
     "list_tags",
