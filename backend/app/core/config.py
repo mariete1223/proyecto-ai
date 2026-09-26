@@ -6,6 +6,8 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
 
 DATABASE_URL_ENV_VAR = "DATABASE_URL"
+SECRET_KEY_ENV_VAR = "SECRET_KEY"
+DEFAULT_DEV_SECRET_KEY = "insecure-dev-secret-key-change-in-production"
 
 
 class DatabaseConfigurationError(RuntimeError):
@@ -45,3 +47,11 @@ def load_database_url() -> URL:
         )
 
     return url
+
+
+def get_secret_key() -> str:
+    """Get the secret key for signing tokens."""
+    secret = os.environ.get(SECRET_KEY_ENV_VAR)
+    if secret and secret.strip():
+        return secret.strip()
+    return DEFAULT_DEV_SECRET_KEY

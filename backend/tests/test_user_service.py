@@ -7,6 +7,7 @@ from typing import Any, cast
 import pytest
 from sqlalchemy import Table, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.core.security import verify_password
 from app.models.domain import User
@@ -23,6 +24,7 @@ def db_session() -> Generator[Session, None, None]:
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
 
     @event.listens_for(engine, "connect")
