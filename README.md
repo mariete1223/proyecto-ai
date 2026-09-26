@@ -75,3 +75,25 @@ Push-Location backend
 uv run uvicorn app.main:app --reload
 Pop-Location
 ```
+
+## Conexión del backend a PostgreSQL
+
+El backend obtiene la conexión exclusivamente de `DATABASE_URL`. Configura la
+variable en el entorno antes de utilizar la persistencia; este valor es solo un
+marcador de formato y no contiene credenciales reales:
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://USUARIO:CONTRASENA@HOST:5432/BASE_DE_DATOS"
+```
+
+Para comprobar la configuración y conectividad mediante `SELECT 1`, ejecuta
+desde la raíz:
+
+```powershell
+uv run --directory backend python -m scripts.check_database
+```
+
+Una conexión correcta muestra `PostgreSQL connection check succeeded.` y
+termina con código `0`. Una configuración inválida o un fallo de conexión
+muestra `PostgreSQL connection check failed.` y termina con un código distinto
+de `0`; la salida no incluye credenciales ni la URL de conexión.
