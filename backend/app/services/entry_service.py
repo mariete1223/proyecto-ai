@@ -3,11 +3,11 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.domain import Category, Entry, EntryTag, Tag
-from app.schemas.entry import EntryCreate
+from app.schemas.entry import EntryCreate, EntryUpdate
 
 
 class EntryNotFoundError(ValueError):
@@ -146,3 +146,79 @@ def list_entries(
             results.append((entry, tag_map.get(entry.id, [])))
 
     return results, total_count
+
+
+def update_entry(
+    db: Session, user_id: uuid.UUID, entry_id: uuid.UUID, data: EntryUpdate
+) -> tuple[Entry, list[uuid.UUID]]:
+    """Update an existing entry and its tags."""
+    entry, current_tag_ids = get_entry_by_id(db, user_id, entry_id)
+    now = datetime.now(UTC)
+
+    if data.category_id is not None and data.category_id != entry.category_id:
+        stmt_cat = select(Category).where(
+            Category.id == data.category_id, Category.user_id == user_id
+        )
+        if db.execute(stmt_cat).scalar_one_or_none() is None:
+            raise InvalidEntryDataError(
+                "Category not found or does not belong to user."
+            )
+        entry.category_id = data.category_id
+
+    if data.content is not None:
+        cleaned_content = data.content.strip()
+        if not cleaned_content:
+            raise InvalidEntryDataError("Entry content cannot be empty.")
+        entry.content = cleaned_content
+
+    if data.occurred_at is not None:
+        entry.occurred_at = data.occurred_at
+
+    updated_tag_ids = current_tag_ids
+    if data.tag_ids is not None:
+        distinct_tag_ids = list(dict.fromkeys(data.tag_ids))
+        if distinct_tag_ids:
+            stmt_tags = select(Tag.id).where(
+                Tag.id.in_(distinct_tag_ids), Tag.user_id == user_id
+            )
+            existing_tag_ids = set(db.execute(stmt_tags).scalars().all())
+            if len(existing_tag_ids) != len(distinct_tag_ids):
+                raise InvalidEntryDataError(
+                    "One or more tag IDs do not exist for user."
+                )
+
+        db.execute(
+            delete(EntryTag).where(
+                EntryTag.entry_id == entry_id, EntryTag.user_id == user_id
+            )
+        )
+        for tag_id in distinct_tag_ids:
+            db.add(
+                EntryTag(
+                    id=uuid.uuid4(),
+                    user_id=user_id,
+                    entry_id=entry.id,
+                    tag_id=tag_id,
+                    created_at=now,
+                    updated_at=now,
+                    version=1,
+                )
+            )
+        updated_tag_ids = distinct_tag_ids
+
+    entry.updated_at = now
+    entry.version += 1
+    db.flush()
+    return entry, updated_tag_ids
+
+
+def delete_entry(db: Session, user_id: uuid.UUID, entry_id: uuid.UUID) -> None:
+    """Delete an entry and its associated EntryTag relationships."""
+    entry, _ = get_entry_by_id(db, user_id, entry_id)
+    db.execute(
+        delete(EntryTag).where(
+            EntryTag.entry_id == entry_id, EntryTag.user_id == user_id
+        )
+    )
+    db.delete(entry)
+    db.flush()

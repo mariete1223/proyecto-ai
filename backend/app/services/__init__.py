@@ -14,8 +14,10 @@ from app.services.entry_service import (
     EntryNotFoundError,
     InvalidEntryDataError,
     create_entry,
+    delete_entry,
     get_entry_by_id,
     list_entries,
+    update_entry,
 )
 from app.services.tag_service import (
     InvalidTagDataError,
@@ -53,6 +55,7 @@ __all__ = [
     "create_tag",
     "create_user",
     "delete_category",
+    "delete_entry",
     "delete_tag",
     "get_category_by_id",
     "get_entry_by_id",
@@ -65,6 +68,7 @@ __all__ = [
     "normalize_text_key",
     "seed_initial_categories",
     "update_category",
+    "update_entry",
     "update_tag",
     "validate_email",
     "validate_password",

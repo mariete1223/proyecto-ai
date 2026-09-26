@@ -4,18 +4,25 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.models.domain import User
-from app.schemas.entry import EntryCreate, EntryResponse, PaginatedEntriesResponse
+from app.schemas.entry import (
+    EntryCreate,
+    EntryResponse,
+    EntryUpdate,
+    PaginatedEntriesResponse,
+)
 from app.services.entry_service import (
     EntryNotFoundError,
     InvalidEntryDataError,
     create_entry,
+    delete_entry,
     get_entry_by_id,
     list_entries,
+    update_entry,
 )
 
 router = APIRouter(prefix="/entries", tags=["entries"])
@@ -91,6 +98,43 @@ def get_user_entry_by_id(
         response_data = EntryResponse.model_validate(entry)
         response_data.tag_ids = tag_ids
         return response_data
+    except EntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+
+
+@router.put("/{entry_id}", response_model=EntryResponse)
+def update_user_entry(
+    entry_id: uuid.UUID,
+    data: EntryUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> EntryResponse:
+    try:
+        updated_entry, tag_ids = update_entry(db, current_user.id, entry_id, data)
+        response_data = EntryResponse.model_validate(updated_entry)
+        response_data.tag_ids = tag_ids
+        return response_data
+    except EntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except InvalidEntryDataError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+
+@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user_entry(
+    entry_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    try:
+        delete_entry(db, current_user.id, entry_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except EntryNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)

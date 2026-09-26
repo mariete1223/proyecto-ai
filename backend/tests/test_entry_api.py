@@ -134,6 +134,37 @@ def test_get_entry_by_id_api(
     assert response.json()["content"] == "Content to fetch"
 
 
+def test_update_and_delete_entry_api(
+    client: TestClient, test_db_session: Session, auth_headers: dict[str, str]
+) -> None:
+    user = test_db_session.query(User).filter_by(email="entryuser@example.com").one()
+    cat = create_category(
+        test_db_session,
+        user.id,
+        CategoryCreate(name="Cat", voice_command="c", color="#112233", icon="i"),
+    )
+    entry, _ = create_entry(
+        test_db_session,
+        user.id,
+        EntryCreate(category_id=cat.id, content="Before update"),
+    )
+
+    put_resp = client.put(
+        f"/api/v1/entries/{entry.id}",
+        headers=auth_headers,
+        json={"content": "After update"},
+    )
+    assert put_resp.status_code == 200
+    assert put_resp.json()["content"] == "After update"
+    assert put_resp.json()["version"] == 2
+
+    del_resp = client.delete(f"/api/v1/entries/{entry.id}", headers=auth_headers)
+    assert del_resp.status_code == 204
+
+    get_resp = client.get(f"/api/v1/entries/{entry.id}", headers=auth_headers)
+    assert get_resp.status_code == 404
+
+
 def test_user_isolation_entry_api(
     client: TestClient, test_db_session: Session, auth_headers: dict[str, str]
 ) -> None:

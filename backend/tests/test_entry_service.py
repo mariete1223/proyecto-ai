@@ -12,15 +12,17 @@ from sqlalchemy.pool import StaticPool
 
 from app.models.domain import Category, Entry, EntryTag, Tag, User
 from app.schemas.category import CategoryCreate
-from app.schemas.entry import EntryCreate
+from app.schemas.entry import EntryCreate, EntryUpdate
 from app.schemas.tag import TagCreate
 from app.services.category_service import create_category
 from app.services.entry_service import (
     EntryNotFoundError,
     InvalidEntryDataError,
     create_entry,
+    delete_entry,
     get_entry_by_id,
     list_entries,
+    update_entry,
 )
 from app.services.tag_service import create_tag
 from app.services.user_service import create_user
@@ -192,24 +194,19 @@ def test_list_entries_filtering_and_pagination(db_session: Session) -> None:
         EntryCreate(category_id=cat1.id, occurred_at=t3, content="Entry 3"),
     )
 
-    # Test list all paginated
     entries, total = list_entries(db_session, user.id, page=1, limit=2)
     assert total == 3
     assert len(entries) == 2
-    # Order by occurred_at desc -> e3, e2
     assert [e[0].id for e in entries] == [e3.id, e2.id]
 
-    # Filter by category
     cat1_entries, cat1_total = list_entries(db_session, user.id, category_ids=[cat1.id])
     assert cat1_total == 2
     assert [e[0].id for e in cat1_entries] == [e3.id, e1.id]
 
-    # Filter by tag
     tag1_entries, tag1_total = list_entries(db_session, user.id, tag_ids=[tag1.id])
     assert tag1_total == 1
     assert tag1_entries[0][0].id == e1.id
 
-    # Filter by date range
     range_entries, range_total = list_entries(
         db_session,
         user.id,
@@ -218,3 +215,36 @@ def test_list_entries_filtering_and_pagination(db_session: Session) -> None:
     )
     assert range_total == 2
     assert [e[0].id for e in range_entries] == [e2.id, e1.id]
+
+
+def test_update_and_delete_entry(db_session: Session) -> None:
+    user = create_user(db_session, "update@example.com", "Password123!")
+    cat = create_category(
+        db_session,
+        user.id,
+        CategoryCreate(name="Cat", voice_command="c", color="#111111", icon="i"),
+    )
+    tag1 = create_tag(db_session, user.id, TagCreate(name="Tag 1"))
+    tag2 = create_tag(db_session, user.id, TagCreate(name="Tag 2"))
+
+    entry, _ = create_entry(
+        db_session,
+        user.id,
+        EntryCreate(category_id=cat.id, content="Original Content", tag_ids=[tag1.id]),
+    )
+
+    updated_entry, tag_ids = update_entry(
+        db_session,
+        user.id,
+        entry.id,
+        EntryUpdate(content="Updated Content", tag_ids=[tag2.id]),
+    )
+
+    assert updated_entry.content == "Updated Content"
+    assert tag_ids == [tag2.id]
+    assert updated_entry.version == 2
+
+    delete_entry(db_session, user.id, entry.id)
+
+    with pytest.raises(EntryNotFoundError):
+        get_entry_by_id(db_session, user.id, entry.id)

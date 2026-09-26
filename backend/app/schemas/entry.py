@@ -23,6 +23,20 @@ class EntryCreate(BaseModel):
         return v
 
 
+class EntryUpdate(BaseModel):
+    category_id: UUID | None = None
+    occurred_at: datetime | None = None
+    content: str | None = Field(default=None, min_length=1, max_length=10000)
+    tag_ids: list[UUID] | None = None
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def strip_optional_content(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            v = v.strip()
+        return v
+
+
 class EntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
