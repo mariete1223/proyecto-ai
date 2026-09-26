@@ -106,6 +106,26 @@ export const MIGRATIONS: { version: number; sql: string }[] = [
       );
     `,
   },
+  {
+    version: 2,
+    sql: `
+      CREATE TABLE IF NOT EXISTS sync_cursors (
+        user_id TEXT PRIMARY KEY,
+        cursor TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sync_conflicts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        server_entity TEXT NOT NULL,
+        error_message TEXT,
+        created_at TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export async function runMigrations(db: DatabaseAdapter): Promise<number> {
