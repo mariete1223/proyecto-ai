@@ -96,6 +96,7 @@ class Category(Base):
             "kind",
             unique=True,
             postgresql_where=text("kind <> 'STANDARD'"),
+            sqlite_where=text("kind <> 'STANDARD'"),
         ),
     )
 

@@ -4,8 +4,16 @@ from app.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
+from app.schemas.category import (
+    CategoryCreate,
+    CategoryResponse,
+    CategoryUpdate,
+)
 
 __all__ = [
+    "CategoryCreate",
+    "CategoryResponse",
+    "CategoryUpdate",
     "LoginRequest",
     "MessageResponse",
     "TokenResponse",
