@@ -9,6 +9,11 @@ from app.schemas.category import (
     CategoryResponse,
     CategoryUpdate,
 )
+from app.schemas.tag import (
+    TagCreate,
+    TagResponse,
+    TagUpdate,
+)
 
 __all__ = [
     "CategoryCreate",
@@ -16,6 +21,9 @@ __all__ = [
     "CategoryUpdate",
     "LoginRequest",
     "MessageResponse",
+    "TagCreate",
+    "TagResponse",
+    "TagUpdate",
     "TokenResponse",
     "UserResponse",
 ]
