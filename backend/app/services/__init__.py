@@ -21,6 +21,10 @@ from app.services.entry_service import (
     update_entry,
     update_task_status,
 )
+from app.services.preference_service import (
+    get_save_preference,
+    update_save_preference,
+)
 from app.services.tag_service import (
     InvalidTagDataError,
     TagAlreadyExistsError,
@@ -61,6 +65,7 @@ __all__ = [
     "delete_tag",
     "get_category_by_id",
     "get_entry_by_id",
+    "get_save_preference",
     "get_tag_by_id",
     "list_categories",
     "list_entries",
@@ -72,6 +77,7 @@ __all__ = [
     "seed_initial_categories",
     "update_category",
     "update_entry",
+    "update_save_preference",
     "update_task_status",
     "update_tag",
     "validate_email",

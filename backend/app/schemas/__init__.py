@@ -16,6 +16,10 @@ from app.schemas.entry import (
     PaginatedEntriesResponse,
     TaskStatusUpdate,
 )
+from app.schemas.preference import (
+    SavePreferenceResponse,
+    SavePreferenceUpdate,
+)
 from app.schemas.tag import (
     TagCreate,
     TagResponse,
@@ -32,6 +36,8 @@ __all__ = [
     "LoginRequest",
     "MessageResponse",
     "PaginatedEntriesResponse",
+    "SavePreferenceResponse",
+    "SavePreferenceUpdate",
     "TagCreate",
     "TagResponse",
     "TagUpdate",
