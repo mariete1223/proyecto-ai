@@ -10,6 +10,12 @@ from app.services.category_service import (
     seed_initial_categories,
     update_category,
 )
+from app.services.correction_service import (
+    CorrectionNotFoundError,
+    InvalidCorrectionDataError,
+    create_capture_correction,
+    list_capture_corrections,
+)
 from app.services.entry_service import (
     EntryNotFoundError,
     InvalidEntryDataError,
@@ -48,14 +54,17 @@ from app.services.user_service import (
 __all__ = [
     "CategoryAlreadyExistsError",
     "CategoryNotFoundError",
+    "CorrectionNotFoundError",
     "EntryNotFoundError",
     "InvalidCategoryDataError",
+    "InvalidCorrectionDataError",
     "InvalidEntryDataError",
     "InvalidTagDataError",
     "InvalidUserDataError",
     "TagAlreadyExistsError",
     "TagNotFoundError",
     "UserAlreadyExistsError",
+    "create_capture_correction",
     "create_category",
     "create_entry",
     "create_tag",
@@ -67,6 +76,7 @@ __all__ = [
     "get_entry_by_id",
     "get_save_preference",
     "get_tag_by_id",
+    "list_capture_corrections",
     "list_categories",
     "list_entries",
     "list_pending_dateless_tasks",

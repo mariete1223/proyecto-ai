@@ -9,6 +9,10 @@ from app.schemas.category import (
     CategoryResponse,
     CategoryUpdate,
 )
+from app.schemas.correction import (
+    CaptureCorrectionCreate,
+    CaptureCorrectionResponse,
+)
 from app.schemas.entry import (
     EntryCreate,
     EntryResponse,
@@ -27,6 +31,8 @@ from app.schemas.tag import (
 )
 
 __all__ = [
+    "CaptureCorrectionCreate",
+    "CaptureCorrectionResponse",
     "CategoryCreate",
     "CategoryResponse",
     "CategoryUpdate",
