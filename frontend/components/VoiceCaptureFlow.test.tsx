@@ -120,4 +120,16 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
 
     expect(await findByTestId("voice-capture-success")).toBeTruthy();
   });
+
+  it("shows animated wave visualizer when starting listening", async () => {
+    const { getByTestId, findByTestId } = await render(
+      <VoiceCaptureFlow db={db} userId={userId} saveMode="FAST_FORWARD" />,
+    );
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-start-listening"));
+    });
+
+    expect(await findByTestId("voice-wave-visualizer")).toBeTruthy();
+  });
 });

@@ -162,13 +162,27 @@ export function VoiceCaptureFlow({
         {`Estado: ${voiceState === "LISTENING" ? "Escuchando..." : voiceState}`}
       </Text>
 
+      {/* Voice Wave Visualizer indicator */}
+      {voiceState === "LISTENING" && (
+        <View style={styles.waveVisualizer} testID="voice-wave-visualizer">
+          <View style={[styles.waveBar, { height: 18 }]} />
+          <View style={[styles.waveBar, { height: 32 }]} />
+          <View style={[styles.waveBar, { height: 24 }]} />
+          <View style={[styles.waveBar, { height: 40 }]} />
+          <View style={[styles.waveBar, { height: 28 }]} />
+          <View style={[styles.waveBar, { height: 16 }]} />
+        </View>
+      )}
+
       {voiceState === "IDLE" ? (
         <Pressable
           testID="btn-start-listening"
           style={styles.listenButton}
           onPress={handleStartListening}
         >
-          <Text style={styles.listenButtonText}>Iniciar Dictado por Voz</Text>
+          <Text style={styles.listenButtonText}>
+            🎙️ Iniciar Dictado por Voz
+          </Text>
         </Pressable>
       ) : (
         <Pressable
@@ -181,7 +195,7 @@ export function VoiceCaptureFlow({
             )
           }
         >
-          <Text style={styles.stopButtonText}>Detener y Procesar</Text>
+          <Text style={styles.stopButtonText}>⏹️ Detener y Procesar</Text>
         </Pressable>
       )}
 
@@ -410,5 +424,23 @@ const styles = StyleSheet.create({
   successText: {
     color: "#A7F3D0",
     fontSize: 14,
+  },
+  waveVisualizer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginVertical: 14,
+    height: 48,
+    backgroundColor: "rgba(56, 189, 248, 0.1)",
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+  },
+  waveBar: {
+    width: 6,
+    backgroundColor: "#38BDF8",
+    borderRadius: 3,
   },
 });

@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -7,7 +8,10 @@ import {
 import React from "react";
 import { createLocalCategory } from "../db/categories";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
-import { createLocalEntry } from "../db/entries";
+import {
+  createLocalEntry,
+  updateLocalEntry as defaultUpdateLocalEntry,
+} from "../db/entries";
 import { PendingTasksView } from "./PendingTasksView";
 
 describe("PendingTasksView Component", () => {
@@ -70,11 +74,16 @@ describe("PendingTasksView Component", () => {
 
     const onSelectEntry = jest.fn();
 
-    const { getByTestId, getByText, queryByText } = await render(
+    const updateEntryMock = jest
+      .fn()
+      .mockImplementation(defaultUpdateLocalEntry);
+
+    const { getAllByText, getByTestId, getByText, queryByText } = await render(
       <PendingTasksView
         db={db}
         userId={userId}
         onSelectEntry={onSelectEntry}
+        updateEntry={updateEntryMock}
       />,
     );
 
@@ -83,24 +92,85 @@ describe("PendingTasksView Component", () => {
     });
 
     // Select task card
-    fireEvent.press(getByTestId(`task-card-${task1.id}`));
+    await act(async () => {
+      fireEvent.press(getByTestId(`task-card-${task1.id}`));
+    });
     expect(onSelectEntry).toHaveBeenCalledWith(
       expect.objectContaining({ id: task1.id }),
     );
 
     // Change status to IN_PROGRESS
-    fireEvent.press(getByTestId(`status-inprogress-${task1.id}`));
+    await act(async () => {
+      fireEvent.press(getByTestId(`status-inprogress-${task1.id}`));
+    });
 
     await waitFor(() => {
-      expect(getByText(/En progreso/)).toBeTruthy();
+      expect(getAllByText(/En progreso/).length).toBeGreaterThan(0);
     });
 
     // Change status to DONE (which removes it from pending dateless list)
-    fireEvent.press(getByTestId(`status-done-${task1.id}`));
+    await act(async () => {
+      fireEvent.press(getByTestId(`status-done-${task1.id}`));
+    });
 
     await waitFor(() => {
       expect(queryByText("Comprar leche")).toBeNull();
       expect(getByTestId("empty-container")).toBeTruthy();
+    });
+  });
+
+  test("filters tasks by search query and exports JSON data", async () => {
+    await createLocalEntry(db, userId, {
+      category_id: taskCatId,
+      occurred_at: null,
+      content: "Comprar pan",
+      task_status: "PENDING",
+      task_recurrence: "ONCE",
+    });
+
+    await createLocalEntry(db, userId, {
+      category_id: taskCatId,
+      occurred_at: null,
+      content: "Llamar al médico",
+      task_status: "PENDING",
+      task_recurrence: "ONCE",
+    });
+
+    const { getByTestId, getByText, queryByText } = await render(
+      <PendingTasksView db={db} userId={userId} />,
+    );
+
+    await waitFor(() => {
+      expect(getByText("Comprar pan")).toBeTruthy();
+      expect(getByText("Llamar al médico")).toBeTruthy();
+    });
+
+    // Type in search query
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-search-tasks"), "Llamar");
+    });
+
+    await waitFor(() => {
+      expect(queryByText("Comprar pan")).toBeNull();
+      expect(getByText("Llamar al médico")).toBeTruthy();
+    });
+
+    // Test JSON export
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-export-json"));
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("export-json-banner")).toBeTruthy();
+    });
+
+    // Close export banner
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-close-export"));
+    });
+
+    await waitFor(() => {
+      expect(queryByText("Exportación de Datos (JSON):")).toBeNull();
     });
   });
 });

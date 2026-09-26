@@ -1,0 +1,53 @@
+export const theme = {
+  colors: {
+    bgApp: "#0f172a", // Dark slate background for desktop header & container contrast
+    bgCard: "rgba(255, 255, 255, 0.9)",
+    bgCardGlass: "rgba(255, 255, 255, 0.75)",
+    bgSurface: "#f8fafc",
+    primary: "#3b82f6",
+    primaryHover: "#2563eb",
+    primaryGradientStart: "#3b82f6",
+    primaryGradientEnd: "#6366f1",
+    secondary: "#64748b",
+    success: "#10b981",
+    warning: "#f59e0b",
+    danger: "#ef4444",
+    purple: "#8b5cf6",
+    textPrimary: "#1e293b",
+    textSecondary: "#64748b",
+    textLight: "#94a3b8",
+    textWhite: "#ffffff",
+    borderLight: "rgba(226, 232, 240, 0.8)",
+    borderGlow: "rgba(59, 130, 246, 0.3)",
+  },
+  shadows: {
+    glass: {
+      shadowColor: "#0f172a",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+      elevation: 4,
+    },
+    card: {
+      shadowColor: "#1e293b",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 3,
+    },
+    glow: {
+      shadowColor: "#3b82f6",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+  },
+  borderRadius: {
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 24,
+    full: 9999,
+  },
+};

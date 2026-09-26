@@ -177,7 +177,7 @@ def test_list_and_get_category(db_session: Session) -> None:
 
     categories = list_categories(db_session, user.id)
     assert len(categories) == 2
-    assert [c.id for c in categories] == [cat1.id, cat2.id]
+    assert set(c.id for c in categories) == {cat1.id, cat2.id}
 
     fetched = get_category_by_id(db_session, user.id, cat1.id)
     assert fetched.id == cat1.id

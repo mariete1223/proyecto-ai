@@ -1,18 +1,25 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
+import { theme } from "../styles/theme";
 
 export interface WebMainLayoutProps {
   apiConfig: WebApiConfig;
   onTabChange?: (
     tab: "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS",
   ) => void;
+  stats?: {
+    totalEntries?: number;
+    pendingTasks?: number;
+    totalCategories?: number;
+  };
   children?: React.ReactNode;
 }
 
 export function WebMainLayout({
   apiConfig,
   onTabChange,
+  stats,
   children,
 }: WebMainLayoutProps) {
   const [activeTab, setActiveTab] = useState<
@@ -43,9 +50,41 @@ export function WebMainLayout({
 
   return (
     <View style={styles.container} testID="web-main-layout">
-      {/* Header */}
+      {/* Top Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Proyecto AI - Web Desktop View</Text>
+        <View style={styles.brandContainer}>
+          <View style={styles.logoBadge}>
+            <Text style={styles.logoBadgeText}>AI</Text>
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>Proyecto AI</Text>
+            <Text style={styles.headerSubtitle}>Personal Knowledge Hub</Text>
+          </View>
+        </View>
+
+        {/* Quick Stats Bar */}
+        <View style={styles.statsBar} testID="web-quick-stats">
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats?.totalEntries ?? 0}</Text>
+            <Text style={styles.statLabel}>Entradas</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: theme.colors.warning }]}>
+              {stats?.pendingTasks ?? 0}
+            </Text>
+            <Text style={styles.statLabel}>Pendientes</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: theme.colors.purple }]}>
+              {stats?.totalCategories ?? 0}
+            </Text>
+            <Text style={styles.statLabel}>Categorías</Text>
+          </View>
+        </View>
+
+        {/* Backend Status Indicator */}
         <View style={styles.statusIndicator}>
           <View
             style={[
@@ -77,7 +116,7 @@ export function WebMainLayout({
         </View>
       )}
 
-      {/* Nav Tabs */}
+      {/* Glassmorphic Navigation Bar */}
       <View style={styles.navBar}>
         <Pressable
           style={[
@@ -93,7 +132,7 @@ export function WebMainLayout({
               activeTab === "CALENDAR" && styles.activeNavButtonText,
             ]}
           >
-            Calendario
+            📅 Calendario
           </Text>
         </Pressable>
 
@@ -111,7 +150,7 @@ export function WebMainLayout({
               activeTab === "PENDING_TASKS" && styles.activeNavButtonText,
             ]}
           >
-            Tareas Pendientes
+            ☑️ Tareas Pendientes
           </Text>
         </Pressable>
 
@@ -129,7 +168,7 @@ export function WebMainLayout({
               activeTab === "EXPLORER" && styles.activeNavButtonText,
             ]}
           >
-            Categorías y Etiquetas
+            🏷️ Categorías y Etiquetas
           </Text>
         </Pressable>
 
@@ -147,7 +186,7 @@ export function WebMainLayout({
               activeTab === "CONFLICTS" && styles.activeNavButtonText,
             ]}
           >
-            Conflictos Sync
+            ⚡ Conflictos Sync
           </Text>
         </Pressable>
       </View>
@@ -163,27 +202,93 @@ export function WebMainLayout({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f0f2f5",
+    backgroundColor: "#0f172a",
     width: "100%",
     minHeight: "100%",
   },
   header: {
-    height: 60,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
     backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  brandContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  logoBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+  },
+  logoBadgeText: {
+    color: "#ffffff",
+    fontWeight: "900",
+    fontSize: 16,
   },
   headerTitle: {
     color: "#ffffff",
-    fontSize: 18,
+    fontSize: 19,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  headerSubtitle: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  statsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  statItem: {
+    alignItems: "center",
+    paddingHorizontal: 10,
+  },
+  statValue: {
+    color: "#ffffff",
+    fontSize: 15,
     fontWeight: "700",
+  },
+  statLabel: {
+    color: "#94a3b8",
+    fontSize: 10,
+    textTransform: "uppercase",
+    fontWeight: "600",
+  },
+  statDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
   },
   statusIndicator: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
   },
   statusDot: {
     width: 10,
@@ -191,17 +296,18 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   dotConnected: {
-    backgroundColor: "#10b981",
+    backgroundColor: theme.colors.success,
   },
   dotDisconnected: {
-    backgroundColor: "#ef4444",
+    backgroundColor: theme.colors.danger,
   },
   dotPending: {
-    backgroundColor: "#f59e0b",
+    backgroundColor: theme.colors.warning,
   },
   statusText: {
-    color: "#94a3b8",
+    color: "#cbd5e1",
     fontSize: 13,
+    fontWeight: "500",
   },
   unreachableBanner: {
     backgroundColor: "#fee2e2",
@@ -218,33 +324,35 @@ const styles = StyleSheet.create({
   },
   navBar: {
     flexDirection: "row",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#1e293b",
     borderBottomWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "rgba(255, 255, 255, 0.1)",
     paddingHorizontal: 24,
+    gap: 8,
   },
   navButton: {
     paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderBottomWidth: 2,
+    paddingHorizontal: 18,
+    borderBottomWidth: 3,
     borderBottomColor: "transparent",
   },
   activeNavButton: {
-    borderBottomColor: "#2563eb",
+    borderBottomColor: theme.colors.primary,
+    backgroundColor: "rgba(59, 130, 246, 0.1)",
   },
   navButtonText: {
     fontSize: 14,
-    color: "#64748b",
+    color: "#94a3b8",
     fontWeight: "500",
   },
   activeNavButtonText: {
-    color: "#2563eb",
-    fontWeight: "600",
+    color: "#ffffff",
+    fontWeight: "700",
   },
   contentArea: {
     flex: 1,
     padding: 24,
-    maxWidth: 1200,
+    maxWidth: 1280,
     alignSelf: "center",
     width: "100%",
   },

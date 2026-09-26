@@ -179,3 +179,24 @@ Description: Escribir una guía verificable para instalar Tailscale, autorizar a
 ## 45. Ejecutar una prueba integral del ciclo fundamental
 Goal: Validar de extremo a extremo la hipótesis operativa del MVP.
 Description: Automatizar o documentar de forma reproducible un recorrido que capture una entrada offline, la muestre en calendario, la filtre, la edite, la sincronice y finalmente la elimine. Añadir un segundo recorrido para una tarea sin fecha y registrar cualquier limitación conocida antes de dar por terminado el MVP.
+
+## 46. Sistema de diseño visual y estética Glassmorphism
+Goal: Elevar la interfaz visual del frontend con estética Glassmorphism, paleta HSL moderna y acabados prémium.
+Description: Actualizar la jerarquía de estilos y tokens visuales en los componentes principales (WebMainLayout, PendingTasksView, CalendarMonthView, ClassificationExplorer, ConflictResolver, VoiceCaptureFlow, PreviewBeforeSave). Incorporar tarjetas con efecto glassmorphic, bordes sutiles con sombras suaves, degradados armónicos y efectos de interacción (hover/press) adaptados a la web.
+
+## 47. Dashboard interactivo de escritorio y resumen de estado
+Goal: Proporcionar en la versión web un panel superior interactivo con métricas rápidas y resumen operativo.
+Description: Ampliar WebMainLayout con una barra superior de estado y métricas que muestre el recuento total de entradas, tareas pendientes activas, categorías configuradas y estado en tiempo real del backend. Permitir cambiar de pestaña y acceder a acciones rápidas desde una disposición multicolumna adaptada a pantallas anchas.
+
+## 48. Micro-animaciones e indicador visual de captura de voz
+Goal: Enriquecer la interacción del usuario mediante indicadores dinámicos y simulador visual de onda de voz en web.
+Description: Implementar un componente simulador de ondas de voz animadas durante la grabación, badges con pulso de confirmación al guardar en Fast Forward y transiciones visuales dinámicas al cambiar de estado en tareas pendientes y resolver conflictos.
+
+## 49. Búsqueda en tiempo real, filtro avanzado y exportación de datos en web
+Goal: Facilitar la localización rápida de entradas/tareas y permitir exportar la información del usuario en JSON.
+Description: Añadir una barra de búsqueda en vivo para filtrar contenido al instante en la interfaz web, junto con selectores por etiqueta rápida y un botón de exportación que descargue las entradas y tareas en formato JSON estructurado.
+
+## 50. Verificación integral de calidad y suite de pruebas frontend/backend
+Goal: Garantizar que el 100% de la funcionalidad de frontend y backend pase todas las pruebas sin regresiones.
+Description: Actualizar y ampliar las suites de pruebas unitarias e integración en frontend y backend (WebMainLayout.test.tsx, PendingTasksView.test.tsx, CalendarMonthView.test.tsx, VoiceCaptureFlow.test.tsx, mvpIntegrationTest.test.ts, test_sync_api.py, etc.). Verificar mediante npm run check y pytest que todos los linteres, comprobaciones de tipo y tests pasan con éxito.
+

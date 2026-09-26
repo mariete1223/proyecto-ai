@@ -13,16 +13,22 @@ describe("WebMainLayout Component (Task 42)", () => {
     fetchFn: jest.fn().mockRejectedValue(new TypeError("Failed to fetch")),
   };
 
-  it("renders web layout header and tabs", async () => {
+  it("renders web layout header, stats bar, and tabs", async () => {
     const { getByTestId, getByText } = await render(
-      <WebMainLayout apiConfig={configConnected} />,
+      <WebMainLayout
+        apiConfig={configConnected}
+        stats={{ totalEntries: 42, pendingTasks: 5, totalCategories: 3 }}
+      />,
     );
 
     await waitFor(() => {
       expect(getByTestId("web-main-layout")).toBeTruthy();
-      expect(getByText("Proyecto AI - Web Desktop View")).toBeTruthy();
-      expect(getByText("Calendario")).toBeTruthy();
-      expect(getByText("Tareas Pendientes")).toBeTruthy();
+      expect(getByText("Proyecto AI")).toBeTruthy();
+      expect(getByTestId("web-quick-stats")).toBeTruthy();
+      expect(getByText("42")).toBeTruthy();
+      expect(getByText("5")).toBeTruthy();
+      expect(getByText("📅 Calendario")).toBeTruthy();
+      expect(getByText("☑️ Tareas Pendientes")).toBeTruthy();
     });
   });
 
