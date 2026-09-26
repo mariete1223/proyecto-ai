@@ -47,3 +47,24 @@ class SyncPushRequest(BaseModel):
 
 class SyncPushResponse(BaseModel):
     results: list[SyncPushChangeResult]
+
+
+class SyncPullChange(BaseModel):
+    entity_type: TombstoneEntity
+    entity_id: UUID
+    action: SyncAction
+    payload: dict[str, Any]
+
+
+class SyncTombstone(BaseModel):
+    entity_type: TombstoneEntity
+    entity_id: UUID
+    deleted_at: str
+    deleted_version: int
+
+
+class SyncPullResponse(BaseModel):
+    changes: list[SyncPullChange]
+    tombstones: list[SyncTombstone]
+    next_cursor: str | None = None
+    has_more: bool

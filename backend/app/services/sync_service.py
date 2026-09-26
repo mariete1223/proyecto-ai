@@ -28,7 +28,9 @@ from app.schemas.sync import (
     PushResultStatus,
     SyncAction,
     SyncClientChange,
+    SyncPullChange,
     SyncPushChangeResult,
+    SyncTombstone,
 )
 from app.services.category_service import normalize_text_key
 from app.services.tag_service import normalize_tag_name
@@ -400,3 +402,75 @@ def _update_domain_model(
 
     item.updated_at = now
     item.version = new_version
+
+
+def process_sync_pull(
+    db: Session,
+    user_id: uuid.UUID,
+    cursor_str: str | None = None,
+    limit: int = 50,
+) -> tuple[list[SyncPullChange], list[SyncTombstone], str | None, bool]:
+    """Pull incremental changes and tombstones for a user after cursor."""
+    if limit < 1 or limit > 100:
+        raise ValueError("Limit must be between 1 and 100.")
+
+    cursor_dt = _parse_dt(cursor_str) if cursor_str else None
+
+    events: list[tuple[datetime, bool, Any, TombstoneEntity]] = []
+
+    models: list[tuple[TombstoneEntity, Any]] = [
+        (TombstoneEntity.CATEGORY, Category),
+        (TombstoneEntity.TAG, Tag),
+        (TombstoneEntity.ENTRY, Entry),
+        (TombstoneEntity.ENTRY_TAG, EntryTag),
+        (TombstoneEntity.SAVE_PREFERENCE, SavePreference),
+        (TombstoneEntity.CAPTURE_CORRECTION, CaptureCorrection),
+    ]
+
+    for entity_type, model_cls in models:
+        stmt = select(model_cls).where(model_cls.user_id == user_id)
+        if cursor_dt is not None:
+            stmt = stmt.where(model_cls.updated_at > cursor_dt)
+        items: list[Any] = list(db.execute(stmt).scalars().all())
+        for item in items:
+            events.append((item.updated_at, False, item, entity_type))
+
+    stmt_tb = select(DeletionTombstone).where(DeletionTombstone.user_id == user_id)
+    if cursor_dt is not None:
+        stmt_tb = stmt_tb.where(DeletionTombstone.deleted_at > cursor_dt)
+    tbs = db.execute(stmt_tb).scalars().all()
+    for tb in tbs:
+        events.append((tb.deleted_at, True, tb, tb.entity_type))
+
+    events.sort(key=lambda x: (x[0], str(getattr(x[2], "id", ""))))
+
+    has_more = len(events) > limit
+    page_events = events[:limit]
+
+    changes: list[SyncPullChange] = []
+    tombstones: list[SyncTombstone] = []
+    next_cursor: str | None = None
+
+    for evt_time, is_tb, obj, ent_type in page_events:
+        next_cursor = evt_time.isoformat()
+        if is_tb:
+            tombstones.append(
+                SyncTombstone(
+                    entity_type=ent_type,
+                    entity_id=obj.entity_id,
+                    deleted_at=obj.deleted_at.isoformat(),
+                    deleted_version=obj.deleted_version,
+                )
+            )
+        else:
+            action = SyncAction.CREATE if obj.version == 1 else SyncAction.UPDATE
+            changes.append(
+                SyncPullChange(
+                    entity_type=ent_type,
+                    entity_id=obj.id,
+                    action=action,
+                    payload=_model_to_dict(obj),
+                )
+            )
+
+    return changes, tombstones, next_cursor, has_more

@@ -32,6 +32,7 @@ from app.services.preference_service import (
     update_save_preference,
 )
 from app.services.sync_service import (
+    process_sync_pull,
     process_sync_push,
 )
 from app.services.tag_service import (
@@ -87,6 +88,7 @@ __all__ = [
     "normalize_email",
     "normalize_tag_name",
     "normalize_text_key",
+    "process_sync_pull",
     "process_sync_push",
     "seed_initial_categories",
     "update_category",

@@ -221,3 +221,84 @@ def test_unauthenticated_sync_push(client: TestClient) -> None:
     assert (
         client.post("/api/v1/sync/push", json={"client_changes": []}).status_code == 401
     )
+
+
+def test_sync_pull_initial_and_incremental(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    cat_id = str(uuid.uuid4())
+    entry_id = str(uuid.uuid4())
+
+    # Create category & entry via push
+    client.post(
+        "/api/v1/sync/push",
+        headers=auth_headers,
+        json={
+            "client_changes": [
+                {
+                    "change_id": str(uuid.uuid4()),
+                    "entity_type": "CATEGORY",
+                    "entity_id": cat_id,
+                    "action": "CREATE",
+                    "base_version": 0,
+                    "payload": {
+                        "name": "Pull Cat",
+                        "voice_command": "pc",
+                        "color": "#654321",
+                        "icon": "pull",
+                        "kind": "STANDARD",
+                    },
+                },
+                {
+                    "change_id": str(uuid.uuid4()),
+                    "entity_type": "ENTRY",
+                    "entity_id": entry_id,
+                    "action": "CREATE",
+                    "base_version": 0,
+                    "payload": {
+                        "category_id": cat_id,
+                        "content": "Pull entry content",
+                    },
+                },
+            ]
+        },
+    )
+
+    # 1. Pull without cursor
+    pull_resp = client.get("/api/v1/sync/pull", headers=auth_headers)
+    assert pull_resp.status_code == 200
+    pull_data = pull_resp.json()
+    assert len(pull_data["changes"]) >= 2
+    assert pull_data["next_cursor"] is not None
+    cursor1 = pull_data["next_cursor"]
+
+    # 2. Pull with cursor1 -> no changes
+    pull_resp2 = client.get(f"/api/v1/sync/pull?cursor={cursor1}", headers=auth_headers)
+    assert pull_resp2.status_code == 200
+    assert len(pull_resp2.json()["changes"]) == 0
+    assert len(pull_resp2.json()["tombstones"]) == 0
+
+    # 3. Delete entry -> creates tombstone
+    client.post(
+        "/api/v1/sync/push",
+        headers=auth_headers,
+        json={
+            "client_changes": [
+                {
+                    "change_id": str(uuid.uuid4()),
+                    "entity_type": "ENTRY",
+                    "entity_id": entry_id,
+                    "action": "DELETE",
+                    "base_version": 1,
+                    "payload": {},
+                }
+            ]
+        },
+    )
+
+    # 4. Incremental pull after cursor1 -> receives tombstone
+    pull_resp3 = client.get(f"/api/v1/sync/pull?cursor={cursor1}", headers=auth_headers)
+    assert pull_resp3.status_code == 200
+    pull3_data = pull_resp3.json()
+    assert len(pull3_data["tombstones"]) == 1
+    assert pull3_data["tombstones"][0]["entity_id"] == entry_id
