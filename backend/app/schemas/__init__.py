@@ -14,6 +14,7 @@ from app.schemas.entry import (
     EntryResponse,
     EntryUpdate,
     PaginatedEntriesResponse,
+    TaskStatusUpdate,
 )
 from app.schemas.tag import (
     TagCreate,
@@ -34,6 +35,7 @@ __all__ = [
     "TagCreate",
     "TagResponse",
     "TagUpdate",
+    "TaskStatusUpdate",
     "TokenResponse",
     "UserResponse",
 ]

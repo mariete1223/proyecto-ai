@@ -17,7 +17,9 @@ from app.services.entry_service import (
     delete_entry,
     get_entry_by_id,
     list_entries,
+    list_pending_dateless_tasks,
     update_entry,
+    update_task_status,
 )
 from app.services.tag_service import (
     InvalidTagDataError,
@@ -62,6 +64,7 @@ __all__ = [
     "get_tag_by_id",
     "list_categories",
     "list_entries",
+    "list_pending_dateless_tasks",
     "list_tags",
     "normalize_email",
     "normalize_tag_name",
@@ -69,6 +72,7 @@ __all__ = [
     "seed_initial_categories",
     "update_category",
     "update_entry",
+    "update_task_status",
     "update_tag",
     "validate_email",
     "validate_password",

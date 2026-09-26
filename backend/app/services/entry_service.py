@@ -63,7 +63,7 @@ def create_entry(
             raise InvalidEntryDataError("One or more tag IDs do not exist for user.")
 
     now = datetime.now(UTC)
-    occurred_at = data.occurred_at if data.occurred_at is not None else now
+    occurred_at = data.occurred_at
 
     entry = Entry(
         id=uuid.uuid4(),
@@ -149,6 +149,52 @@ def list_entries(
     ordered_stmt = stmt.order_by(
         Entry.occurred_at.desc().nulls_last(), Entry.created_at.desc(), Entry.id
     )
+    paginated_stmt = ordered_stmt.offset((page - 1) * limit).limit(limit)
+    entries = list(db.execute(paginated_stmt).scalars().all())
+
+    results: list[tuple[Entry, list[uuid.UUID]]] = []
+    if entries:
+        entry_ids = [e.id for e in entries]
+        stmt_entry_tags = select(EntryTag.entry_id, EntryTag.tag_id).where(
+            EntryTag.entry_id.in_(entry_ids), EntryTag.user_id == user_id
+        )
+        tag_map: dict[uuid.UUID, list[uuid.UUID]] = {}
+        for eid, tid in db.execute(stmt_entry_tags).all():
+            tag_map.setdefault(eid, []).append(tid)
+
+        for entry in entries:
+            results.append((entry, tag_map.get(entry.id, [])))
+
+    return results, total_count
+
+
+def list_pending_dateless_tasks(
+    db: Session,
+    user_id: uuid.UUID,
+    page: int = 1,
+    limit: int = 20,
+) -> tuple[list[tuple[Entry, list[uuid.UUID]]], int]:
+    """List pending tasks without dates for a user."""
+    if page < 1:
+        raise InvalidEntryDataError("Page must be greater than or equal to 1.")
+    if limit < 1 or limit > 100:
+        raise InvalidEntryDataError("Limit must be between 1 and 100.")
+
+    task_cat_subquery = select(Category.id).where(
+        Category.kind == CategoryKind.TASK, Category.user_id == user_id
+    )
+
+    stmt = select(Entry).where(
+        Entry.user_id == user_id,
+        Entry.category_id.in_(task_cat_subquery),
+        Entry.occurred_at.is_(None),
+        Entry.task_status.in_([TaskStatus.PENDING, TaskStatus.IN_PROGRESS]),
+    )
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total_count = db.execute(count_stmt).scalar() or 0
+
+    ordered_stmt = stmt.order_by(Entry.created_at.desc(), Entry.id)
     paginated_stmt = ordered_stmt.offset((page - 1) * limit).limit(limit)
     entries = list(db.execute(paginated_stmt).scalars().all())
 
@@ -263,6 +309,28 @@ def update_entry(
     entry.version += 1
     db.flush()
     return entry, updated_tag_ids
+
+
+def update_task_status(
+    db: Session, user_id: uuid.UUID, entry_id: uuid.UUID, new_status: TaskStatus
+) -> tuple[Entry, list[uuid.UUID]]:
+    """Update only the task status of a TASK category entry."""
+    entry, tag_ids = get_entry_by_id(db, user_id, entry_id)
+    stmt_cat = select(Category).where(
+        Category.id == entry.category_id, Category.user_id == user_id
+    )
+    category = db.execute(stmt_cat).scalar_one()
+
+    if category.kind != CategoryKind.TASK:
+        raise InvalidEntryDataError(
+            "Task status can only be updated for TASK category entries."
+        )
+
+    entry.task_status = new_status
+    entry.updated_at = datetime.now(UTC)
+    entry.version += 1
+    db.flush()
+    return entry, tag_ids
 
 
 def delete_entry(db: Session, user_id: uuid.UUID, entry_id: uuid.UUID) -> None:

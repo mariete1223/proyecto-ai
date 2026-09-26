@@ -41,6 +41,10 @@ class EntryUpdate(BaseModel):
         return v
 
 
+class TaskStatusUpdate(BaseModel):
+    task_status: TaskStatus
+
+
 class EntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

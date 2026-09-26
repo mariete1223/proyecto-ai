@@ -1,13 +1,35 @@
 from __future__ import annotations
 
+# mypy: disable-error-code="attr-defined"
 import os
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from uuid import uuid4
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.engine import Connection, Engine, make_url
+from sqlalchemy.exc import DBAPIError
+
+from app.models import (
+    CaptureCorrection,
+    Category,
+    CategoryKind,
+    CorrectionField,
+    DeletionTombstone,
+    Entry,
+    EntryTag,
+    SaveMode,
+    SavePreference,
+    Tag,
+    TaskRecurrence,
+    TaskStatus,
+    TombstoneEntity,
+    User,
+)
 
 DOMAIN_TABLES = {
     "users",
@@ -37,6 +59,92 @@ def require_test_database_url(raw_url: str) -> str:
     return raw_url
 
 
+def assert_rejected(connection: Connection, statement: Any) -> None:
+    with pytest.raises(DBAPIError):
+        with connection.begin_nested():
+            connection.execute(statement)
+
+
+def seed_domain_graph(connection: Connection) -> dict[str, Any]:
+    now = datetime.now(UTC)
+    ids: dict[str, Any] = {
+        name: uuid4()
+        for name in (
+            "user1",
+            "user2",
+            "category1",
+            "category2",
+            "tag1",
+            "tag2",
+            "entry1",
+            "entry2",
+            "session1",
+        )
+    }
+    for key in ("user1", "user2"):
+        connection.execute(
+            User.__table__.insert(),
+            {
+                "id": ids[key],
+                "email": f"{key}@example.com",
+                "email_normalized": f"{key}@example.com",
+                "password_hash": "hash",
+                "created_at": now,
+                "updated_at": now,
+                "version": 1,
+            },
+        )
+    for number in (1, 2):
+        connection.execute(
+            Category.__table__.insert(),
+            {
+                "id": ids[f"category{number}"],
+                "user_id": ids[f"user{number}"],
+                "kind": CategoryKind.TASK,
+                "name": f"Task {number}",
+                "name_normalized": f"task {number}",
+                "voice_command": f"task {number}",
+                "voice_command_normalized": f"task {number}",
+                "description": "Tasks",
+                "color": "#ABCDEF",
+                "icon": "check",
+                "created_at": now,
+                "updated_at": now,
+                "version": 1,
+            },
+        )
+        connection.execute(
+            Tag.__table__.insert(),
+            {
+                "id": ids[f"tag{number}"],
+                "user_id": ids[f"user{number}"],
+                "name": f"Tag {number}",
+                "name_normalized": f"tag {number}",
+                "created_at": now,
+                "updated_at": now,
+                "version": 1,
+            },
+        )
+        connection.execute(
+            Entry.__table__.insert(),
+            {
+                "id": ids[f"entry{number}"],
+                "user_id": ids[f"user{number}"],
+                "category_id": ids[f"category{number}"],
+                "occurred_at": None,
+                "content": f"Task {number}",
+                "task_status": TaskStatus.PENDING,
+                "task_recurrence": TaskRecurrence.ONCE,
+                "capture_session_id": ids["session1"] if number == 1 else uuid4(),
+                "created_at": now,
+                "updated_at": now,
+                "version": 1,
+            },
+        )
+    ids["now"] = now
+    return ids
+
+
 @pytest.fixture(scope="module")
 def migrated_database() -> Iterator[Engine]:
     raw_url = os.environ.get("DATABASE_URL")
@@ -61,9 +169,22 @@ def migrated_database() -> Iterator[Engine]:
     command.upgrade(config, "head")
     command.upgrade(config, "head")
     command.check(config)
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+    command.check(config)
     yield engine
     command.downgrade(config, "base")
     engine.dispose()
+
+
+@pytest.fixture
+def database_connection(migrated_database: Engine) -> Iterator[Connection]:
+    with migrated_database.connect() as connection:
+        transaction = connection.begin()
+        try:
+            yield connection
+        finally:
+            transaction.rollback()
 
 
 def test_test_database_guard_rejects_non_test_database() -> None:
@@ -183,3 +304,409 @@ def test_foreign_keys_enforce_ownership_and_delete_actions(
 
     for table in DOMAIN_TABLES - {"users"}:
         assert foreign_keys(table)[("user_id",)][1] == "RESTRICT"
+
+
+def test_postgresql_enforces_every_uniqueness_family(
+    database_connection: Connection,
+) -> None:
+    connection = database_connection
+    data = seed_domain_graph(connection)
+    with connection.begin_nested():
+        now = data["now"]
+        common = {"created_at": now, "updated_at": now, "version": 1}
+
+        assert_rejected(
+            connection,
+            User.__table__.insert().values(
+                id=uuid4(),
+                email="duplicate@example.com",
+                email_normalized="user1@example.com",
+                password_hash="hash",
+                **common,
+            ),
+        )
+        base_category = {
+            "user_id": data["user1"],
+            "kind": CategoryKind.STANDARD,
+            "description": "Description",
+            "color": "#123ABC",
+            "icon": "circle",
+            **common,
+        }
+        connection.execute(
+            Category.__table__.insert().values(
+                id=uuid4(),
+                name="Alpha",
+                name_normalized="alpha",
+                voice_command="alpha",
+                voice_command_normalized="alpha",
+                **base_category,
+            )
+        )
+        assert_rejected(
+            connection,
+            Category.__table__.insert().values(
+                id=uuid4(),
+                name="Alpha 2",
+                name_normalized="alpha",
+                voice_command="alpha 2",
+                voice_command_normalized="alpha 2",
+                **base_category,
+            ),
+        )
+        assert_rejected(
+            connection,
+            Category.__table__.insert().values(
+                id=uuid4(),
+                name="Beta",
+                name_normalized="beta",
+                voice_command="Beta",
+                voice_command_normalized="alpha",
+                **base_category,
+            ),
+        )
+        assert_rejected(
+            connection,
+            Category.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                kind=CategoryKind.TASK,
+                name="Other task",
+                name_normalized="other task",
+                voice_command="other task",
+                voice_command_normalized="other task",
+                description="Tasks",
+                color="#123ABC",
+                icon="check",
+                **common,
+            ),
+        )
+        assert_rejected(
+            connection,
+            Tag.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                name="Duplicate",
+                name_normalized="tag 1",
+                **common,
+            ),
+        )
+
+        relation = {
+            "id": uuid4(),
+            "user_id": data["user1"],
+            "entry_id": data["entry1"],
+            "tag_id": data["tag1"],
+            **common,
+        }
+        connection.execute(EntryTag.__table__.insert().values(**relation))
+        assert_rejected(
+            connection,
+            EntryTag.__table__.insert().values(**(relation | {"id": uuid4()})),
+        )
+        preference = {
+            "id": uuid4(),
+            "user_id": data["user1"],
+            "mode": SaveMode.FAST_FORWARD,
+            **common,
+        }
+        connection.execute(SavePreference.__table__.insert().values(**preference))
+        assert_rejected(
+            connection,
+            SavePreference.__table__.insert().values(**(preference | {"id": uuid4()})),
+        )
+        correction = {
+            "id": uuid4(),
+            "user_id": data["user1"],
+            "entry_id": data["entry1"],
+            "capture_session_id": data["session1"],
+            "field": CorrectionField.CONTENT,
+            "interpreted_value": "old",
+            "accepted_value": "new",
+            **common,
+        }
+        connection.execute(CaptureCorrection.__table__.insert().values(**correction))
+        assert_rejected(
+            connection,
+            CaptureCorrection.__table__.insert().values(
+                **(correction | {"id": uuid4()})
+            ),
+        )
+        tombstone = {
+            "id": uuid4(),
+            "user_id": data["user1"],
+            "entity_type": TombstoneEntity.TAG,
+            "entity_id": uuid4(),
+            "deleted_at": now,
+            "deleted_version": 2,
+        }
+        connection.execute(DeletionTombstone.__table__.insert().values(**tombstone))
+        assert_rejected(
+            connection,
+            DeletionTombstone.__table__.insert().values(
+                **(tombstone | {"id": uuid4()})
+            ),
+        )
+
+
+def test_postgresql_enforces_every_check_family(
+    database_connection: Connection,
+) -> None:
+    connection = database_connection
+    data = seed_domain_graph(connection)
+    with connection.begin_nested():
+        now = data["now"]
+        cases = [
+            User.__table__.update().where(User.id == data["user1"]).values(email="   "),
+            User.__table__.update()
+            .where(User.id == data["user1"])
+            .values(email_normalized=""),
+            User.__table__.update()
+            .where(User.id == data["user1"])
+            .values(updated_at=now - timedelta(seconds=1)),
+            User.__table__.update().where(User.id == data["user1"]).values(version=0),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(name=" "),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(name="x" * 101),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(name_normalized=""),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(voice_command=""),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(voice_command="x" * 101),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(voice_command_normalized=""),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(description="x" * 1001),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(color="#abcdef"),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(icon="x" * 101),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(updated_at=now - timedelta(seconds=1)),
+            Category.__table__.update()
+            .where(Category.id == data["category1"])
+            .values(version=0),
+            Tag.__table__.update().where(Tag.id == data["tag1"]).values(name=""),
+            Tag.__table__.update()
+            .where(Tag.id == data["tag1"])
+            .values(name_normalized=""),
+            Tag.__table__.update()
+            .where(Tag.id == data["tag1"])
+            .values(updated_at=now - timedelta(seconds=1)),
+            Tag.__table__.update().where(Tag.id == data["tag1"]).values(version=0),
+            Entry.__table__.update()
+            .where(Entry.id == data["entry1"])
+            .values(content="x" * 10001),
+            Entry.__table__.update()
+            .where(Entry.id == data["entry1"])
+            .values(task_status=None),
+            Entry.__table__.update()
+            .where(Entry.id == data["entry1"])
+            .values(updated_at=now - timedelta(seconds=1)),
+            Entry.__table__.update()
+            .where(Entry.id == data["entry1"])
+            .values(version=0),
+        ]
+        for statement in cases:
+            assert_rejected(connection, statement)
+
+        immutable_rows = [
+            EntryTag.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                entry_id=data["entry1"],
+                tag_id=data["tag1"],
+                created_at=now,
+                updated_at=now + timedelta(seconds=1),
+                version=1,
+            ),
+            EntryTag.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                entry_id=data["entry1"],
+                tag_id=data["tag1"],
+                created_at=now,
+                updated_at=now,
+                version=2,
+            ),
+            CaptureCorrection.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                entry_id=data["entry1"],
+                capture_session_id=data["session1"],
+                field=CorrectionField.CONTENT,
+                interpreted_value=None,
+                accepted_value="x",
+                created_at=now,
+                updated_at=now + timedelta(seconds=1),
+                version=1,
+            ),
+            CaptureCorrection.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                entry_id=data["entry1"],
+                capture_session_id=data["session1"],
+                field=CorrectionField.CONTENT,
+                interpreted_value=None,
+                accepted_value="x",
+                created_at=now,
+                updated_at=now,
+                version=2,
+            ),
+            SavePreference.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                mode=SaveMode.FAST_FORWARD,
+                created_at=now,
+                updated_at=now - timedelta(seconds=1),
+                version=1,
+            ),
+            SavePreference.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                mode=SaveMode.FAST_FORWARD,
+                created_at=now,
+                updated_at=now,
+                version=0,
+            ),
+            DeletionTombstone.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                entity_type=TombstoneEntity.TAG,
+                entity_id=uuid4(),
+                deleted_at=now,
+                deleted_version=1,
+            ),
+        ]
+        for statement in immutable_rows:
+            assert_rejected(connection, statement)
+
+
+def test_postgresql_enforces_owner_isolation_and_delete_behavior(
+    database_connection: Connection,
+) -> None:
+    connection = database_connection
+    data = seed_domain_graph(connection)
+    with connection.begin_nested():
+        now = data["now"]
+        assert_rejected(
+            connection,
+            Entry.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                category_id=data["category2"],
+                content="Wrong owner",
+                task_status=TaskStatus.PENDING,
+                task_recurrence=TaskRecurrence.ONCE,
+                capture_session_id=None,
+                occurred_at=None,
+                created_at=now,
+                updated_at=now,
+                version=1,
+            ),
+        )
+        for entry_id, tag_id in (
+            (data["entry2"], data["tag1"]),
+            (data["entry1"], data["tag2"]),
+        ):
+            assert_rejected(
+                connection,
+                EntryTag.__table__.insert().values(
+                    id=uuid4(),
+                    user_id=data["user1"],
+                    entry_id=entry_id,
+                    tag_id=tag_id,
+                    created_at=now,
+                    updated_at=now,
+                    version=1,
+                ),
+            )
+        assert_rejected(
+            connection,
+            CaptureCorrection.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user2"],
+                entry_id=data["entry1"],
+                capture_session_id=data["session1"],
+                field=CorrectionField.CONTENT,
+                interpreted_value=None,
+                accepted_value="x",
+                created_at=now,
+                updated_at=now,
+                version=1,
+            ),
+        )
+        assert_rejected(
+            connection,
+            Tag.__table__.insert().values(
+                id=uuid4(),
+                user_id=uuid4(),
+                name="Orphan",
+                name_normalized="orphan",
+                created_at=now,
+                updated_at=now,
+                version=1,
+            ),
+        )
+
+        connection.execute(
+            EntryTag.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                entry_id=data["entry1"],
+                tag_id=data["tag1"],
+                created_at=now,
+                updated_at=now,
+                version=1,
+            )
+        )
+        connection.execute(
+            CaptureCorrection.__table__.insert().values(
+                id=uuid4(),
+                user_id=data["user1"],
+                entry_id=data["entry1"],
+                capture_session_id=data["session1"],
+                field=CorrectionField.CONTENT,
+                interpreted_value=None,
+                accepted_value="x",
+                created_at=now,
+                updated_at=now,
+                version=1,
+            )
+        )
+        assert_rejected(
+            connection,
+            Category.__table__.delete().where(Category.id == data["category1"]),
+        )
+        assert_rejected(
+            connection, User.__table__.delete().where(User.id == data["user1"])
+        )
+
+        connection.execute(Tag.__table__.delete().where(Tag.id == data["tag1"]))
+        assert (
+            connection.scalar(
+                text("SELECT count(*) FROM entry_tags WHERE entry_id=:id"),
+                {"id": data["entry1"]},
+            )
+            == 0
+        )
+        connection.execute(Entry.__table__.delete().where(Entry.id == data["entry1"]))
+        assert (
+            connection.scalar(
+                text("SELECT count(*) FROM capture_corrections WHERE entry_id=:id"),
+                {"id": data["entry1"]},
+            )
+            == 0
+        )
