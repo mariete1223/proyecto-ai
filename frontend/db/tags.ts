@@ -126,6 +126,18 @@ export async function updateLocalTag(
   };
 }
 
+export async function getTagUsageCount(
+  db: DatabaseAdapter,
+  userId: string,
+  tagId: string,
+): Promise<number> {
+  const rows = await db.getAllAsync<{ id: string }>(
+    `SELECT id FROM entry_tags WHERE tag_id = ? AND user_id = ?;`,
+    [tagId, userId],
+  );
+  return rows.length;
+}
+
 export async function deleteLocalTag(
   db: DatabaseAdapter,
   userId: string,
@@ -135,6 +147,11 @@ export async function deleteLocalTag(
   if (!existing) {
     throw new Error("Tag not found.");
   }
+
+  await db.runAsync(
+    `DELETE FROM entry_tags WHERE tag_id = ? AND user_id = ?;`,
+    [tagId, userId],
+  );
 
   await db.runAsync(`DELETE FROM tags WHERE id = ? AND user_id = ?;`, [
     tagId,
