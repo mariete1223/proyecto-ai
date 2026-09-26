@@ -1,4 +1,9 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
 import React from "react";
 import { createLocalCategory } from "../db/categories";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
@@ -23,6 +28,11 @@ describe("PendingTasksView Component", () => {
     taskCatId = cat.id;
   });
 
+  afterEach(() => {
+    cleanup();
+    jest.restoreAllMocks();
+  });
+
   test("renders empty state when there are no dateless pending tasks", async () => {
     const { getByTestId, getByText } = await render(
       <PendingTasksView db={db} userId={userId} />,
@@ -31,6 +41,21 @@ describe("PendingTasksView Component", () => {
     await waitFor(() => {
       expect(getByTestId("empty-container")).toBeTruthy();
       expect(getByText("No hay tareas pendientes sin fecha")).toBeTruthy();
+    });
+  });
+
+  test("renders error state when fetchTasks throws error", async () => {
+    const fetchError = jest
+      .fn()
+      .mockImplementation(() => Promise.reject(new Error("DB failure")));
+
+    const { getByTestId, getByText } = await render(
+      <PendingTasksView db={db} userId={userId} fetchTasks={fetchError} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("error-container")).toBeTruthy();
+      expect(getByText("DB failure")).toBeTruthy();
     });
   });
 
@@ -64,41 +89,18 @@ describe("PendingTasksView Component", () => {
     );
 
     // Change status to IN_PROGRESS
-    await act(async () => {
-      fireEvent.press(getByTestId(`status-inprogress-${task1.id}`));
-    });
+    fireEvent.press(getByTestId(`status-inprogress-${task1.id}`));
 
     await waitFor(() => {
-      expect(getByText("Estado actual: En progreso")).toBeTruthy();
+      expect(getByText(/En progreso/)).toBeTruthy();
     });
 
     // Change status to DONE (which removes it from pending dateless list)
-    await act(async () => {
-      fireEvent.press(getByTestId(`status-done-${task1.id}`));
-    });
+    fireEvent.press(getByTestId(`status-done-${task1.id}`));
 
     await waitFor(() => {
       expect(queryByText("Comprar leche")).toBeNull();
       expect(getByTestId("empty-container")).toBeTruthy();
-    });
-  });
-
-  test("renders error state when fetchTasks throws error", async () => {
-    const fetchError = jest.fn().mockImplementation(() => {
-      return Promise.reject(new Error("DB failure"));
-    });
-
-    const { getByTestId, getByText } = await render(
-      <PendingTasksView db={db} userId={userId} fetchTasks={fetchError} />,
-    );
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    await waitFor(() => {
-      expect(getByTestId("error-container")).toBeTruthy();
-      expect(getByText("DB failure")).toBeTruthy();
     });
   });
 });

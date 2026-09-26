@@ -22,50 +22,58 @@ export interface PendingTasksViewProps {
 }
 
 export function PendingTasksView(props: PendingTasksViewProps) {
-  const { db, userId, onSelectEntry } = props;
-  const fetchTasksFn = props.fetchTasks ?? defaultListPendingDatelessTasks;
-  const updateEntryFn = props.updateEntry ?? defaultUpdateLocalEntry;
+  const {
+    db,
+    userId,
+    onSelectEntry,
+    fetchTasks = defaultListPendingDatelessTasks,
+    updateEntry = defaultUpdateLocalEntry,
+  } = props;
 
   const [tasks, setTasks] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const loadTasks = async () => {
     try {
-      const data = await fetchTasksFn(db, userId);
+      const data = await fetchTasks(db, userId);
       setTasks(data);
       setError(null);
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Error al cargar las tareas.",
-      );
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: unknown }).message)
+          : "Error al cargar las tareas.";
+      setError(msg);
     }
   };
 
   useEffect(() => {
     let mounted = true;
-    fetchTasksFn(db, userId)
-      .then((data) => {
+    (async () => {
+      try {
+        const data = await fetchTasks(db, userId);
         if (mounted) {
           setTasks(data);
           setError(null);
         }
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (mounted) {
-          setError(
-            err instanceof Error ? err.message : "Error al cargar las tareas.",
-          );
+          const msg =
+            err && typeof err === "object" && "message" in err
+              ? String((err as { message: unknown }).message)
+              : "Error al cargar las tareas.";
+          setError(msg);
         }
-      });
+      }
+    })();
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, userId]);
+  }, [db, userId, fetchTasks]);
 
   const handleStatusChange = async (entry: Entry, newStatus: TaskStatus) => {
     try {
-      await updateEntryFn(db, userId, entry.id, {
+      await updateEntry(db, userId, entry.id, {
         task_status: newStatus,
         task_recurrence: entry.task_recurrence ?? "ONCE",
       });
