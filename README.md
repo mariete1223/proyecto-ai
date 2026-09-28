@@ -62,18 +62,28 @@ La prueba del frontend renderiza la pantalla inicial de Expo. La del backend
 comprueba el endpoint de salud de FastAPI sin necesitar una base de datos ni
 servicios externos.
 
-Para arrancar la app Expo desde la raíz:
+## Arrancar la aplicación
+
+### Front-end (Expo / Web)
+
+Para iniciar la aplicación Expo desde la raíz:
 
 ```powershell
 npm.cmd --prefix frontend start
 ```
 
-Para arrancar la API localmente:
+Para iniciar directamente en la versión Web:
 
 ```powershell
-Push-Location backend
-uv run uvicorn app.main:app --reload
-Pop-Location
+npm.cmd --prefix frontend run web
+```
+
+### Back-end (FastAPI)
+
+Para arrancar la API FastAPI localmente desde la raíz:
+
+```powershell
+uv run --directory backend uvicorn app.main:app --reload
 ```
 
 ## Conexión del backend a PostgreSQL
