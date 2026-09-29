@@ -237,28 +237,69 @@ export function CalendarMonthView({
           ) : (
             selectedDayEntries.items.map((ent) => {
               const cat = categoryMap.get(ent.category_id);
+              const timeStr = ent.occurred_at
+                ? new Date(ent.occurred_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "Sin hora";
+
               return (
                 <Pressable
                   key={ent.id}
                   testID={`entry-item-${ent.id}`}
                   style={styles.entryRow}
-                  onPress={() => onSelectEntry && onSelectEntry(ent.id)}
+                  onPress={() => onSelectEntry?.(ent.id)}
                 >
-                  <View
-                    style={[
-                      styles.catIndicator,
-                      { backgroundColor: cat?.color || "#38BDF8" },
-                    ]}
-                  />
-                  <Text style={styles.entryText} numberOfLines={2}>
+                  <View style={styles.entryRowHeader}>
+                    <View
+                      style={[
+                        styles.catBadge,
+                        { backgroundColor: cat?.color || "#38BDF8" },
+                      ]}
+                    >
+                      <Text style={styles.catBadgeText}>
+                        {cat?.name || "General"}
+                      </Text>
+                    </View>
+                    <Text style={styles.entryTimeText}>{timeStr}</Text>
+                  </View>
+
+                  <Text style={styles.entryContentPreview} numberOfLines={2}>
                     {ent.content}
                   </Text>
+
+                  <View style={styles.editHintRow}>
+                    <Text style={styles.editHintText}>
+                      👁️ Ver detalles / Editar
+                    </Text>
+                  </View>
                 </Pressable>
               );
             })
           )}
         </View>
       )}
+
+      {/* Month Summary Sidebar / Panel */}
+      <View style={styles.monthSummaryCard} testID="calendar-month-summary">
+        <Text style={styles.monthSummaryTitle}>
+          {`📊 Resumen de ${MONTH_NAMES[month]}`}
+        </Text>
+
+        <View style={styles.summaryStatsRow}>
+          <View style={styles.summaryStatBadge}>
+            <Text style={styles.summaryStatValue}>{entries.length}</Text>
+            <Text style={styles.summaryStatLabel}>Entradas Fechadas</Text>
+          </View>
+          <View style={styles.summaryStatBadge}>
+            <Text style={[styles.summaryStatValue, { color: "#F59E0B" }]}>
+              {categories.length}
+            </Text>
+            <Text style={styles.summaryStatLabel}>Categorías Activas</Text>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -379,21 +420,82 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   entryRow: {
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+  },
+  entryRowHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 6,
-    borderBottomColor: "#1E293B",
-    borderBottomWidth: 1,
+    marginBottom: 6,
   },
-  catIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  catBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  entryText: {
+  catBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  entryTimeText: {
+    color: "#94A3B8",
+    fontSize: 11,
+  },
+  entryContentPreview: {
     color: "#F8FAFC",
     fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  editHintRow: {
+    alignItems: "flex-end",
+  },
+  editHintText: {
+    color: "#38BDF8",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  monthSummaryCard: {
+    marginTop: 16,
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+  },
+  monthSummaryTitle: {
+    color: "#F8FAFC",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  summaryStatsRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  summaryStatBadge: {
     flex: 1,
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 10,
+    alignItems: "center",
+  },
+  summaryStatValue: {
+    color: "#38BDF8",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  summaryStatLabel: {
+    color: "#94A3B8",
+    fontSize: 11,
+    marginTop: 2,
   },
 });

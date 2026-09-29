@@ -217,16 +217,84 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
         onChangeText={setContent}
       />
 
-      {/* Occurred At Date (Optional) */}
-      <Text style={styles.label}>Fecha (Opcional - ISO 8601)</Text>
+      {/* Occurred At Date Selection */}
+      <Text style={styles.label}>Fecha y Hora de la Entrada</Text>
+      <View style={styles.datePresetsRow} testID="date-presets">
+        <Pressable
+          style={styles.presetChip}
+          onPress={() => setOccurredAt(new Date().toISOString())}
+          testID="preset-now"
+        >
+          <Text style={styles.presetChipText}>⚡ Ahora</Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.presetChip}
+          onPress={() => {
+            const d = new Date();
+            d.setHours(18, 0, 0, 0);
+            setOccurredAt(d.toISOString());
+          }}
+          testID="preset-today-18"
+        >
+          <Text style={styles.presetChipText}>📅 Hoy 18:00</Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.presetChip}
+          onPress={() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 1);
+            d.setHours(9, 0, 0, 0);
+            setOccurredAt(d.toISOString());
+          }}
+          testID="preset-tomorrow-9"
+        >
+          <Text style={styles.presetChipText}>🌅 Mañana 09:00</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.presetChip, !occurredAt && styles.presetChipActive]}
+          onPress={() => setOccurredAt("")}
+          testID="preset-none"
+        >
+          <Text style={styles.presetChipText}>❌ Sin Fecha</Text>
+        </Pressable>
+      </View>
+
       <TextInput
         testID="input-date"
         style={styles.input}
-        placeholder="YYYY-MM-DDTHH:MM:SSZ"
-        placeholderTextColor="#64748B"
-        value={occurredAt}
-        onChangeText={setOccurredAt}
+        placeholder="Seleccionar o escribir fecha (YYYY-MM-DDTHH:MM)"
+        placeholderTextColor="#94A3B8"
+        // @ts-expect-error - web specific type
+        type="datetime-local"
+        value={
+          occurredAt
+            ? occurredAt.length > 16
+              ? occurredAt.substring(0, 16)
+              : occurredAt
+            : ""
+        }
+        onChangeText={(val) => {
+          if (!val) {
+            setOccurredAt("");
+          } else {
+            try {
+              const d = new Date(val);
+              setOccurredAt(isNaN(d.getTime()) ? val : d.toISOString());
+            } catch {
+              setOccurredAt(val);
+            }
+          }
+        }}
       />
+
+      {occurredAt ? (
+        <Text style={styles.datePreviewText}>
+          {`Selected: ${new Date(occurredAt).toLocaleString()}`}
+        </Text>
+      ) : null}
 
       {/* Tags Selection */}
       <Text style={styles.label}>Etiquetas (Opcional)</Text>
@@ -403,5 +471,34 @@ const styles = StyleSheet.create({
   successText: {
     color: "#A7F3D0",
     fontSize: 14,
+  },
+  datePresetsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  presetChip: {
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  presetChipActive: {
+    borderColor: "#38BDF8",
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+  },
+  presetChipText: {
+    color: "#F8FAFC",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  datePreviewText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: "500",
   },
 });
