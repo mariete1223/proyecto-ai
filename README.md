@@ -80,10 +80,16 @@ npm.cmd --prefix frontend run web
 
 ### Back-end (FastAPI)
 
-Para arrancar la API FastAPI localmente desde la raíz:
+Para arrancar la API FastAPI localmente evitando el bloqueo de ejecutable de Windows Smart App Control:
 
 ```powershell
-uv run --directory backend uvicorn app.main:app --reload
+uv run --directory backend python -m uvicorn app.main:app --reload
+```
+
+O directamente mediante el intérprete Python del entorno virtual:
+
+```powershell
+& "backend\.venv\Scripts\python.exe" -m uvicorn app.main:app --reload --app-dir backend
 ```
 
 ## Conexión del backend a PostgreSQL

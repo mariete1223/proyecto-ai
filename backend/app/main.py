@@ -1,3 +1,7 @@
+import os
+
+os.environ["DISABLE_SQLALCHEMY_CEXT"] = "1"
+
 from fastapi import FastAPI
 
 from app.api import api_v1_router
