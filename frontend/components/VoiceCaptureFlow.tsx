@@ -357,6 +357,20 @@ export function VoiceCaptureFlow({
               : "Corregir Captura Hablada"}
           </Text>
 
+          {parsedResult?.occurredAt && (
+            <View style={styles.detectedDateBox} testID="detected-date-box">
+              <Text style={styles.detectedDateText}>
+                📅 Fecha Detectada:{" "}
+                {new Date(parsedResult.occurredAt).toLocaleDateString("es-ES", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </Text>
+            </View>
+          )}
+
           <Text style={styles.label}>Categoría Asignada</Text>
           <View style={styles.chipsRow}>
             {categories.map((cat) => (
@@ -595,6 +609,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     marginBottom: 8,
+  },
+  detectedDateBox: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "#10B981",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  detectedDateText: {
+    color: "#10B981",
+    fontSize: 13,
+    fontWeight: "700",
   },
   tokensRow: {
     flexDirection: "row",

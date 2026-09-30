@@ -56,11 +56,14 @@ export function parseSpokenCommand(
 
   // 1. Category extraction
   let matchedCategory: Category | null = null;
-  const normalizedRaw = normalizeTextKey(rawText);
+
+  // Clean initial leading punctuation for raw comparison
+  const cleanRawText = rawText.replace(/^[,.:;\-\s]+/, "");
+  const normalizedRaw = normalizeTextKey(cleanRawText);
 
   // Check explicit prefix "categoría " or "categoria "
-  const categoryPrefixMatch = rawText.match(
-    /^(?:categoría|categoria)\s+([a-záéíóúñ0-9_\-\s]+?)(?:\s+(?:fecha|contenido|etiqueta|etiquetas|tag|tags|hoy|mañana|ayer)|$)/i,
+  const categoryPrefixMatch = cleanRawText.match(
+    /^(?:categoría|categoria)\s+([a-záéíóúñ0-9_\-\s]+?)(?:\s+(?:fecha|contenido|etiqueta|etiquetas|tag|tags|hoy|mañana|ayer)|[.,;:!?\s]|$)/i,
   );
   if (categoryPrefixMatch && categoryPrefixMatch[1]) {
     const catSearch = normalizeTextKey(categoryPrefixMatch[1]);
@@ -72,15 +75,15 @@ export function parseSpokenCommand(
       ) ?? null;
     if (matchedCategory) {
       tokens.push({
-        text: categoryPrefixMatch[0],
+        text: categoryPrefixMatch[0].trim(),
         type: "CATEGORY",
         label: `Categoría: ${matchedCategory.name}`,
       });
-      workingText = workingText.replace(categoryPrefixMatch[0], "").trim();
+      workingText = rawText.replace(categoryPrefixMatch[0], "").trim();
     }
   }
 
-  // If not matched by prefix, try matching category voice_command or name at beginning of rawText
+  // If not matched by prefix, try matching category voice_command or name at beginning of cleanRawText
   if (!matchedCategory) {
     for (const cat of categories) {
       const vcNorm = normalizeTextKey(cat.voice_command);
@@ -94,13 +97,16 @@ export function parseSpokenCommand(
         const matchLen = normalizedRaw.startsWith(vcNorm)
           ? vcNorm.length
           : nameNorm.length;
-        const matchedStr = rawText.substring(0, matchLen);
+        const matchedStr = cleanRawText.substring(0, matchLen);
         tokens.push({
           text: matchedStr,
           type: "CATEGORY",
           label: `Categoría: ${cat.name}`,
         });
-        workingText = workingText.substring(matchLen).trim();
+
+        // Strip matched category plus any immediately following punctuation (like commas or dots)
+        const restOfText = cleanRawText.substring(matchLen);
+        workingText = restOfText.replace(/^[,.:;\-\s]+/, "").trim();
         break;
       }
     }
@@ -110,12 +116,12 @@ export function parseSpokenCommand(
     categoryId = matchedCategory.id;
     categoryName = matchedCategory.name;
   } else {
-    const firstWord = rawText.split(/\s+/)[0];
+    const firstWord = rawText.split(/[\s,.:;]+/)[0];
     errors.push(`Categoría no reconocida: "${firstWord}"`);
   }
 
   // 2. Tag extraction
-  const tagRegex = /(?:\s|^)(?:con\s+)?(?:etiquetas?|tags?)\s+(.+)$/i;
+  const tagRegex = /(?:\s|^|[,.:;])(?:con\s+)?(?:etiquetas?|tags?)\s+(.+)$/i;
   const tagMatch = workingText.match(tagRegex);
   if (tagMatch && tagMatch[1]) {
     const tagText = tagMatch[1].trim();
@@ -142,14 +148,17 @@ export function parseSpokenCommand(
     });
   }
 
-  // 3. Date extraction
+  // 3. Date extraction (handles attached trailing dots/commas like "fecha hoy.He...")
   const explicitDateMatch =
     workingText.match(
-      /(?:\s|^)(?:fecha\s+|para\s+)(hoy|mañana|manana|ayer|\d{4}-\d{2}-\d{2})(?:\s+|$)/i,
-    ) ?? workingText.match(/(?:\s|^)(\d{4}-\d{2}-\d{2})(?:\s+|$)/i);
+      /(?:\s|^|[,.:;])(?:fecha\s+|para\s+)(hoy|mañana|manana|ayer|\d{4}-\d{2}-\d{2})(?:[.,;:!?\s]|$)/i,
+    ) ??
+    workingText.match(/(?:\s|^|[,.:;])(\d{4}-\d{2}-\d{2})(?:[.,;:!?\s]|$)/i);
 
   if (explicitDateMatch && explicitDateMatch[1]) {
     const dateStr = explicitDateMatch[1].toLowerCase();
+
+    // Replace the matched date pattern (leaving subsequent sentence intact)
     workingText = workingText.replace(explicitDateMatch[0], " ").trim();
 
     const baseDate = new Date(refDate);
