@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 export const theme = {
   colors: {
     bgApp: "#0f172a", // Dark slate background for desktop header & container contrast
@@ -51,3 +53,36 @@ export const theme = {
     full: 9999,
   },
 };
+
+// Inject custom sleek dark glassmorphic scrollbar for Web
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const styleId = "custom-dark-scrollbar-style";
+  if (!document.getElementById(styleId)) {
+    const styleEl = document.createElement("style");
+    styleEl.id = styleId;
+    styleEl.textContent = `
+      /* Custom Dark Glassmorphic Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #38bdf8;
+      }
+      /* Firefox */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: #334155 #0f172a;
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }
+}

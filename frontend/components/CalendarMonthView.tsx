@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     width: "100%",
-    maxWidth: 600,
+    maxWidth: 900,
   },
   headerRow: {
     flexDirection: "row",
