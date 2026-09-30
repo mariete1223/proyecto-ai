@@ -19,6 +19,7 @@ export interface VoiceCaptureFlowProps {
   userId: string;
   saveMode?: SaveMode;
   onEntryCreated?: (entryId: string) => void;
+  onClose?: () => void;
 }
 
 export function VoiceCaptureFlow({
@@ -26,6 +27,7 @@ export function VoiceCaptureFlow({
   userId,
   saveMode = "FAST_FORWARD",
   onEntryCreated,
+  onClose,
 }: VoiceCaptureFlowProps) {
   const [voiceState, setVoiceState] = useState<VoiceRecognitionState>("IDLE");
   const [categories, setCategories] = useState<Category[]>([]);
@@ -42,6 +44,8 @@ export function VoiceCaptureFlow({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [voiceService, setVoiceService] =
+    useState<VoiceRecognitionService | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -74,15 +78,42 @@ export function VoiceCaptureFlow({
     setTranscript("");
     setParsedResult(null);
 
-    const voiceService = new VoiceRecognitionService({
+    const service = new VoiceRecognitionService({
       onStateChange: (st) => setVoiceState(st),
+      onResult: (liveText) => {
+        if (liveText) {
+          setTranscript(liveText);
+        }
+      },
       onError: (err) => setErrorMessage(err),
     });
 
-    await voiceService.startListening();
+    setVoiceService(service);
+    await service.startListening();
+  };
+
+  const handleStopListening = () => {
+    if (voiceService) {
+      voiceService.stopListening();
+    } else {
+      setVoiceState("IDLE");
+    }
+
+    if (transcript.trim()) {
+      handleProcessTranscript(transcript);
+    } else {
+      setErrorMessage(
+        "No se detectó voz del micrófono. Puedes escribir el comando o frase manualmente en la casilla inferior y pulsar Procesar.",
+      );
+    }
   };
 
   const handleProcessTranscript = async (rawTranscript: string) => {
+    if (!rawTranscript.trim()) {
+      setErrorMessage("La transcripción no puede estar vacía.");
+      return;
+    }
+
     setTranscript(rawTranscript);
     const parsed = parseSpokenCommand(rawTranscript, categories, tags);
     setParsedResult(parsed);
@@ -96,7 +127,6 @@ export function VoiceCaptureFlow({
           parsed.tagIds,
         );
       } else {
-        // PREVIEW_BEFORE_SAVE
         setManualContent(parsed.content);
         setManualCategoryId(parsed.categoryId);
       }
@@ -117,6 +147,11 @@ export function VoiceCaptureFlow({
     occurredAtStr: string | null,
     tagIdList: string[],
   ) => {
+    if (!catId || !contentStr.trim()) {
+      setErrorMessage("Selecciona una categoría y escribe el contenido.");
+      return;
+    }
+
     setLoading(true);
     try {
       const category = categories.find((c) => c.id === catId);
@@ -144,7 +179,7 @@ export function VoiceCaptureFlow({
 
   return (
     <View style={styles.card} testID="voice-capture-flow">
-      <Text style={styles.title}>Captura Hablada Completa</Text>
+      <Text style={styles.title}>Captura Hablada por Voz</Text>
 
       {errorMessage && (
         <View style={styles.errorBox} testID="voice-capture-error">
@@ -158,49 +193,62 @@ export function VoiceCaptureFlow({
         </View>
       )}
 
-      <Text style={styles.stateText}>
-        {`Estado: ${voiceState === "LISTENING" ? "Escuchando..." : voiceState}`}
-      </Text>
+      {/* Recording Status Header Banner */}
+      <View
+        style={[
+          styles.statusBanner,
+          voiceState === "LISTENING" && styles.statusBannerActive,
+        ]}
+      >
+        <View
+          style={[
+            styles.statusDot,
+            voiceState === "LISTENING" && styles.statusDotActive,
+          ]}
+        />
+        <Text style={styles.stateText}>
+          {voiceState === "LISTENING"
+            ? "🔴 GRABANDO VOZ... Habla tu comando o nota"
+            : voiceState === "PROCESSING"
+              ? "⚡ Procesando voz..."
+              : "Micrófono listo para dictado"}
+        </Text>
+      </View>
 
       {/* Voice Wave Visualizer indicator */}
       {voiceState === "LISTENING" && (
         <View style={styles.waveVisualizer} testID="voice-wave-visualizer">
           <View style={[styles.waveBar, { height: 18 }]} />
-          <View style={[styles.waveBar, { height: 32 }]} />
+          <View style={[styles.waveBar, { height: 36 }]} />
           <View style={[styles.waveBar, { height: 24 }]} />
-          <View style={[styles.waveBar, { height: 40 }]} />
-          <View style={[styles.waveBar, { height: 28 }]} />
-          <View style={[styles.waveBar, { height: 16 }]} />
+          <View style={[styles.waveBar, { height: 42 }]} />
+          <View style={[styles.waveBar, { height: 30 }]} />
+          <View style={[styles.waveBar, { height: 20 }]} />
         </View>
       )}
 
-      {voiceState === "IDLE" ? (
+      {voiceState === "IDLE" || voiceState === "ERROR" ? (
         <Pressable
           testID="btn-start-listening"
           style={styles.listenButton}
           onPress={handleStartListening}
         >
           <Text style={styles.listenButtonText}>
-            🎙️ Iniciar Dictado por Voz
+            🎙️ Iniciar Grabación por Voz
           </Text>
         </Pressable>
       ) : (
         <Pressable
           testID="btn-stop-listening"
           style={styles.stopButton}
-          onPress={() =>
-            handleProcessTranscript(
-              transcript ||
-                "nota fecha hoy contenido comprar pan etiquetas urgente",
-            )
-          }
+          onPress={handleStopListening}
         >
-          <Text style={styles.stopButtonText}>⏹️ Detener y Procesar</Text>
+          <Text style={styles.stopButtonText}>⏹️ Detener Grabación</Text>
         </Pressable>
       )}
 
-      {/* Transcript Input / Simulation for testing */}
-      <Text style={styles.label}>Transcripción</Text>
+      {/* Transcript Input / Testing */}
+      <Text style={styles.label}>Transcripción de Voz</Text>
       <TextInput
         testID="input-transcript"
         style={styles.input}
@@ -215,10 +263,12 @@ export function VoiceCaptureFlow({
         style={styles.secondaryButton}
         onPress={() => handleProcessTranscript(transcript)}
       >
-        <Text style={styles.secondaryButtonText}>Procesar Transcripción</Text>
+        <Text style={styles.secondaryButtonText}>
+          🔍 Procesar Transcripción
+        </Text>
       </Pressable>
 
-      {/* Manual correction fallback when errors occur or in preview mode */}
+      {/* Manual preview / correction */}
       {parsedResult &&
         (!parsedResult.isSuccess || saveMode === "PREVIEW_BEFORE_SAVE") && (
           <View style={styles.correctionContainer} testID="correction-section">
@@ -228,7 +278,7 @@ export function VoiceCaptureFlow({
                 : "Corregir Captura Hablada"}
             </Text>
 
-            <Text style={styles.label}>Categoría</Text>
+            <Text style={styles.label}>Categoría Asignada</Text>
             <View style={styles.chipsRow}>
               {categories.map((cat) => (
                 <Pressable
@@ -252,29 +302,42 @@ export function VoiceCaptureFlow({
               ))}
             </View>
 
-            <Text style={styles.label}>Contenido</Text>
+            <Text style={styles.label}>Contenido de la Entrada</Text>
             <TextInput
               testID="input-manual-content"
-              style={styles.input}
+              style={styles.inputArea}
+              multiline
               value={manualContent}
               onChangeText={setManualContent}
             />
 
-            <Pressable
-              testID="btn-save-corrected-entry"
-              style={[styles.saveButton, loading && styles.buttonDisabled]}
-              disabled={loading}
-              onPress={() =>
-                saveParsedEntry(
-                  manualCategoryId,
-                  manualContent,
-                  parsedResult.occurredAt,
-                  parsedResult.tagIds,
-                )
-              }
-            >
-              <Text style={styles.saveButtonText}>Confirmar y Guardar</Text>
-            </Pressable>
+            <View style={styles.actionsRow}>
+              <Pressable
+                testID="btn-save-corrected-entry"
+                style={[styles.saveButton, loading && styles.buttonDisabled]}
+                disabled={loading}
+                onPress={() =>
+                  saveParsedEntry(
+                    manualCategoryId,
+                    manualContent,
+                    parsedResult.occurredAt,
+                    parsedResult.tagIds,
+                  )
+                }
+              >
+                <Text style={styles.saveButtonText}>
+                  💾 Confirmar y Guardar Entrada
+                </Text>
+              </Pressable>
+
+              {onClose && (
+                <Pressable style={styles.cancelButton} onPress={onClose}>
+                  <Text style={styles.cancelButtonText}>
+                    ❌ Cancelar / Salir
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         )}
     </View>
@@ -287,7 +350,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     width: "100%",
-    maxWidth: 550,
+    maxWidth: 650,
   },
   title: {
     fontSize: 20,
@@ -295,18 +358,80 @@ const styles = StyleSheet.create({
     color: "#F8FAFC",
     marginBottom: 12,
   },
+  statusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 14,
+  },
+  statusBannerActive: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "#EF4444",
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#94A3B8",
+  },
+  statusDotActive: {
+    backgroundColor: "#EF4444",
+  },
   stateText: {
     fontSize: 14,
-    color: "#38BDF8",
-    marginBottom: 12,
+    color: "#F8FAFC",
     fontWeight: "600",
+  },
+  waveVisualizer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 50,
+    backgroundColor: "#0F172A",
+    borderRadius: 8,
+    marginBottom: 14,
+  },
+  waveBar: {
+    width: 6,
+    backgroundColor: "#EF4444",
+    borderRadius: 3,
+  },
+  listenButton: {
+    backgroundColor: "#38BDF8",
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  listenButtonText: {
+    color: "#0F172A",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  stopButton: {
+    backgroundColor: "#EF4444",
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  stopButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   label: {
     fontSize: 14,
     fontWeight: "600",
     color: "#94A3B8",
+    marginBottom: 6,
     marginTop: 10,
-    marginBottom: 4,
   },
   input: {
     backgroundColor: "#0F172A",
@@ -314,42 +439,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     color: "#F8FAFC",
-    padding: 10,
-    fontSize: 14,
-  },
-  listenButton: {
-    backgroundColor: "#38BDF8",
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  listenButtonText: {
-    color: "#0F172A",
-    fontWeight: "bold",
+    padding: 12,
     fontSize: 15,
   },
-  stopButton: {
-    backgroundColor: "#EF4444",
+  inputArea: {
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
     borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  stopButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "bold",
+    color: "#F8FAFC",
+    padding: 12,
     fontSize: 15,
+    minHeight: 90,
+    textAlignVertical: "top",
   },
   secondaryButton: {
     backgroundColor: "#334155",
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 8,
+    marginBottom: 16,
   },
   secondaryButtonText: {
     color: "#F8FAFC",
+    fontSize: 14,
     fontWeight: "600",
   },
   correctionContainer: {
@@ -357,27 +471,28 @@ const styles = StyleSheet.create({
     borderColor: "#334155",
     borderWidth: 1,
     borderRadius: 8,
-    padding: 14,
-    marginTop: 16,
+    padding: 16,
+    marginTop: 12,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#F8FAFC",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    marginBottom: 10,
   },
   chip: {
     backgroundColor: "#1E293B",
     borderColor: "#334155",
     borderWidth: 1,
     borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   chipActive: {
     backgroundColor: "#38BDF8",
@@ -385,25 +500,43 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: "#94A3B8",
-    fontSize: 12,
+    fontSize: 13,
   },
   chipTextActive: {
     color: "#0F172A",
     fontWeight: "bold",
   },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+  },
   saveButton: {
+    flex: 1,
     backgroundColor: "#10B981",
     borderRadius: 8,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: "center",
-    marginTop: 12,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
   },
   saveButtonText: {
     color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: "bold",
+  },
+  cancelButton: {
+    backgroundColor: "#334155",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    color: "#F8FAFC",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   errorBox: {
     backgroundColor: "#7F1D1D",
@@ -424,23 +557,5 @@ const styles = StyleSheet.create({
   successText: {
     color: "#A7F3D0",
     fontSize: 14,
-  },
-  waveVisualizer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginVertical: 14,
-    height: 48,
-    backgroundColor: "rgba(56, 189, 248, 0.1)",
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.3)",
-  },
-  waveBar: {
-    width: 6,
-    backgroundColor: "#38BDF8",
-    borderRadius: 3,
   },
 });

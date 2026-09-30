@@ -221,6 +221,7 @@ export default function App() {
               loadDatabaseState();
               setShowVoiceCaptureModal(false);
             }}
+            onClose={() => setShowVoiceCaptureModal(false)}
           />
         </View>
       )}
