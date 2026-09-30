@@ -227,25 +227,44 @@ export function VoiceCaptureFlow({
         </View>
       )}
 
-      {voiceState === "IDLE" || voiceState === "ERROR" ? (
-        <Pressable
-          testID="btn-start-listening"
-          style={styles.listenButton}
-          onPress={handleStartListening}
-        >
-          <Text style={styles.listenButtonText}>
-            🎙️ Iniciar Grabación por Voz
-          </Text>
-        </Pressable>
-      ) : (
-        <Pressable
-          testID="btn-stop-listening"
-          style={styles.stopButton}
-          onPress={handleStopListening}
-        >
-          <Text style={styles.stopButtonText}>⏹️ Detener Grabación</Text>
-        </Pressable>
-      )}
+      {/* Main Control Action Row */}
+      <View style={styles.controlsRow}>
+        {voiceState === "IDLE" || voiceState === "ERROR" ? (
+          <Pressable
+            testID="btn-start-listening"
+            style={[styles.listenButton, { flex: 1 }]}
+            onPress={handleStartListening}
+          >
+            <Text style={styles.listenButtonText}>
+              🎙️ Iniciar Grabación por Voz
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            testID="btn-stop-listening"
+            style={[styles.stopButton, { flex: 1 }]}
+            onPress={handleStopListening}
+          >
+            <Text style={styles.stopButtonText}>⏹️ Detener y Procesar</Text>
+          </Pressable>
+        )}
+
+        {onClose && (
+          <Pressable
+            testID="btn-close-voice-flow"
+            style={styles.cancelControlBtn}
+            onPress={() => {
+              if (voiceService) {
+                voiceService.cancel();
+              }
+              setVoiceState("IDLE");
+              onClose();
+            }}
+          >
+            <Text style={styles.cancelControlBtnText}>❌ Salir</Text>
+          </Pressable>
+        )}
+      </View>
 
       {/* Transcript Input / Testing */}
       <Text style={styles.label}>Transcripción de Voz</Text>
@@ -269,77 +288,76 @@ export function VoiceCaptureFlow({
       </Pressable>
 
       {/* Manual preview / correction */}
-      {parsedResult &&
-        (!parsedResult.isSuccess || saveMode === "PREVIEW_BEFORE_SAVE") && (
-          <View style={styles.correctionContainer} testID="correction-section">
-            <Text style={styles.sectionTitle}>
-              {saveMode === "PREVIEW_BEFORE_SAVE"
-                ? "Previsualización antes de Guardar"
-                : "Corregir Captura Hablada"}
-            </Text>
+      {(parsedResult || voiceState === "IDLE") && (
+        <View style={styles.correctionContainer} testID="correction-section">
+          <Text style={styles.sectionTitle}>
+            {saveMode === "PREVIEW_BEFORE_SAVE"
+              ? "Previsualización antes de Guardar"
+              : "Corregir Captura Hablada"}
+          </Text>
 
-            <Text style={styles.label}>Categoría Asignada</Text>
-            <View style={styles.chipsRow}>
-              {categories.map((cat) => (
-                <Pressable
-                  key={cat.id}
-                  testID={`cat-chip-${cat.id}`}
-                  style={[
-                    styles.chip,
-                    manualCategoryId === cat.id && styles.chipActive,
-                  ]}
-                  onPress={() => setManualCategoryId(cat.id)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      manualCategoryId === cat.id && styles.chipTextActive,
-                    ]}
-                  >
-                    {cat.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Contenido de la Entrada</Text>
-            <TextInput
-              testID="input-manual-content"
-              style={styles.inputArea}
-              multiline
-              value={manualContent}
-              onChangeText={setManualContent}
-            />
-
-            <View style={styles.actionsRow}>
+          <Text style={styles.label}>Categoría Asignada</Text>
+          <View style={styles.chipsRow}>
+            {categories.map((cat) => (
               <Pressable
-                testID="btn-save-corrected-entry"
-                style={[styles.saveButton, loading && styles.buttonDisabled]}
-                disabled={loading}
-                onPress={() =>
-                  saveParsedEntry(
-                    manualCategoryId,
-                    manualContent,
-                    parsedResult.occurredAt,
-                    parsedResult.tagIds,
-                  )
-                }
+                key={cat.id}
+                testID={`cat-chip-${cat.id}`}
+                style={[
+                  styles.chip,
+                  manualCategoryId === cat.id && styles.chipActive,
+                ]}
+                onPress={() => setManualCategoryId(cat.id)}
               >
-                <Text style={styles.saveButtonText}>
-                  💾 Confirmar y Guardar Entrada
+                <Text
+                  style={[
+                    styles.chipText,
+                    manualCategoryId === cat.id && styles.chipTextActive,
+                  ]}
+                >
+                  {cat.name}
                 </Text>
               </Pressable>
-
-              {onClose && (
-                <Pressable style={styles.cancelButton} onPress={onClose}>
-                  <Text style={styles.cancelButtonText}>
-                    ❌ Cancelar / Salir
-                  </Text>
-                </Pressable>
-              )}
-            </View>
+            ))}
           </View>
-        )}
+
+          <Text style={styles.label}>Contenido de la Entrada</Text>
+          <TextInput
+            testID="input-manual-content"
+            style={styles.inputArea}
+            multiline
+            value={manualContent}
+            onChangeText={setManualContent}
+            placeholder="Escribe aquí el contenido..."
+            placeholderTextColor="#64748B"
+          />
+
+          <View style={styles.actionsRow}>
+            <Pressable
+              testID="btn-save-corrected-entry"
+              style={[styles.saveButton, loading && styles.buttonDisabled]}
+              disabled={loading}
+              onPress={() =>
+                saveParsedEntry(
+                  manualCategoryId,
+                  manualContent,
+                  parsedResult ? parsedResult.occurredAt : null,
+                  parsedResult ? parsedResult.tagIds : [],
+                )
+              }
+            >
+              <Text style={styles.saveButtonText}>
+                💾 Confirmar y Guardar Entrada
+              </Text>
+            </Pressable>
+
+            {onClose && (
+              <Pressable style={styles.cancelButton} onPress={onClose}>
+                <Text style={styles.cancelButtonText}>❌ Cancelar / Salir</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -402,12 +420,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#EF4444",
     borderRadius: 3,
   },
+  controlsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
   listenButton: {
     backgroundColor: "#38BDF8",
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: "center",
-    marginBottom: 16,
   },
   listenButtonText: {
     color: "#0F172A",
@@ -419,12 +441,25 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: "center",
-    marginBottom: 16,
   },
   stopButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  cancelControlBtn: {
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cancelControlBtnText: {
+    color: "#F87171",
+    fontWeight: "700",
+    fontSize: 14,
   },
   label: {
     fontSize: 14,

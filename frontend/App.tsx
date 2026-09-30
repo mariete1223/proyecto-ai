@@ -172,166 +172,181 @@ export default function App() {
     >
       <StatusBar style="light" />
 
-      {/* Floating Action Bar */}
-      <View style={styles.topActionsBar}>
-        <Pressable
-          style={styles.voiceCaptureButton}
-          onPress={() => {
-            setShowVoiceCaptureModal(true);
-            setShowEntryFormModal(false);
-            setSelectedEntryId(null);
-          }}
-          testID="btn-open-voice-modal"
-        >
-          <Text style={styles.voiceCaptureButtonText}>🎙️ Captura por Voz</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.addEntryButton}
-          onPress={() => {
-            setShowEntryFormModal(true);
-            setShowVoiceCaptureModal(false);
-            setSelectedEntryId(null);
-          }}
-          testID="btn-open-entry-form"
-        >
-          <Text style={styles.addEntryButtonText}>➕ Nueva Entrada</Text>
-        </Pressable>
-      </View>
-
-      {/* Voice Capture Modal Banner */}
-      {showVoiceCaptureModal && (
-        <View style={styles.modalBanner}>
-          <View style={styles.modalBannerHeader}>
-            <Text style={styles.modalBannerTitle}>
-              Captura Interactiva por Voz
-            </Text>
-            <Pressable
-              style={styles.closeModalButton}
-              onPress={() => setShowVoiceCaptureModal(false)}
-            >
-              <Text style={styles.closeModalText}>✕ Cerrar</Text>
-            </Pressable>
-          </View>
-          <VoiceCaptureFlow
-            db={db}
-            userId={userId}
-            saveMode="PREVIEW_BEFORE_SAVE"
-            onEntryCreated={() => {
-              loadDatabaseState();
-              setShowVoiceCaptureModal(false);
-            }}
-            onClose={() => setShowVoiceCaptureModal(false)}
-          />
-        </View>
-      )}
-
-      {/* Entry Form Modal Banner */}
-      {showEntryFormModal && (
-        <View style={styles.modalBanner}>
-          <View style={styles.modalBannerHeader}>
-            <Text style={styles.modalBannerTitle}>Crear Entrada Manual</Text>
-            <Pressable
-              style={styles.closeModalButton}
-              onPress={() => setShowEntryFormModal(false)}
-            >
-              <Text style={styles.closeModalText}>✕ Cerrar</Text>
-            </Pressable>
-          </View>
-          <EntryForm
-            db={db}
-            userId={userId}
-            onSuccess={() => {
-              loadDatabaseState();
+      <ScrollView
+        style={styles.mainScrollView}
+        contentContainerStyle={styles.mainScrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Floating Action Bar */}
+        <View style={styles.topActionsBar}>
+          <Pressable
+            style={styles.voiceCaptureButton}
+            onPress={() => {
+              setShowVoiceCaptureModal(true);
               setShowEntryFormModal(false);
+              setSelectedEntryId(null);
             }}
-          />
-        </View>
-      )}
-
-      {/* Entry Extended Detail & Edit Modal Banner */}
-      {selectedEntryId && (
-        <View style={styles.modalBanner}>
-          <View style={styles.modalBannerHeader}>
-            <Text style={styles.modalBannerTitle}>
-              Detalles y Edición de Entrada
+            testID="btn-open-voice-modal"
+          >
+            <Text style={styles.voiceCaptureButtonText}>
+              🎙️ Captura por Voz
             </Text>
-            <Pressable
-              style={styles.closeModalButton}
-              onPress={() => setSelectedEntryId(null)}
-            >
-              <Text style={styles.closeModalText}>✕ Cerrar</Text>
-            </Pressable>
+          </Pressable>
+
+          <Pressable
+            style={styles.addEntryButton}
+            onPress={() => {
+              setShowEntryFormModal(true);
+              setShowVoiceCaptureModal(false);
+              setSelectedEntryId(null);
+            }}
+            testID="btn-open-entry-form"
+          >
+            <Text style={styles.addEntryButtonText}>➕ Nueva Entrada</Text>
+          </Pressable>
+        </View>
+
+        {/* Voice Capture Modal Banner */}
+        {showVoiceCaptureModal && (
+          <View style={styles.modalBanner}>
+            <View style={styles.modalBannerHeader}>
+              <Text style={styles.modalBannerTitle}>
+                Captura Interactiva por Voz
+              </Text>
+              <Pressable
+                style={styles.closeModalButton}
+                onPress={() => setShowVoiceCaptureModal(false)}
+              >
+                <Text style={styles.closeModalText}>✕ Cerrar</Text>
+              </Pressable>
+            </View>
+            <VoiceCaptureFlow
+              db={db}
+              userId={userId}
+              saveMode="PREVIEW_BEFORE_SAVE"
+              onEntryCreated={() => {
+                loadDatabaseState();
+                setShowVoiceCaptureModal(false);
+              }}
+              onClose={() => setShowVoiceCaptureModal(false)}
+            />
           </View>
-          <EntryDetailView
-            db={db}
-            userId={userId}
-            entryId={selectedEntryId}
-            onClose={() => setSelectedEntryId(null)}
-            onUpdated={() => {
-              loadDatabaseState();
-              setSelectedEntryId(null);
-            }}
-            onDeleted={() => {
-              loadDatabaseState();
-              setSelectedEntryId(null);
-            }}
-          />
-        </View>
-      )}
+        )}
 
-      {/* Tab 1: CALENDAR */}
-      {activeTab === "CALENDAR" && (
-        <ScrollView style={styles.tabContainer}>
-          <CalendarCategoryFilter
-            db={db}
-            userId={userId}
-            onFilterChange={setSelectedCategoryIds}
-          />
-          <CalendarMonthView
-            db={db}
-            userId={userId}
-            selectedCategoryIds={
-              selectedCategoryIds.length > 0 ? selectedCategoryIds : undefined
-            }
-            onSelectEntry={(entryId) => setSelectedEntryId(entryId)}
-          />
-        </ScrollView>
-      )}
+        {/* Entry Form Modal Banner */}
+        {showEntryFormModal && (
+          <View style={styles.modalBanner}>
+            <View style={styles.modalBannerHeader}>
+              <Text style={styles.modalBannerTitle}>Crear Entrada Manual</Text>
+              <Pressable
+                style={styles.closeModalButton}
+                onPress={() => setShowEntryFormModal(false)}
+              >
+                <Text style={styles.closeModalText}>✕ Cerrar</Text>
+              </Pressable>
+            </View>
+            <EntryForm
+              db={db}
+              userId={userId}
+              onSuccess={() => {
+                loadDatabaseState();
+                setShowEntryFormModal(false);
+              }}
+            />
+          </View>
+        )}
 
-      {/* Tab 2: PENDING TASKS */}
-      {activeTab === "PENDING_TASKS" && (
-        <View style={styles.tabContainer}>
-          <PendingTasksView
-            db={db}
-            userId={userId}
-            onSelectEntry={(entry) => setSelectedEntryId(entry.id)}
-          />
-        </View>
-      )}
+        {/* Entry Extended Detail & Edit Modal Banner */}
+        {selectedEntryId && (
+          <View style={styles.modalBanner}>
+            <View style={styles.modalBannerHeader}>
+              <Text style={styles.modalBannerTitle}>
+                Detalles y Edición de Entrada
+              </Text>
+              <Pressable
+                style={styles.closeModalButton}
+                onPress={() => setSelectedEntryId(null)}
+              >
+                <Text style={styles.closeModalText}>✕ Cerrar</Text>
+              </Pressable>
+            </View>
+            <EntryDetailView
+              db={db}
+              userId={userId}
+              entryId={selectedEntryId}
+              onClose={() => setSelectedEntryId(null)}
+              onUpdated={() => {
+                loadDatabaseState();
+                setSelectedEntryId(null);
+              }}
+              onDeleted={() => {
+                loadDatabaseState();
+                setSelectedEntryId(null);
+              }}
+            />
+          </View>
+        )}
 
-      {/* Tab 3: EXPLORER (Categories & Tags) */}
-      {activeTab === "EXPLORER" && (
-        <ScrollView style={styles.tabContainer}>
-          <ClassificationExplorer db={db} userId={userId} />
-        </ScrollView>
-      )}
+        {/* Tab 1: CALENDAR */}
+        {activeTab === "CALENDAR" && (
+          <View style={styles.tabContainer}>
+            <CalendarCategoryFilter
+              db={db}
+              userId={userId}
+              onFilterChange={setSelectedCategoryIds}
+            />
+            <CalendarMonthView
+              db={db}
+              userId={userId}
+              selectedCategoryIds={
+                selectedCategoryIds.length > 0 ? selectedCategoryIds : undefined
+              }
+              onSelectEntry={(entryId) => setSelectedEntryId(entryId)}
+            />
+          </View>
+        )}
 
-      {/* Tab 4: CONFLICTS */}
-      {activeTab === "CONFLICTS" && (
-        <View style={styles.tabContainer}>
-          <ConflictResolver
-            db={db}
-            userId={userId}
-            onResolved={loadDatabaseState}
-          />
-        </View>
-      )}
+        {/* Tab 2: PENDING TASKS */}
+        {activeTab === "PENDING_TASKS" && (
+          <View style={styles.tabContainer}>
+            <PendingTasksView
+              db={db}
+              userId={userId}
+              onSelectEntry={(entry) => setSelectedEntryId(entry.id)}
+            />
+          </View>
+        )}
+
+        {/* Tab 3: EXPLORER (Categories & Tags) */}
+        {activeTab === "EXPLORER" && (
+          <View style={styles.tabContainer}>
+            <ClassificationExplorer db={db} userId={userId} />
+          </View>
+        )}
+
+        {/* Tab 4: CONFLICTS */}
+        {activeTab === "CONFLICTS" && (
+          <View style={styles.tabContainer}>
+            <ConflictResolver
+              db={db}
+              userId={userId}
+              onResolved={loadDatabaseState}
+            />
+          </View>
+        )}
+      </ScrollView>
     </WebMainLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  mainScrollView: {
+    flex: 1,
+    width: "100%",
+  },
+  mainScrollContent: {
+    paddingBottom: 40,
+  },
   loadingContainer: {
     flex: 1,
     backgroundColor: theme.colors.bgApp,
