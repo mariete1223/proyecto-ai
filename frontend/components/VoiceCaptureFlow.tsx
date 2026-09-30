@@ -266,12 +266,41 @@ export function VoiceCaptureFlow({
         )}
       </View>
 
+      {/* Visual Voice Commands Guide */}
+      <View style={styles.guideContainer} testID="voice-commands-guide">
+        <Text style={styles.guideHeader}>💡 Comandos de Voz Disponibles:</Text>
+        <View style={styles.guideGrid}>
+          <View style={styles.guideRow}>
+            <Text style={styles.guideBadgeCat}>📁 Categorías</Text>
+            <Text style={styles.guideText}>
+              Comienza con <Text style={styles.boldCode}>{'"nota"'}</Text>,{" "}
+              <Text style={styles.boldCode}>{'"tarea"'}</Text> o{" "}
+              <Text style={styles.boldCode}>{'"evento"'}</Text>
+            </Text>
+          </View>
+          <View style={styles.guideRow}>
+            <Text style={styles.guideBadgeDate}>📅 Fechas</Text>
+            <Text style={styles.guideText}>
+              Di <Text style={styles.boldCode}>{'"fecha hoy"'}</Text>,{" "}
+              <Text style={styles.boldCode}>{'"fecha mañana"'}</Text> o{" "}
+              <Text style={styles.boldCode}>{'"para AAAA-MM-DD"'}</Text>
+            </Text>
+          </View>
+          <View style={styles.guideRow}>
+            <Text style={styles.guideBadgeTag}>🏷️ Etiquetas</Text>
+            <Text style={styles.guideText}>
+              Di <Text style={styles.boldCode}>{'"etiquetas urgente"'}</Text>
+            </Text>
+          </View>
+        </View>
+      </View>
+
       {/* Transcript Input / Testing */}
       <Text style={styles.label}>Transcripción de Voz</Text>
       <TextInput
         testID="input-transcript"
         style={styles.input}
-        placeholder="Escribe o dicta el comando..."
+        placeholder="Escribe o dicta el comando (ej: tarea fecha hoy contenido comprar pan etiquetas urgente)..."
         placeholderTextColor="#64748B"
         value={transcript}
         onChangeText={setTranscript}
@@ -286,6 +315,38 @@ export function VoiceCaptureFlow({
           🔍 Procesar Transcripción
         </Text>
       </Pressable>
+
+      {/* Recognized Command Tokens Highlights */}
+      {parsedResult &&
+        parsedResult.tokens &&
+        parsedResult.tokens.length > 0 && (
+          <View
+            style={styles.tokensContainer}
+            testID="recognized-tokens-section"
+          >
+            <Text style={styles.tokensHeader}>
+              ✨ Comandos Reconocidos en la Voz:
+            </Text>
+            <View style={styles.tokensRow}>
+              {parsedResult.tokens.map((tok, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.tokenBadge,
+                    tok.type === "CATEGORY" && styles.tokenCategory,
+                    tok.type === "DATE" && styles.tokenDate,
+                    tok.type === "TAG" && styles.tokenTag,
+                    tok.type === "KEYWORD" && styles.tokenKeyword,
+                    tok.type === "CONTENT" && styles.tokenContent,
+                  ]}
+                >
+                  <Text style={styles.tokenLabel}>{tok.label}</Text>
+                  <Text style={styles.tokenText}>{`"${tok.text}"`}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
       {/* Manual preview / correction */}
       {(parsedResult || voiceState === "IDLE") && (
@@ -460,6 +521,123 @@ const styles = StyleSheet.create({
     color: "#F87171",
     fontWeight: "700",
     fontSize: 14,
+  },
+  guideContainer: {
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  guideHeader: {
+    color: "#38BDF8",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  guideGrid: {
+    gap: 6,
+  },
+  guideRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  guideBadgeCat: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    color: "#38BDF8",
+    fontSize: 11,
+    fontWeight: "700",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  guideBadgeDate: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    color: "#10B981",
+    fontSize: 11,
+    fontWeight: "700",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  guideBadgeTag: {
+    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    color: "#A855F7",
+    fontSize: 11,
+    fontWeight: "700",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  guideText: {
+    color: "#94A3B8",
+    fontSize: 12,
+  },
+  boldCode: {
+    color: "#F8FAFC",
+    fontWeight: "700",
+    fontFamily: "monospace",
+  },
+  tokensContainer: {
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  tokensHeader: {
+    color: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  tokensRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tokenBadge: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 2,
+  },
+  tokenCategory: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    borderColor: "#38BDF8",
+  },
+  tokenDate: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "#10B981",
+  },
+  tokenTag: {
+    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    borderColor: "#A855F7",
+  },
+  tokenKeyword: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "#F59E0B",
+  },
+  tokenContent: {
+    backgroundColor: "rgba(148, 163, 184, 0.15)",
+    borderColor: "#64748B",
+  },
+  tokenLabel: {
+    color: "#94A3B8",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  tokenText: {
+    color: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: "600",
   },
   label: {
     fontSize: 14,

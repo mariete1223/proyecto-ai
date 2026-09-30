@@ -5,6 +5,12 @@ import {
   Tag,
 } from "../types/domain";
 
+export interface RecognizedToken {
+  text: string;
+  type: "CATEGORY" | "DATE" | "TAG" | "KEYWORD" | "CONTENT";
+  label: string;
+}
+
 export interface ParsedSpokenCommand {
   categoryId: string | null;
   categoryName: string | null;
@@ -14,6 +20,7 @@ export interface ParsedSpokenCommand {
   tagNames: string[];
   errors: string[];
   isSuccess: boolean;
+  tokens?: RecognizedToken[];
 }
 
 export function parseSpokenCommand(
@@ -23,6 +30,7 @@ export function parseSpokenCommand(
   refDate: Date = new Date(),
 ): ParsedSpokenCommand {
   const errors: string[] = [];
+  const tokens: RecognizedToken[] = [];
   const rawText = transcript.trim();
 
   if (!rawText) {
@@ -35,6 +43,7 @@ export function parseSpokenCommand(
       tagNames: [],
       errors: ["La transcripción está vacía."],
       isSuccess: false,
+      tokens: [],
     };
   }
 
@@ -46,9 +55,7 @@ export function parseSpokenCommand(
   const tagNames: string[] = [];
 
   // 1. Category extraction
-  // Check for explicit "categoría <name>" or match voice_command / name at the start of transcript
   let matchedCategory: Category | null = null;
-
   const normalizedRaw = normalizeTextKey(rawText);
 
   // Check explicit prefix "categoría " or "categoria "
@@ -64,6 +71,11 @@ export function parseSpokenCommand(
           normalizeTextKey(c.name) === catSearch,
       ) ?? null;
     if (matchedCategory) {
+      tokens.push({
+        text: categoryPrefixMatch[0],
+        type: "CATEGORY",
+        label: `Categoría: ${matchedCategory.name}`,
+      });
       workingText = workingText.replace(categoryPrefixMatch[0], "").trim();
     }
   }
@@ -79,10 +91,15 @@ export function parseSpokenCommand(
         normalizedRaw.startsWith(nameNorm)
       ) {
         matchedCategory = cat;
-        // Remove matched category from start
         const matchLen = normalizedRaw.startsWith(vcNorm)
           ? vcNorm.length
           : nameNorm.length;
+        const matchedStr = rawText.substring(0, matchLen);
+        tokens.push({
+          text: matchedStr,
+          type: "CATEGORY",
+          label: `Categoría: ${cat.name}`,
+        });
         workingText = workingText.substring(matchLen).trim();
         break;
       }
@@ -93,19 +110,17 @@ export function parseSpokenCommand(
     categoryId = matchedCategory.id;
     categoryName = matchedCategory.name;
   } else {
-    // Look at first word for unknown category error
     const firstWord = rawText.split(/\s+/)[0];
     errors.push(`Categoría no reconocida: "${firstWord}"`);
   }
 
-  // 2. Tag extraction (check for "etiquetas ...", "etiqueta ...", "tags ...", "tag ...", "con etiquetas ...")
+  // 2. Tag extraction
   const tagRegex = /(?:\s|^)(?:con\s+)?(?:etiquetas?|tags?)\s+(.+)$/i;
   const tagMatch = workingText.match(tagRegex);
   if (tagMatch && tagMatch[1]) {
     const tagText = tagMatch[1].trim();
     workingText = workingText.replace(tagRegex, "").trim();
 
-    // Split tagText by commas or " y " or spaces
     const potentialTagTokens = tagText
       .split(/,|\sy\s|\s+/i)
       .map((t) => t.trim())
@@ -119,10 +134,15 @@ export function parseSpokenCommand(
         tagNames.push(matchedTag.name);
       }
     }
+
+    tokens.push({
+      text: tagMatch[0].trim(),
+      type: "TAG",
+      label: `Etiquetas: ${tagNames.length > 0 ? tagNames.join(", ") : tagText}`,
+    });
   }
 
-  // 3. Date extraction (check for "fecha <date>", "para <date>", or explicit YYYY-MM-DD date format)
-  // Match only if preceded by fecha/para OR if date is explicit YYYY-MM-DD OR at start of workingText right after category
+  // 3. Date extraction
   const explicitDateMatch =
     workingText.match(
       /(?:\s|^)(?:fecha\s+|para\s+)(hoy|mañana|manana|ayer|\d{4}-\d{2}-\d{2})(?:\s+|$)/i,
@@ -133,31 +153,54 @@ export function parseSpokenCommand(
     workingText = workingText.replace(explicitDateMatch[0], " ").trim();
 
     const baseDate = new Date(refDate);
+    let labelDate = dateStr;
     if (dateStr === "hoy") {
       occurredAt = baseDate.toISOString();
+      labelDate = "Hoy";
     } else if (dateStr === "mañana" || dateStr === "manana") {
       baseDate.setDate(baseDate.getDate() + 1);
       occurredAt = baseDate.toISOString();
+      labelDate = "Mañana";
     } else if (dateStr === "ayer") {
       baseDate.setDate(baseDate.getDate() - 1);
       occurredAt = baseDate.toISOString();
+      labelDate = "Ayer";
     } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       const parsed = new Date(`${dateStr}T00:00:00Z`);
       if (!isNaN(parsed.getTime())) {
         occurredAt = parsed.toISOString();
       }
     }
+
+    tokens.push({
+      text: explicitDateMatch[0].trim(),
+      type: "DATE",
+      label: `Fecha: ${labelDate}`,
+    });
   }
 
   // 4. Content extraction
-  // Clean prefix "contenido " if present
-  let content = workingText
-    .replace(/^(?:contenido|que dice|dice)\s+/i, "")
-    .trim();
-  // Remove leading/trailing punctuation or extra delimiters
-  content = content.replace(/^[,.:;\-\s]+|[,.:;\-\s]+$/g, "").trim();
+  const contentKeywordMatch = workingText.match(
+    /^(?:contenido|que dice|dice)\s+/i,
+  );
+  if (contentKeywordMatch) {
+    tokens.push({
+      text: contentKeywordMatch[0].trim(),
+      type: "KEYWORD",
+      label: "Comando Contenido",
+    });
+    workingText = workingText.replace(contentKeywordMatch[0], "").trim();
+  }
 
-  if (!content) {
+  let content = workingText.replace(/^[,.:;\-\s]+|[,.:;\-\s]+$/g, "").trim();
+
+  if (content) {
+    tokens.push({
+      text: content,
+      type: "CONTENT",
+      label: "Contenido Entrada",
+    });
+  } else {
     errors.push("No se pudo extraer el contenido de la transcripción.");
   }
 
@@ -170,5 +213,6 @@ export function parseSpokenCommand(
     tagNames,
     errors,
     isSuccess: errors.length === 0 && categoryId !== null && content.length > 0,
+    tokens,
   };
 }
