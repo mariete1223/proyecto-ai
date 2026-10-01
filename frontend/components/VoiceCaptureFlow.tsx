@@ -177,6 +177,18 @@ export function VoiceCaptureFlow({
     }
   };
 
+  const handleResetVoiceCapture = () => {
+    if (voiceService) {
+      voiceService.cancel();
+    }
+    setVoiceState("IDLE");
+    setTranscript("");
+    setParsedResult(null);
+    setManualContent("");
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
+
   return (
     <View style={styles.card} testID="voice-capture-flow">
       <Text style={styles.title}>Captura Hablada por Voz</Text>
@@ -248,6 +260,14 @@ export function VoiceCaptureFlow({
             <Text style={styles.stopButtonText}>⏹️ Detener y Procesar</Text>
           </Pressable>
         )}
+
+        <Pressable
+          testID="btn-reset-voice-capture"
+          style={styles.resetControlBtn}
+          onPress={handleResetVoiceCapture}
+        >
+          <Text style={styles.resetControlBtnText}>🔄 Reiniciar</Text>
+        </Pressable>
 
         {onClose && (
           <Pressable
@@ -521,6 +541,20 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  resetControlBtn: {
+    backgroundColor: "rgba(245, 158, 11, 0.2)",
+    borderColor: "#F59E0B",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  resetControlBtnText: {
+    color: "#FBBF24",
+    fontWeight: "700",
+    fontSize: 14,
   },
   cancelControlBtn: {
     backgroundColor: "rgba(239, 68, 68, 0.2)",

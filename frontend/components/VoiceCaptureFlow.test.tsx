@@ -132,4 +132,33 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
 
     expect(await findByTestId("voice-wave-visualizer")).toBeTruthy();
   });
+
+  it("resets transcript and state when clicking reset button", async () => {
+    const { getByTestId } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-transcript"),
+        "nota fecha hoy contenido comprar leche",
+      );
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-parse-transcript"));
+    });
+
+    expect(getByTestId("correction-section")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-reset-voice-capture"));
+    });
+
+    expect(getByTestId("input-transcript").props.value).toBe("");
+  });
 });

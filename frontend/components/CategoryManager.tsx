@@ -15,12 +15,22 @@ export interface CategoryManagerProps {
 }
 
 const PRESET_COLORS = [
-  "#38BDF8",
-  "#818CF8",
-  "#F59E0B",
-  "#EF4444",
-  "#10B981",
-  "#EC4899",
+  "#38BDF8", // Sky Blue
+  "#3B82F6", // Royal Blue
+  "#6366F1", // Indigo
+  "#8B5CF6", // Purple
+  "#A855F7", // Violet
+  "#D946EF", // Fuchsia
+  "#EC4899", // Pink
+  "#F43F5E", // Rose
+  "#EF4444", // Red
+  "#F97316", // Orange
+  "#F59E0B", // Amber
+  "#EAB308", // Yellow / Gold
+  "#84CC16", // Lime
+  "#10B981", // Emerald
+  "#14B8A6", // Teal
+  "#06B6D4", // Cyan
 ];
 
 export function CategoryManager({
@@ -230,8 +240,16 @@ export function CategoryManager({
           onChangeText={setDescription}
         />
 
-        <Text style={styles.label}>Color Hexadecimal</Text>
-        <View style={styles.colorRow}>
+        <Text style={styles.label}>
+          Color Hexadecimal (Selecciona o escribe Hex)
+        </Text>
+        <View style={styles.colorInputRow}>
+          <View
+            style={[
+              styles.colorPreviewDot,
+              { backgroundColor: color || "#38BDF8" },
+            ]}
+          />
           <TextInput
             testID="input-cat-color"
             style={[styles.input, { flex: 1 }]}
@@ -240,6 +258,8 @@ export function CategoryManager({
             value={color}
             onChangeText={setColor}
           />
+        </View>
+        <View style={styles.colorRow}>
           {PRESET_COLORS.map((c) => (
             <Pressable
               key={c}
@@ -427,10 +447,25 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
   },
-  colorRow: {
+  colorInputRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  colorPreviewDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#334155",
+  },
+  colorRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
     gap: 8,
+    marginVertical: 4,
   },
   colorDot: {
     width: 24,
