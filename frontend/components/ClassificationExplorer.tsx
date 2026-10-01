@@ -53,6 +53,13 @@ export function ClassificationExplorer({
 
   const [associatedEntries, setAssociatedEntries] = useState<Entry[]>([]);
   const [visibleCount, setVisibleCount] = useState<number>(pageSize);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<"NEWEST" | "OLDEST" | "ALPHA">(
+    "NEWEST",
+  );
+  const [categoryCounts, setCategoryCounts] = useState<{
+    [catId: string]: number;
+  }>({});
 
   // Creation forms state
   const [showAddCatForm, setShowAddCatForm] = useState(false);
@@ -73,6 +80,12 @@ export function ClassificationExplorer({
     try {
       const cats = await listCategories(db, userId);
       const tgs = await listTags(db, userId);
+      const allEntries = await listLocalEntries(db, userId);
+      const counts: { [catId: string]: number } = {};
+      cats.forEach((c) => {
+        counts[c.id] = allEntries.filter((e) => e.category_id === c.id).length;
+      });
+
       const tgsUsage = await Promise.all(
         tgs.map(async (tag) => {
           const count = await getTagUsageCount(db, userId, tag.id);
@@ -81,6 +94,7 @@ export function ClassificationExplorer({
       );
 
       setCategories(cats);
+      setCategoryCounts(counts);
       setTagsWithUsage(tgsUsage);
     } catch {
       // Fallback
@@ -93,6 +107,14 @@ export function ClassificationExplorer({
       try {
         const cats = await listCategories(db, userId);
         const tgs = await listTags(db, userId);
+        const allEntries = await listLocalEntries(db, userId);
+        const counts: { [catId: string]: number } = {};
+        cats.forEach((c) => {
+          counts[c.id] = allEntries.filter(
+            (e) => e.category_id === c.id,
+          ).length;
+        });
+
         const tgsUsage = await Promise.all(
           tgs.map(async (tag) => {
             const count = await getTagUsageCount(db, userId, tag.id);
@@ -102,6 +124,7 @@ export function ClassificationExplorer({
 
         if (mounted) {
           setCategories(cats);
+          setCategoryCounts(counts);
           setTagsWithUsage(tgsUsage);
 
           if (
@@ -234,8 +257,26 @@ export function ClassificationExplorer({
     }
   };
 
-  const visibleEntries = associatedEntries.slice(0, visibleCount);
-  const hasMore = visibleCount < associatedEntries.length;
+  const activeCategory = categories.find((c) => c.id === selectedCatId);
+
+  const filteredAndSortedEntries = associatedEntries
+    .filter((e) => e.content.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (sortOrder === "NEWEST") {
+        const timeA = a.occurred_at || a.created_at;
+        const timeB = b.occurred_at || b.created_at;
+        return timeB.localeCompare(timeA);
+      }
+      if (sortOrder === "OLDEST") {
+        const timeA = a.occurred_at || a.created_at;
+        const timeB = b.occurred_at || b.created_at;
+        return timeA.localeCompare(timeB);
+      }
+      return a.content.localeCompare(b.content);
+    });
+
+  const visibleEntries = filteredAndSortedEntries.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredAndSortedEntries.length;
 
   return (
     <View style={styles.card} testID="classification-explorer">
@@ -493,7 +534,10 @@ export function ClassificationExplorer({
                   selectedCatId === cat.id && styles.chipTextSelected,
                 ]}
               >
-                {cat.name}
+                <Text>{cat.name}</Text>
+                <Text style={styles.chipCountText}>
+                  {` (${categoryCounts[cat.id] ?? 0})`}
+                </Text>
               </Text>
             </Pressable>
           ))}
@@ -523,14 +567,86 @@ export function ClassificationExplorer({
         </View>
       )}
 
+      {/* Search & Sort Bar */}
+      <View style={styles.filterControlsRow}>
+        <TextInput
+          testID="input-search-explorer"
+          style={styles.searchInputExplorer}
+          placeholder="🔍 Buscar entradas en esta categoría..."
+          placeholderTextColor="#64748B"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        <View style={styles.sortButtonsRow}>
+          <Pressable
+            testID="btn-sort-newest"
+            style={[
+              styles.sortBtn,
+              sortOrder === "NEWEST" && styles.sortBtnActive,
+            ]}
+            onPress={() => setSortOrder("NEWEST")}
+          >
+            <Text
+              style={[
+                styles.sortBtnText,
+                sortOrder === "NEWEST" && styles.sortBtnTextActive,
+              ]}
+            >
+              Recientes
+            </Text>
+          </Pressable>
+          <Pressable
+            testID="btn-sort-oldest"
+            style={[
+              styles.sortBtn,
+              sortOrder === "OLDEST" && styles.sortBtnActive,
+            ]}
+            onPress={() => setSortOrder("OLDEST")}
+          >
+            <Text
+              style={[
+                styles.sortBtnText,
+                sortOrder === "OLDEST" && styles.sortBtnTextActive,
+              ]}
+            >
+              Antiguas
+            </Text>
+          </Pressable>
+          <Pressable
+            testID="btn-sort-alpha"
+            style={[
+              styles.sortBtn,
+              sortOrder === "ALPHA" && styles.sortBtnActive,
+            ]}
+            onPress={() => setSortOrder("ALPHA")}
+          >
+            <Text
+              style={[
+                styles.sortBtnText,
+                sortOrder === "ALPHA" && styles.sortBtnTextActive,
+              ]}
+            >
+              A-Z
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
       {/* Associated Entries List */}
-      <Text style={styles.sectionTitle}>Entradas Asociadas</Text>
+      <Text style={styles.sectionTitle}>
+        {activeTab === "CATEGORIES" && activeCategory
+          ? `Entradas en "${activeCategory.name}" (${filteredAndSortedEntries.length})`
+          : `Entradas Asociadas (${filteredAndSortedEntries.length})`}
+      </Text>
+
       <View style={styles.entriesList} testID="associated-entries-list">
-        {associatedEntries.length === 0 ? (
+        {filteredAndSortedEntries.length === 0 ? (
           <Text style={styles.emptyText} testID="empty-entries-text">
-            {activeTab === "CATEGORIES"
-              ? "No hay entradas asociadas a esta categoría."
-              : "No hay entradas asociadas a esta etiqueta."}
+            {searchQuery
+              ? `No se encontraron entradas para "${searchQuery}".`
+              : activeTab === "CATEGORIES"
+                ? "No hay entradas asociadas a esta categoría."
+                : "No hay entradas asociadas a esta etiqueta."}
           </Text>
         ) : (
           visibleEntries.map((entry) => (
@@ -540,12 +656,40 @@ export function ClassificationExplorer({
               style={styles.entryCard}
               onPress={() => onSelectEntry && onSelectEntry(entry.id)}
             >
+              <View style={styles.entryCardHeaderRow}>
+                {activeTab === "CATEGORIES" && activeCategory && (
+                  <View style={styles.catBadgeContainer}>
+                    <View
+                      style={[
+                        styles.catColorBadge,
+                        { backgroundColor: activeCategory.color || "#38BDF8" },
+                      ]}
+                    />
+                    <Text style={styles.catBadgeName}>
+                      {`📁 ${activeCategory.name}`}
+                    </Text>
+                  </View>
+                )}
+                {entry.occurred_at ? (
+                  <Text style={styles.entryDate}>
+                    {`📅 ${new Date(entry.occurred_at).toLocaleDateString(
+                      "es-ES",
+                      {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      },
+                    )}`}
+                  </Text>
+                ) : (
+                  <Text style={styles.entryDate}>
+                    {`Creado: ${entry.created_at.substring(0, 10)}`}
+                  </Text>
+                )}
+              </View>
               <Text style={styles.entryContent}>{entry.content}</Text>
-              {entry.occurred_at && (
-                <Text style={styles.entryDate}>
-                  {`Fecha: ${entry.occurred_at.substring(0, 10)}`}
-                </Text>
-              )}
             </Pressable>
           ))
         )}
@@ -787,6 +931,54 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "bold",
   },
+  chipCountText: {
+    fontSize: 11,
+    opacity: 0.8,
+  },
+  filterControlsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 16,
+    alignItems: "center",
+  },
+  searchInputExplorer: {
+    flex: 1,
+    minWidth: 200,
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    color: "#F8FAFC",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+  },
+  sortButtonsRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  sortBtn: {
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  sortBtnActive: {
+    backgroundColor: "#38BDF8",
+    borderColor: "#38BDF8",
+  },
+  sortBtnText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  sortBtnTextActive: {
+    color: "#0F172A",
+    fontWeight: "bold",
+  },
   sectionTitle: {
     fontSize: 15,
     fontWeight: "600",
@@ -807,6 +999,27 @@ const styles = StyleSheet.create({
     borderColor: "#334155",
     borderWidth: 1,
   },
+  entryCardHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  catBadgeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  catColorBadge: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  catBadgeName: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
   entryContent: {
     color: "#F8FAFC",
     fontSize: 14,
@@ -814,7 +1027,6 @@ const styles = StyleSheet.create({
   entryDate: {
     color: "#64748B",
     fontSize: 11,
-    marginTop: 4,
   },
   loadMoreButton: {
     backgroundColor: "#334155",
