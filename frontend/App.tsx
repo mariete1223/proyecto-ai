@@ -320,7 +320,12 @@ export default function App() {
         {/* Tab 3: EXPLORER (Categories & Tags) */}
         {activeTab === "EXPLORER" && (
           <View style={styles.tabContainer}>
-            <ClassificationExplorer db={db} userId={userId} />
+            <ClassificationExplorer
+              db={db}
+              userId={userId}
+              onSelectEntry={(entryId) => setSelectedEntryId(entryId)}
+              onCatalogUpdated={loadDatabaseState}
+            />
           </View>
         )}
 

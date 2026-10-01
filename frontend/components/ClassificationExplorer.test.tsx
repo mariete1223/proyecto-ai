@@ -107,4 +107,67 @@ describe("ClassificationExplorer Component (Task 37)", () => {
       expect(getByText("Tarea de trabajo #2")).toBeTruthy();
     });
   });
+
+  it("allows creating a new category directly in the explorer tab", async () => {
+    const onCatalogUpdatedMock = jest.fn();
+    const { getByTestId, findByText } = await render(
+      <ClassificationExplorer
+        db={db}
+        userId={userId}
+        pageSize={5}
+        onCatalogUpdated={onCatalogUpdatedMock}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-open-add-category"));
+    });
+
+    expect(getByTestId("explorer-category-form")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-new-cat-name"), "Finanzas");
+      fireEvent.changeText(getByTestId("input-new-cat-voice"), "finanzas");
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-save-new-category"));
+    });
+
+    expect(await findByText("Finanzas")).toBeTruthy();
+    expect(onCatalogUpdatedMock).toHaveBeenCalled();
+  });
+
+  it("allows creating a new tag directly in the explorer tab", async () => {
+    const onCatalogUpdatedMock = jest.fn();
+    const { getByTestId, findByText } = await render(
+      <ClassificationExplorer
+        db={db}
+        userId={userId}
+        pageSize={5}
+        onCatalogUpdated={onCatalogUpdatedMock}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.press(getByTestId("tab-tags"));
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-open-add-tag"));
+    });
+
+    expect(getByTestId("explorer-tag-form")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-new-tag-name"), "Importante");
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-save-new-tag"));
+    });
+
+    expect(await findByText("#Importante (0)")).toBeTruthy();
+    expect(onCatalogUpdatedMock).toHaveBeenCalled();
+  });
 });
