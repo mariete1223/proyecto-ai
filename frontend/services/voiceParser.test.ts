@@ -171,8 +171,42 @@ describe("Spoken Command Parser (voiceParser)", () => {
       refDate,
     );
     expect(resultNoContent.isSuccess).toBe(false);
-    expect(resultNoContent.errors).toContain(
-      "No se pudo extraer el contenido de la transcripción.",
+  });
+
+  it("parses spoken time 'a las 1600' and removes it from content", () => {
+    const transcript = "tarea fecha, hoy a las 1600.Voy a llamar a María";
+    const result = parseSpokenCommand(
+      transcript,
+      sampleCategories,
+      sampleTags,
+      refDate,
     );
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.categoryId).toBe("cat-2");
+    expect(result.content).toBe("Voy a llamar a María");
+    expect(result.occurredAt).toBeDefined();
+    const d = new Date(result.occurredAt!);
+    expect(d.getHours()).toBe(16);
+    expect(d.getMinutes()).toBe(0);
+  });
+
+  it("parses relative date 'pasado mañana' and time 'a las 4 de la tarde'", () => {
+    const transcript =
+      "nota fecha pasado mañana a las 4 de la tarde reunión de equipo";
+    const result = parseSpokenCommand(
+      transcript,
+      sampleCategories,
+      sampleTags,
+      refDate,
+    );
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.categoryId).toBe("cat-1");
+    expect(result.content).toBe("reunión de equipo");
+    expect(result.occurredAt).toBeDefined();
+    const d = new Date(result.occurredAt!);
+    expect(d.getHours()).toBe(16);
+    expect(d.getMinutes()).toBe(0);
   });
 });

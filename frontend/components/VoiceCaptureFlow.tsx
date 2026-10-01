@@ -40,6 +40,8 @@ export function VoiceCaptureFlow({
 
   const [manualContent, setManualContent] = useState<string>("");
   const [manualCategoryId, setManualCategoryId] = useState<string>("");
+  const [manualDateStr, setManualDateStr] = useState<string>("");
+  const [manualTimeStr, setManualTimeStr] = useState<string>("12:00");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -71,6 +73,34 @@ export function VoiceCaptureFlow({
       mounted = false;
     };
   }, [db, userId]);
+
+  const setQuickDate = (daysFromToday: number | null) => {
+    if (daysFromToday === null) {
+      setManualDateStr("");
+      return;
+    }
+    const d = new Date();
+    d.setDate(d.getDate() + daysFromToday);
+    setManualDateStr(d.toISOString().substring(0, 10));
+  };
+
+  const buildOccurredAtIso = (): string | null => {
+    if (!manualDateStr.trim()) return null;
+    try {
+      const timeParts = manualTimeStr.trim().split(":");
+      const h = parseInt(timeParts[0], 10) || 0;
+      const m = parseInt(timeParts[1], 10) || 0;
+      const dateParts = manualDateStr.trim().split("-");
+      const y = parseInt(dateParts[0], 10);
+      const mon = parseInt(dateParts[1], 10);
+      const day = parseInt(dateParts[2], 10);
+
+      const d = new Date(y, mon - 1, day, h, m, 0, 0);
+      return d.toISOString();
+    } catch {
+      return null;
+    }
+  };
 
   const handleStartListening = async () => {
     setErrorMessage(null);
@@ -117,6 +147,16 @@ export function VoiceCaptureFlow({
     setTranscript(rawTranscript);
     const parsed = parseSpokenCommand(rawTranscript, categories, tags);
     setParsedResult(parsed);
+
+    if (parsed.occurredAt) {
+      const d = new Date(parsed.occurredAt);
+      setManualDateStr(d.toISOString().substring(0, 10));
+      const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+      setManualTimeStr(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    } else {
+      setManualDateStr("");
+      setManualTimeStr("12:00");
+    }
 
     if (parsed.isSuccess && parsed.categoryId && parsed.content) {
       if (saveMode === "FAST_FORWARD") {
@@ -185,6 +225,8 @@ export function VoiceCaptureFlow({
     setTranscript("");
     setParsedResult(null);
     setManualContent("");
+    setManualDateStr("");
+    setManualTimeStr("12:00");
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -299,11 +341,12 @@ export function VoiceCaptureFlow({
             </Text>
           </View>
           <View style={styles.guideRow}>
-            <Text style={styles.guideBadgeDate}>📅 Fechas</Text>
+            <Text style={styles.guideBadgeDate}>📅 Fechas & Horas</Text>
             <Text style={styles.guideText}>
               Di <Text style={styles.boldCode}>{'"fecha hoy"'}</Text>,{" "}
-              <Text style={styles.boldCode}>{'"fecha mañana"'}</Text> o{" "}
-              <Text style={styles.boldCode}>{'"para AAAA-MM-DD"'}</Text>
+              <Text style={styles.boldCode}>{'"fecha mañana"'}</Text>,{" "}
+              <Text style={styles.boldCode}>{'"pasado mañana"'}</Text> o{" "}
+              <Text style={styles.boldCode}>{'"a las 16:00"'}</Text>
             </Text>
           </View>
           <View style={styles.guideRow}>
@@ -359,12 +402,14 @@ export function VoiceCaptureFlow({
           {parsedResult?.occurredAt && (
             <View style={styles.detectedDateBox} testID="detected-date-box">
               <Text style={styles.detectedDateText}>
-                📅 Fecha Detectada:{" "}
-                {new Date(parsedResult.occurredAt).toLocaleDateString("es-ES", {
+                📅 Fecha & Hora Detectada:{" "}
+                {new Date(parsedResult.occurredAt).toLocaleString("es-ES", {
                   weekday: "short",
                   day: "numeric",
                   month: "short",
                   year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}
               </Text>
             </View>
@@ -394,6 +439,79 @@ export function VoiceCaptureFlow({
             ))}
           </View>
 
+          <Text style={styles.label}>📅 Ajuste de Fecha y Hora</Text>
+          <View style={styles.datePresetRow}>
+            <Pressable
+              testID="btn-preset-date-today"
+              style={[
+                styles.datePresetChip,
+                manualDateStr === new Date().toISOString().substring(0, 10) &&
+                  styles.datePresetChipActive,
+              ]}
+              onPress={() => setQuickDate(0)}
+            >
+              <Text
+                style={[
+                  styles.datePresetChipText,
+                  manualDateStr === new Date().toISOString().substring(0, 10) &&
+                    styles.datePresetChipTextActive,
+                ]}
+              >
+                Hoy
+              </Text>
+            </Pressable>
+
+            <Pressable
+              testID="btn-preset-date-tomorrow"
+              style={styles.datePresetChip}
+              onPress={() => setQuickDate(1)}
+            >
+              <Text style={styles.datePresetChipText}>Mañana</Text>
+            </Pressable>
+
+            <Pressable
+              testID="btn-preset-date-after-tomorrow"
+              style={styles.datePresetChip}
+              onPress={() => setQuickDate(2)}
+            >
+              <Text style={styles.datePresetChipText}>Pasado Mañana</Text>
+            </Pressable>
+
+            <Pressable
+              testID="btn-preset-date-clear"
+              style={styles.datePresetChip}
+              onPress={() => setQuickDate(null)}
+            >
+              <Text style={styles.datePresetChipText}>Sin Fecha</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.dateTimeInputsRow}>
+            <View style={{ flex: 2 }}>
+              <Text style={styles.subInputLabel}>Fecha (AAAA-MM-DD)</Text>
+              <TextInput
+                testID="input-manual-date"
+                style={styles.input}
+                value={manualDateStr}
+                onChangeText={setManualDateStr}
+                placeholder="AAAA-MM-DD"
+                placeholderTextColor="#64748B"
+              />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text style={styles.subInputLabel}>Hora (HH:MM)</Text>
+              <TextInput
+                testID="input-manual-time"
+                style={styles.input}
+                value={manualTimeStr}
+                onChangeText={setManualTimeStr}
+                placeholder="16:00"
+                placeholderTextColor="#64748B"
+              />
+            </View>
+          </View>
+
           <Text style={styles.label}>Contenido de la Entrada</Text>
           <TextInput
             testID="input-manual-content"
@@ -414,7 +532,8 @@ export function VoiceCaptureFlow({
                 saveParsedEntry(
                   manualCategoryId,
                   manualContent,
-                  parsedResult ? parsedResult.occurredAt : null,
+                  buildOccurredAtIso() ??
+                    (parsedResult ? parsedResult.occurredAt : null),
                   parsedResult ? parsedResult.tagIds : [],
                 )
               }
@@ -779,6 +898,44 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: "#0F172A",
     fontWeight: "bold",
+  },
+  datePresetRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
+  datePresetChip: {
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  datePresetChipActive: {
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
+  },
+  datePresetChipText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  datePresetChipTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
+  },
+  dateTimeInputsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+  },
+  subInputLabel: {
+    color: "#64748B",
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 4,
   },
   actionsRow: {
     flexDirection: "row",
