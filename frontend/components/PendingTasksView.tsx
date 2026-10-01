@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { DatabaseAdapter } from "../db/database";
 import {
-  listPendingDatelessTasks as defaultListPendingDatelessTasks,
+  listDatelessTasks as defaultListDatelessTasks,
   updateLocalEntry as defaultUpdateLocalEntry,
   UpdateEntryData,
 } from "../db/entries";
@@ -34,11 +34,14 @@ export function PendingTasksView(props: PendingTasksViewProps) {
     db,
     userId,
     onSelectEntry,
-    fetchTasks = defaultListPendingDatelessTasks,
+    fetchTasks = defaultListDatelessTasks,
     updateEntry = defaultUpdateLocalEntry,
   } = props;
 
   const [tasks, setTasks] = useState<Entry[]>([]);
+  const [statusFilter, setStatusFilter] = useState<
+    "PENDING" | "IN_PROGRESS" | "DONE" | "ALL"
+  >("PENDING");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [exportedJson, setExportedJson] = useState<string | null>(null);
@@ -86,15 +89,11 @@ export function PendingTasksView(props: PendingTasksViewProps) {
         task_status: newStatus,
         task_recurrence: entry.task_recurrence ?? "ONCE",
       });
-      if (newStatus === "DONE") {
-        setTasks((prev) => prev.filter((t) => t.id !== entry.id));
-      } else {
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === entry.id ? { ...t, task_status: newStatus } : t,
-          ),
-        );
-      }
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === entry.id ? { ...t, task_status: newStatus } : t,
+        ),
+      );
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Error al actualizar la tarea.",
@@ -107,18 +106,32 @@ export function PendingTasksView(props: PendingTasksViewProps) {
     setExportedJson(data);
   };
 
-  const filteredTasks = tasks.filter((t) =>
-    t.content.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const pendingCount = tasks.filter((t) => t.task_status === "PENDING").length;
+  const inProgressCount = tasks.filter(
+    (t) => t.task_status === "IN_PROGRESS",
+  ).length;
+  const doneCount = tasks.filter((t) => t.task_status === "DONE").length;
+  const allCount = tasks.length;
+
+  const filteredTasks = tasks
+    .filter((t) => {
+      if (statusFilter === "ALL") return true;
+      if (statusFilter === "PENDING") return t.task_status === "PENDING";
+      if (statusFilter === "IN_PROGRESS")
+        return t.task_status === "IN_PROGRESS";
+      if (statusFilter === "DONE") return t.task_status === "DONE";
+      return true;
+    })
+    .filter((t) => t.content.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <View style={styles.container} testID="pending-tasks-view">
       {/* Header bar */}
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.title}>Tareas Pendientes</Text>
+          <Text style={styles.title}>Tareas sin Fecha</Text>
           <Text style={styles.subtitle}>
-            Organización ágil de tareas sin fecha asignada
+            Organización ágil de tareas pendientes, en progreso y realizadas
           </Text>
         </View>
         <Pressable
@@ -127,6 +140,81 @@ export function PendingTasksView(props: PendingTasksViewProps) {
           testID="btn-export-json"
         >
           <Text style={styles.exportButtonText}>📥 Exportar JSON</Text>
+        </Pressable>
+      </View>
+
+      {/* Task Status Filter Tabs */}
+      <View style={styles.tabFilterRow}>
+        <Pressable
+          testID="tab-filter-pending"
+          style={[
+            styles.tabFilterBtn,
+            statusFilter === "PENDING" && styles.tabFilterBtnActive,
+          ]}
+          onPress={() => setStatusFilter("PENDING")}
+        >
+          <Text
+            style={[
+              styles.tabFilterText,
+              statusFilter === "PENDING" && styles.tabFilterTextActive,
+            ]}
+          >
+            {`⏳ Pendientes (${pendingCount})`}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          testID="tab-filter-inprogress"
+          style={[
+            styles.tabFilterBtn,
+            statusFilter === "IN_PROGRESS" && styles.tabFilterBtnActive,
+          ]}
+          onPress={() => setStatusFilter("IN_PROGRESS")}
+        >
+          <Text
+            style={[
+              styles.tabFilterText,
+              statusFilter === "IN_PROGRESS" && styles.tabFilterTextActive,
+            ]}
+          >
+            {`⚡ En progreso (${inProgressCount})`}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          testID="tab-filter-done"
+          style={[
+            styles.tabFilterBtn,
+            statusFilter === "DONE" && styles.tabFilterBtnActive,
+          ]}
+          onPress={() => setStatusFilter("DONE")}
+        >
+          <Text
+            style={[
+              styles.tabFilterText,
+              statusFilter === "DONE" && styles.tabFilterTextActive,
+            ]}
+          >
+            {`✅ Realizadas (${doneCount})`}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          testID="tab-filter-all"
+          style={[
+            styles.tabFilterBtn,
+            statusFilter === "ALL" && styles.tabFilterBtnActive,
+          ]}
+          onPress={() => setStatusFilter("ALL")}
+        >
+          <Text
+            style={[
+              styles.tabFilterText,
+              statusFilter === "ALL" && styles.tabFilterTextActive,
+            ]}
+          >
+            {`📋 Todas (${allCount})`}
+          </Text>
         </Pressable>
       </View>
 
@@ -173,8 +261,23 @@ export function PendingTasksView(props: PendingTasksViewProps) {
           <Text style={styles.emptyText}>
             {searchQuery
               ? `No se encontraron tareas para "${searchQuery}"`
-              : "No hay tareas pendientes sin fecha"}
+              : statusFilter === "DONE"
+                ? "No hay tareas realizadas sin fecha"
+                : statusFilter === "IN_PROGRESS"
+                  ? "No hay tareas en progreso"
+                  : "No hay tareas pendientes sin fecha"}
           </Text>
+          {statusFilter !== "PENDING" && (
+            <Pressable
+              testID="btn-back-to-pending"
+              style={styles.switchPendingBtn}
+              onPress={() => setStatusFilter("PENDING")}
+            >
+              <Text style={styles.switchPendingBtnText}>
+                👈 Volver a Tareas Pendientes
+              </Text>
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -303,6 +406,45 @@ const styles = StyleSheet.create({
     color: "#60a5fa",
     fontSize: 13,
     fontWeight: "600",
+  },
+  tabFilterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  tabFilterBtn: {
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  tabFilterBtnActive: {
+    backgroundColor: "#38BDF8",
+    borderColor: "#38BDF8",
+  },
+  tabFilterText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  tabFilterTextActive: {
+    color: "#0f172a",
+    fontWeight: "bold",
+  },
+  switchPendingBtn: {
+    marginTop: 14,
+    backgroundColor: "#334155",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  switchPendingBtnText: {
+    color: "#38BDF8",
+    fontWeight: "bold",
+    fontSize: 13,
   },
   searchContainer: {
     marginBottom: 16,

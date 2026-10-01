@@ -227,6 +227,43 @@ export async function listPendingDatelessTasks(
   return result;
 }
 
+export async function listDatelessTasks(
+  db: DatabaseAdapter,
+  userId: string,
+): Promise<Entry[]> {
+  const taskCategories = await db.getAllAsync<{ id: string }>(
+    `SELECT id FROM categories WHERE user_id = ? AND kind = 'TASK';`,
+    [userId],
+  );
+  const taskCatIds = new Set(taskCategories.map((c) => c.id));
+
+  const allEntries = await db.getAllAsync<Omit<Entry, "tag_ids">>(
+    `SELECT * FROM entries WHERE user_id = ? ORDER BY created_at DESC;`,
+    [userId],
+  );
+
+  const datelessTasks = allEntries.filter(
+    (e) =>
+      taskCatIds.has(e.category_id) &&
+      e.occurred_at === null &&
+      e.task_status !== null,
+  );
+
+  const result: Entry[] = [];
+  for (const row of datelessTasks) {
+    const etRows = await db.getAllAsync<{ tag_id: string }>(
+      `SELECT tag_id FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
+      [row.id, userId],
+    );
+    result.push({
+      ...row,
+      tag_ids: etRows.map((r) => r.tag_id),
+    });
+  }
+
+  return result;
+}
+
 export async function updateLocalEntry(
   db: DatabaseAdapter,
   userId: string,

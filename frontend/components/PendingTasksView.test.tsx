@@ -104,11 +104,16 @@ describe("PendingTasksView Component", () => {
       fireEvent.press(getByTestId(`status-inprogress-${task1.id}`));
     });
 
+    // Switch to IN_PROGRESS tab
+    await act(async () => {
+      fireEvent.press(getByTestId("tab-filter-inprogress"));
+    });
+
     await waitFor(() => {
       expect(getAllByText(/En progreso/).length).toBeGreaterThan(0);
     });
 
-    // Change status to DONE (which removes it from pending dateless list)
+    // Change status to DONE (which moves it to Realizadas tab)
     await act(async () => {
       fireEvent.press(getByTestId(`status-done-${task1.id}`));
     });
@@ -116,6 +121,20 @@ describe("PendingTasksView Component", () => {
     await waitFor(() => {
       expect(queryByText("Comprar leche")).toBeNull();
       expect(getByTestId("empty-container")).toBeTruthy();
+    });
+
+    // Switch to Realizadas tab
+    await act(async () => {
+      fireEvent.press(getByTestId("tab-filter-done"));
+    });
+
+    await waitFor(() => {
+      expect(getByText("Comprar leche")).toBeTruthy();
+    });
+
+    // Switch back to Pendientes tab
+    await act(async () => {
+      fireEvent.press(getByTestId("tab-filter-pending"));
     });
   });
 
