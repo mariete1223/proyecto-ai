@@ -295,27 +295,6 @@ export function VoiceCaptureFlow({
         </View>
       </View>
 
-      {/* Transcript Input / Testing */}
-      <Text style={styles.label}>Transcripción de Voz</Text>
-      <TextInput
-        testID="input-transcript"
-        style={styles.input}
-        placeholder="Escribe o dicta el comando (ej: tarea fecha hoy contenido comprar pan etiquetas urgente)..."
-        placeholderTextColor="#64748B"
-        value={transcript}
-        onChangeText={setTranscript}
-      />
-
-      <Pressable
-        testID="btn-parse-transcript"
-        style={styles.secondaryButton}
-        onPress={() => handleProcessTranscript(transcript)}
-      >
-        <Text style={styles.secondaryButtonText}>
-          🔍 Procesar Transcripción
-        </Text>
-      </Pressable>
-
       {/* Recognized Command Tokens Highlights */}
       {parsedResult &&
         parsedResult.tokens &&
@@ -433,6 +412,27 @@ export function VoiceCaptureFlow({
           </View>
         </View>
       )}
+
+      {/* Transcript Input / Testing */}
+      <Text style={styles.label}>Transcripción Bruta de Voz</Text>
+      <TextInput
+        testID="input-transcript"
+        style={styles.input}
+        placeholder="Escribe o dicta el comando (ej: tarea fecha hoy contenido comprar pan etiquetas urgente)..."
+        placeholderTextColor="#64748B"
+        value={transcript}
+        onChangeText={setTranscript}
+      />
+
+      <Pressable
+        testID="btn-parse-transcript"
+        style={styles.secondaryButton}
+        onPress={() => handleProcessTranscript(transcript)}
+      >
+        <Text style={styles.secondaryButtonText}>
+          🔍 Re-procesar Transcripción
+        </Text>
+      </Pressable>
     </View>
   );
 }

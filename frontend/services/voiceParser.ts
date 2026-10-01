@@ -148,12 +148,14 @@ export function parseSpokenCommand(
     });
   }
 
-  // 3. Date extraction (handles attached trailing dots/commas like "fecha hoy.He...")
+  // 3. Date extraction (handles "fecha, hoy.", "fecha: hoy", "para hoy", or standalone "hoy.", "mañana.", "ayer." at start)
   const explicitDateMatch =
     workingText.match(
-      /(?:\s|^|[,.:;])(?:fecha\s+|para\s+)(hoy|mañana|manana|ayer|\d{4}-\d{2}-\d{2})(?:[.,;:!?\s]|$)/i,
+      /(?:\s|^|[,.:;])(?:fecha|para|día|dia)[,.:;]?\s*(hoy|mañana|manana|ayer|\d{4}-\d{2}-\d{2})(?:[.,;:!?\s]|$)/i,
     ) ??
-    workingText.match(/(?:\s|^|[,.:;])(\d{4}-\d{2}-\d{2})(?:[.,;:!?\s]|$)/i);
+    workingText.match(
+      /^(?:[,.:;\s]*)(hoy|mañana|manana|ayer|\d{4}-\d{2}-\d{2})(?:[.,;:!?\s]|$)/i,
+    );
 
   if (explicitDateMatch && explicitDateMatch[1]) {
     const dateStr = explicitDateMatch[1].toLowerCase();
