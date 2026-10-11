@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { listCategories } from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
-import { listLocalEntries } from "../db/entries";
-import { Category, Entry } from "../types/domain";
+import { listLocalEntries, updateLocalEntry } from "../db/entries";
+import { listTags } from "../db/tags";
+import { Category, Entry, Tag, formatDateTime, getEntryDisplayTitle } from "../types/domain";
 
 export interface CalendarMonthViewProps {
   db: DatabaseAdapter;
@@ -11,6 +12,8 @@ export interface CalendarMonthViewProps {
   initialDate?: Date;
   onSelectEntry?: (entryId: string) => void;
   selectedCategoryIds?: string[];
+  refreshSignal?: number;
+  onEntryUpdated?: () => void;
 }
 
 export function CalendarMonthView({
@@ -19,16 +22,50 @@ export function CalendarMonthView({
   initialDate = new Date(),
   onSelectEntry,
   selectedCategoryIds,
+  refreshSignal,
+  onEntryUpdated,
 }: CalendarMonthViewProps) {
   const [currentDate, setCurrentDate] = useState<Date>(
     new Date(initialDate.getFullYear(), initialDate.getMonth(), 1),
   );
   const [categories, setCategories] = useState<Category[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [selectedDayEntries, setSelectedDayEntries] = useState<{
     dateStr: string;
     items: Entry[];
   } | null>(null);
+  const [editingTitleEntryId, setEditingTitleEntryId] = useState<string | null>(
+    null,
+  );
+  const [quickTitleText, setQuickTitleText] = useState<string>("");
+
+  const handleSaveQuickTitle = async (entryId: string) => {
+    if (!quickTitleText.trim()) return;
+    try {
+      const updated = await updateLocalEntry(db, userId, entryId, {
+        title: quickTitleText.trim(),
+      });
+      setEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? { ...e, title: updated.title } : e)),
+      );
+      setSelectedDayEntries((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.map((e) =>
+                e.id === entryId ? { ...e, title: updated.title } : e,
+              ),
+            }
+          : null,
+      );
+      setEditingTitleEntryId(null);
+      setQuickTitleText("");
+      onEntryUpdated?.();
+    } catch {
+      // Fallback
+    }
+  };
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -37,7 +74,10 @@ export function CalendarMonthView({
     let mounted = true;
     async function fetchData() {
       try {
-        const cats = await listCategories(db, userId);
+        const [cats, tagList] = await Promise.all([
+          listCategories(db, userId),
+          listTags(db, userId),
+        ]);
         const startOfMonth = new Date(year, month, 1).toISOString();
         const endOfMonth = new Date(
           year,
@@ -60,6 +100,7 @@ export function CalendarMonthView({
 
         if (mounted) {
           setCategories(cats);
+          setTags(tagList);
           setEntries(fetchedEntries);
         }
       } catch {
@@ -70,7 +111,7 @@ export function CalendarMonthView({
     return () => {
       mounted = false;
     };
-  }, [db, userId, year, month, selectedCategoryIds]);
+  }, [db, userId, year, month, selectedCategoryIds, refreshSignal]);
 
   const prevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -90,6 +131,10 @@ export function CalendarMonthView({
   // Map category ID to Category object
   const categoryMap = new Map<string, Category>();
   categories.forEach((c) => categoryMap.set(c.id, c));
+
+  // Map tag ID to Tag object
+  const tagMap = new Map<string, Tag>();
+  tags.forEach((t) => tagMap.set(t.id, t));
 
   // Group entries by date string YYYY-MM-DD
   const entriesByDayMap = new Map<string, Entry[]>();
@@ -244,7 +289,35 @@ export function CalendarMonthView({
                   })
                 : "Sin hora";
 
-              return (
+              return editingTitleEntryId === ent.id ? (
+                <View key={ent.id} style={styles.quickTitleForm}>
+                  <TextInput
+                    testID={`input-quick-title-${ent.id}`}
+                    style={styles.quickTitleInput}
+                    placeholder="Escribe un título..."
+                    placeholderTextColor="#64748B"
+                    value={quickTitleText}
+                    onChangeText={setQuickTitleText}
+                    autoFocus
+                  />
+                  <View style={styles.quickTitleActions}>
+                    <Pressable
+                      testID={`btn-save-quick-title-${ent.id}`}
+                      style={styles.quickTitleSaveBtn}
+                      onPress={() => handleSaveQuickTitle(ent.id)}
+                    >
+                      <Text style={styles.quickTitleSaveText}>Guardar</Text>
+                    </Pressable>
+                    <Pressable
+                      testID={`btn-cancel-quick-title-${ent.id}`}
+                      style={styles.quickTitleCancelBtn}
+                      onPress={() => setEditingTitleEntryId(null)}
+                    >
+                      <Text style={styles.quickTitleCancelText}>Cancelar</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
                 <Pressable
                   key={ent.id}
                   testID={`entry-item-${ent.id}`}
@@ -252,22 +325,89 @@ export function CalendarMonthView({
                   onPress={() => onSelectEntry?.(ent.id)}
                 >
                   <View style={styles.entryRowHeader}>
-                    <View
-                      style={[
-                        styles.catBadge,
-                        { backgroundColor: cat?.color || "#38BDF8" },
-                      ]}
-                    >
-                      <Text style={styles.catBadgeText}>
-                        {cat?.name || "General"}
-                      </Text>
+                    <View style={styles.entryBadgesRow}>
+                      <View
+                        style={[
+                          styles.catBadge,
+                          { backgroundColor: cat?.color || "#38BDF8" },
+                        ]}
+                      >
+                        <Text style={styles.catBadgeText}>
+                          {cat?.name || "General"}
+                        </Text>
+                      </View>
+
+                      {ent.tag_ids && ent.tag_ids.length > 0 && (
+                        <View
+                          style={styles.tagsContainer}
+                          testID={`entry-tags-${ent.id}`}
+                        >
+                          {ent.tag_ids.map((tagId) => {
+                            const tagObj = tagMap.get(tagId);
+                            if (!tagObj) return null;
+                            const tagColor = tagObj.color || "#38BDF8";
+                            return (
+                              <View
+                                key={tagId}
+                                testID={`entry-tag-badge-${tagId}`}
+                                style={[
+                                  styles.tagBadge,
+                                  {
+                                    backgroundColor: `${tagColor}22`,
+                                    borderColor: tagColor,
+                                  },
+                                ]}
+                              >
+                                <View
+                                  style={[
+                                    styles.tagDot,
+                                    { backgroundColor: tagColor },
+                                  ]}
+                                />
+                                <Text
+                                  style={[
+                                    styles.tagBadgeText,
+                                    { color: tagColor },
+                                  ]}
+                                >
+                                  {`#${tagObj.name}`}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      )}
                     </View>
-                    <Text style={styles.entryTimeText}>{timeStr}</Text>
+                    <Text style={styles.entryTimeText}>
+                      📅 {timeStr} {ent.reminder_enabled ? "• 🔔 Aviso activo " : ""}• 🕒 Creado: {formatDateTime(ent.created_at)}
+                    </Text>
                   </View>
 
-                  <Text style={styles.entryContentPreview} numberOfLines={2}>
-                    {ent.content}
-                  </Text>
+                  {ent.title ? (
+                    <>
+                      <Text style={styles.entryCardTitle}>📌 {ent.title}</Text>
+                      <Text style={styles.entryContentPreview} numberOfLines={2}>
+                        {ent.content}
+                      </Text>
+                    </>
+                  ) : (
+                    <View style={styles.noTitleContainer}>
+                      <Text style={styles.entryContentPreview} numberOfLines={2}>
+                        {getEntryDisplayTitle(ent, 50)}
+                      </Text>
+                      <Pressable
+                        testID={`btn-add-title-${ent.id}`}
+                        style={styles.addTitleBtn}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          setEditingTitleEntryId(ent.id);
+                          setQuickTitleText("");
+                        }}
+                      >
+                        <Text style={styles.addTitleBtnText}>✏️ Añadir Título</Text>
+                      </Pressable>
+                    </View>
+                  )}
 
                   <View style={styles.editHintRow}>
                     <Text style={styles.editHintText}>
@@ -432,6 +572,38 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 6,
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  entryBadgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+  },
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 4,
+  },
+  tagBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  tagDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  tagBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
   },
   catBadge: {
     paddingHorizontal: 8,
@@ -497,5 +669,75 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 11,
     marginTop: 2,
+  },
+  entryCardTitle: {
+    color: "#38BDF8",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  noTitleContainer: {
+    gap: 6,
+    marginBottom: 6,
+  },
+  addTitleBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 2,
+  },
+  addTitleBtnText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  quickTitleForm: {
+    backgroundColor: "#1E293B",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+    gap: 8,
+  },
+  quickTitleInput: {
+    backgroundColor: "#0F172A",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 6,
+    color: "#F8FAFC",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+  },
+  quickTitleActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  quickTitleSaveBtn: {
+    backgroundColor: "#10B981",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  quickTitleSaveText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  quickTitleCancelBtn: {
+    backgroundColor: "#334155",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  quickTitleCancelText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

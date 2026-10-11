@@ -3,6 +3,7 @@ import React from "react";
 import { createLocalCategory } from "../db/categories";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
 import { createLocalEntry } from "../db/entries";
+import { createLocalTag } from "../db/tags";
 import { CalendarMonthView } from "./CalendarMonthView";
 
 describe("CalendarMonthView Component (Task 35)", () => {
@@ -105,5 +106,40 @@ describe("CalendarMonthView Component (Task 35)", () => {
     expect(await findByTestId("day-detail-panel")).toBeTruthy();
     expect(getByText("Entradas del 2026-09-15")).toBeTruthy();
     expect(getByText("Entrada del día 15 #1")).toBeTruthy();
+  });
+
+  it("renders tags on entry cards in the day detail panel (#54)", async () => {
+    const customTag = await createLocalTag(db, userId, {
+      name: "Urgente",
+      color: "#EC4899",
+    });
+
+    const taggedEntry = await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Entrada con etiqueta urgente",
+      occurred_at: "2026-09-20T10:00:00Z",
+      tag_ids: [customTag.id],
+    });
+
+    const { getByTestId, getByText, findByTestId } = await render(
+      <CalendarMonthView
+        db={db}
+        userId={userId}
+        initialDate={new Date("2026-09-20T10:00:00Z")}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("day-cell-2026-09-20")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("day-cell-2026-09-20"));
+    });
+
+    expect(await findByTestId("day-detail-panel")).toBeTruthy();
+    expect(getByTestId(`entry-tags-${taggedEntry.id}`)).toBeTruthy();
+    expect(getByTestId(`entry-tag-badge-${customTag.id}`)).toBeTruthy();
+    expect(getByText("#Urgente")).toBeTruthy();
   });
 });
