@@ -41,7 +41,8 @@ describe("EntryDetailView Component (Task 38)", () => {
       expect(getByTestId("entry-detail-view")).toBeTruthy();
       expect(getByText("Notas")).toBeTruthy();
       expect(getByText("Contenido original de la nota")).toBeTruthy();
-      expect(getByText("Fecha: 2026-09-26")).toBeTruthy();
+      expect(getByTestId("entry-created-at")).toBeTruthy();
+      expect(getByTestId("entry-occurred-at")).toBeTruthy();
       expect(getByText("#Importante")).toBeTruthy();
     });
   });
@@ -124,5 +125,39 @@ describe("EntryDetailView Component (Task 38)", () => {
       [userId],
     );
     expect(tombstones.some((t) => t.entity_id === entryId)).toBe(true);
+  });
+
+  it("renders custom tag colors and metadata cards in read mode (#56)", async () => {
+    const customTag = await createLocalTag(db, userId, {
+      name: "Carmen",
+      color: "#F59E0B",
+    });
+
+    const cat = await createLocalCategory(db, userId, {
+      name: "Eventos",
+      voice_command: "evento",
+      color: "#10B981",
+    });
+
+    const customEntry = await createLocalEntry(db, userId, {
+      category_id: cat.id,
+      title: "Reunión de prueba",
+      content: "Detalle completo con diseño premium",
+      occurred_at: "2026-10-01T18:03:00Z",
+      tag_ids: [customTag.id],
+    });
+
+    const { getByTestId, getByText } = await render(
+      <EntryDetailView db={db} userId={userId} entryId={customEntry.id} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("entry-detail-view")).toBeTruthy();
+      expect(getByTestId("entry-title-text")).toBeTruthy();
+      expect(getByText("📌 Reunión de prueba")).toBeTruthy();
+      expect(getByText("Detalle completo con diseño premium")).toBeTruthy();
+      expect(getByTestId(`detail-tag-badge-${customTag.id}`)).toBeTruthy();
+      expect(getByText("#Carmen")).toBeTruthy();
+    });
   });
 });

@@ -688,17 +688,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   backToViewButton: {
-    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.35)",
+    borderColor: "rgba(56, 189, 248, 0.3)",
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: "flex-start",
   },
   backToViewButtonText: {
     color: "#38bdf8",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 13,
   },
   voiceCaptureButton: {
     backgroundColor: theme.colors.primary,
