@@ -1,10 +1,28 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { createLocalCategory, listCategories } from "../db/categories";
+import {
+  createLocalCategory,
+  deleteLocalCategory,
+  listCategories,
+  updateLocalCategory,
+} from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
-import { listLocalEntries } from "../db/entries";
-import { createLocalTag, getTagUsageCount, listTags } from "../db/tags";
-import { Category, CategoryKind, Entry, Tag } from "../types/domain";
+import { listLocalEntries, updateLocalEntry } from "../db/entries";
+import {
+  createLocalTag,
+  deleteLocalTag,
+  getTagUsageCount,
+  listTags,
+  updateLocalTag,
+} from "../db/tags";
+import {
+  Category,
+  CategoryKind,
+  Entry,
+  formatDateTime,
+  getEntryDisplayTitle,
+  Tag,
+} from "../types/domain";
 
 export interface ClassificationExplorerProps {
   db: DatabaseAdapter;
@@ -12,6 +30,7 @@ export interface ClassificationExplorerProps {
   onSelectEntry?: (entryId: string) => void;
   pageSize?: number;
   onCatalogUpdated?: () => void;
+  refreshTrigger?: number;
 }
 
 const PRESET_COLORS = [
@@ -33,12 +52,27 @@ const PRESET_COLORS = [
   "#06B6D4", // Cyan
 ];
 
+function getFirstAvailablePresetColor(existingCategories: Category[]): string {
+  const used = new Set(existingCategories.map((c) => c.color?.toUpperCase()));
+  const available = PRESET_COLORS.find((c) => !used.has(c));
+  return available || PRESET_COLORS[0];
+}
+
+function getFirstAvailableTagPresetColor(existingTags: Tag[]): string {
+  const used = new Set(
+    existingTags.map((t) => t.color?.toUpperCase()).filter(Boolean),
+  );
+  const available = PRESET_COLORS.find((c) => !used.has(c));
+  return available || PRESET_COLORS[0];
+}
+
 export function ClassificationExplorer({
   db,
   userId,
   onSelectEntry,
   pageSize = 5,
   onCatalogUpdated,
+  refreshTrigger,
 }: ClassificationExplorerProps) {
   const [activeTab, setActiveTab] = useState<"CATEGORIES" | "TAGS">(
     "CATEGORIES",
@@ -61,6 +95,11 @@ export function ClassificationExplorer({
     [catId: string]: number;
   }>({});
 
+  const [editingTitleEntryId, setEditingTitleEntryId] = useState<string | null>(
+    null,
+  );
+  const [quickTitleText, setQuickTitleText] = useState<string>("");
+
   // Creation forms state
   const [showAddCatForm, setShowAddCatForm] = useState(false);
   const [showAddTagForm, setShowAddTagForm] = useState(false);
@@ -71,6 +110,23 @@ export function ClassificationExplorer({
   const [newCatKind, setNewCatKind] = useState<CategoryKind>("STANDARD");
 
   const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#38BDF8");
+
+  // Edit & Delete states
+  const [editingCat, setEditingCat] = useState<Category | null>(null);
+  const [editCatName, setEditCatName] = useState("");
+  const [editCatVoice, setEditCatVoice] = useState("");
+  const [editCatColor, setEditCatColor] = useState("#38BDF8");
+  const [confirmDeleteCatId, setConfirmDeleteCatId] = useState<string | null>(
+    null,
+  );
+
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [editTagName, setEditTagName] = useState("");
+  const [editTagColor, setEditTagColor] = useState("#38BDF8");
+  const [confirmDeleteTagId, setConfirmDeleteTagId] = useState<string | null>(
+    null,
+  );
 
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
@@ -149,7 +205,7 @@ export function ClassificationExplorer({
     return () => {
       mounted = false;
     };
-  }, [db, userId, selectedCatId, selectedTagId]);
+  }, [db, userId, selectedCatId, selectedTagId, refreshTrigger]);
 
   useEffect(() => {
     let mounted = true;
@@ -197,24 +253,38 @@ export function ClassificationExplorer({
     setFormError(null);
     setFormSuccess(null);
 
-    if (!newCatName.trim() || !newCatVoice.trim()) {
-      setFormError("El nombre y el comando de voz son obligatorios.");
+    const trimmedName = newCatName.trim();
+    if (!trimmedName) {
+      setFormError("El nombre de la categoría es obligatorio.");
+      return;
+    }
+
+    const voiceCmd = (newCatVoice.trim() || trimmedName)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
+
+    const trimmedColor = (newCatColor || "#38BDF8").trim().toUpperCase();
+    const duplicate = categories.find((c) => c.color?.toUpperCase() === trimmedColor);
+    if (duplicate) {
+      setFormError("El color ya está en uso por otra categoría.");
       return;
     }
 
     setFormLoading(true);
     try {
       const created = await createLocalCategory(db, userId, {
-        name: newCatName.trim(),
-        voice_command: newCatVoice.trim().toLowerCase(),
-        color: newCatColor,
-        kind: newCatKind,
+        name: trimmedName,
+        voice_command: voiceCmd || trimmedName.toLowerCase(),
+        color: trimmedColor,
+        kind: "STANDARD",
       });
 
       setFormSuccess(`¡Categoría "${created.name}" creada con éxito!`);
       setNewCatName("");
       setNewCatVoice("");
-      setNewCatColor("#38BDF8");
+      setNewCatColor(getFirstAvailablePresetColor(categories));
       setNewCatKind("STANDARD");
       setShowAddCatForm(false);
 
@@ -222,7 +292,12 @@ export function ClassificationExplorer({
       await loadCatalogs();
       onCatalogUpdated?.();
     } catch (err) {
-      setFormError((err as Error).message);
+      const msg = (err as Error).message || "";
+      if (msg.toLowerCase().includes("color")) {
+        setFormError("El color ya está en uso por otra categoría.");
+      } else {
+        setFormError(msg);
+      }
     } finally {
       setFormLoading(false);
     }
@@ -232,22 +307,75 @@ export function ClassificationExplorer({
     setFormError(null);
     setFormSuccess(null);
 
-    if (!newTagName.trim()) {
+    const trimmedName = newTagName.trim();
+    if (!trimmedName) {
       setFormError("El nombre de la etiqueta no puede estar vacío.");
+      return;
+    }
+
+    const trimmedColor = (newTagColor || "#38BDF8").trim().toUpperCase();
+    const duplicate = tagsWithUsage.find(
+      (u) => (u.tag.color ?? "").toUpperCase() === trimmedColor,
+    );
+    if (duplicate) {
+      setFormError("El color ya está en uso por otra etiqueta.");
       return;
     }
 
     setFormLoading(true);
     try {
       const created = await createLocalTag(db, userId, {
-        name: newTagName.trim(),
+        name: trimmedName,
+        color: trimmedColor,
       });
 
       setFormSuccess(`¡Etiqueta #${created.name} creada con éxito!`);
       setNewTagName("");
+      setNewTagColor(
+        getFirstAvailableTagPresetColor(tagsWithUsage.map((u) => u.tag)),
+      );
       setShowAddTagForm(false);
 
       setSelectedTagId(created.id);
+      await loadCatalogs();
+      onCatalogUpdated?.();
+    } catch (err) {
+      const msg = (err as Error).message || "";
+      if (msg.toLowerCase().includes("color")) {
+        setFormError("El color ya está en uso por otra etiqueta.");
+      } else {
+        setFormError(msg);
+      }
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleStartEditCategory = (cat: Category) => {
+    setEditingCat(cat);
+    setEditCatName(cat.name);
+    setEditCatVoice(cat.voice_command);
+    setEditCatColor(cat.color || "#38BDF8");
+    setConfirmDeleteCatId(null);
+    setShowAddCatForm(false);
+  };
+
+  const handleSaveEditCategory = async () => {
+    if (!editingCat) return;
+    if (!editCatName.trim() || !editCatVoice.trim()) {
+      setFormError("El nombre y el comando de voz son obligatorios.");
+      return;
+    }
+    setFormLoading(true);
+    setFormError(null);
+    try {
+      await updateLocalCategory(db, userId, editingCat.id, {
+        name: editCatName.trim(),
+        voice_command: editCatVoice.trim(),
+        color: editCatColor,
+      });
+      setFormSuccess("¡Categoría actualizada correctamente!");
+      setEditingCat(null);
       await loadCatalogs();
       onCatalogUpdated?.();
     } catch (err) {
@@ -257,10 +385,128 @@ export function ClassificationExplorer({
     }
   };
 
+  const handleDeleteCategory = async (catId: string) => {
+    setFormLoading(true);
+    setFormError(null);
+    try {
+      await deleteLocalCategory(db, userId, catId);
+      setFormSuccess("Categoría eliminada.");
+      setConfirmDeleteCatId(null);
+      if (editingCat?.id === catId) setEditingCat(null);
+      await loadCatalogs();
+      const updatedCats = await listCategories(db, userId);
+      if (updatedCats.length > 0) {
+        setSelectedCatId(updatedCats[0].id);
+      } else {
+        setSelectedCatId(null);
+      }
+      onCatalogUpdated?.();
+    } catch (err) {
+      setFormError((err as Error).message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleStartEditTag = (tag: Tag) => {
+    setEditingTag(tag);
+    setEditTagName(tag.name);
+    setEditTagColor(tag.color || "#38BDF8");
+    setConfirmDeleteTagId(null);
+    setShowAddTagForm(false);
+  };
+
+  const handleSaveEditTag = async () => {
+    if (!editingTag) return;
+    const trimmedName = editTagName.trim();
+    if (!trimmedName) {
+      setFormError("El nombre de la etiqueta no puede estar vacío.");
+      return;
+    }
+
+    const trimmedColor = (editTagColor || "#38BDF8").trim().toUpperCase();
+    const duplicate = tagsWithUsage.find(
+      (u) =>
+        (u.tag.color ?? "").toUpperCase() === trimmedColor &&
+        u.tag.id !== editingTag.id,
+    );
+    if (duplicate) {
+      setFormError("El color ya está en uso por otra etiqueta.");
+      return;
+    }
+
+    setFormLoading(true);
+    setFormError(null);
+    try {
+      await updateLocalTag(db, userId, editingTag.id, {
+        name: trimmedName,
+        color: trimmedColor,
+      });
+      setFormSuccess("¡Etiqueta actualizada correctamente!");
+      setEditingTag(null);
+      await loadCatalogs();
+      onCatalogUpdated?.();
+    } catch (err) {
+      const msg = (err as Error).message || "";
+      if (msg.toLowerCase().includes("color")) {
+        setFormError("El color ya está en uso por otra etiqueta.");
+      } else {
+        setFormError(msg);
+      }
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDeleteTag = async (tagId: string) => {
+    setFormLoading(true);
+    setFormError(null);
+    try {
+      await deleteLocalTag(db, userId, tagId);
+      setFormSuccess("Etiqueta eliminada.");
+      setConfirmDeleteTagId(null);
+      if (editingTag?.id === tagId) setEditingTag(null);
+      await loadCatalogs();
+      const updatedTags = await listTags(db, userId);
+      if (updatedTags.length > 0) {
+        setSelectedTagId(updatedTags[0].id);
+      } else {
+        setSelectedTagId(null);
+      }
+      onCatalogUpdated?.();
+    } catch (err) {
+      setFormError((err as Error).message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleSaveQuickTitle = async (entryId: string) => {
+    if (!quickTitleText.trim()) return;
+    try {
+      const updated = await updateLocalEntry(db, userId, entryId, {
+        title: quickTitleText.trim(),
+      });
+      setAssociatedEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? { ...e, title: updated.title } : e)),
+      );
+      setEditingTitleEntryId(null);
+      setQuickTitleText("");
+      onCatalogUpdated?.();
+    } catch {
+      // Fallback ignore
+    }
+  };
+
   const activeCategory = categories.find((c) => c.id === selectedCatId);
+  const activeTag = tagsWithUsage.find((t) => t.tag.id === selectedTagId)?.tag;
 
   const filteredAndSortedEntries = associatedEntries
-    .filter((e) => e.content.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(
+      (e) =>
+        e.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (e.title && e.title.toLowerCase().includes(searchQuery.toLowerCase())),
+    )
     .sort((a, b) => {
       if (sortOrder === "NEWEST") {
         const timeA = a.occurred_at || a.created_at;
@@ -287,7 +533,13 @@ export function ClassificationExplorer({
             testID="btn-open-add-category"
             style={styles.addActionButton}
             onPress={() => {
-              setShowAddCatForm((prev) => !prev);
+              setShowAddCatForm((prev) => {
+                const next = !prev;
+                if (next) {
+                  setNewCatColor(getFirstAvailablePresetColor(categories));
+                }
+                return next;
+              });
               setFormError(null);
               setFormSuccess(null);
             }}
@@ -301,7 +553,17 @@ export function ClassificationExplorer({
             testID="btn-open-add-tag"
             style={styles.addActionButton}
             onPress={() => {
-              setShowAddTagForm((prev) => !prev);
+              setShowAddTagForm((prev) => {
+                const next = !prev;
+                if (next) {
+                  setNewTagColor(
+                    getFirstAvailableTagPresetColor(
+                      tagsWithUsage.map((u) => u.tag),
+                    ),
+                  );
+                }
+                return next;
+              });
               setFormError(null);
               setFormSuccess(null);
             }}
@@ -334,13 +596,18 @@ export function ClassificationExplorer({
           <TextInput
             testID="input-new-cat-name"
             style={styles.input}
-            placeholder="Ej. Finanzas, Viajes, Proyectos"
+            placeholder="Ej. Finanzas, Viajes, Gimnasio"
             placeholderTextColor="#64748B"
             value={newCatName}
-            onChangeText={setNewCatName}
+            onChangeText={(text) => {
+              setNewCatName(text);
+              if (!newCatVoice || newCatVoice === newCatName.toLowerCase()) {
+                setNewCatVoice(text.toLowerCase());
+              }
+            }}
           />
 
-          <Text style={styles.inputLabel}>Comando de Voz *</Text>
+          <Text style={styles.inputLabel}>Comando de Voz (Autogenerado si se omite)</Text>
           <TextInput
             testID="input-new-cat-voice"
             style={styles.input}
@@ -428,6 +695,86 @@ export function ClassificationExplorer({
         </View>
       )}
 
+      {/* Inline Form to Edit Category */}
+      {activeTab === "CATEGORIES" && editingCat && (
+        <View style={styles.creationFormCard} testID="explorer-edit-cat-form">
+          <Text style={styles.formCardTitle}>Editar / Renombrar Categoría</Text>
+
+          <Text style={styles.inputLabel}>Nombre de la Categoría *</Text>
+          <TextInput
+            testID="input-edit-cat-name"
+            style={styles.input}
+            placeholder="Ej. Finanzas, Viajes, Proyectos"
+            placeholderTextColor="#64748B"
+            value={editCatName}
+            onChangeText={setEditCatName}
+          />
+
+          <Text style={styles.inputLabel}>Comando de Voz *</Text>
+          <TextInput
+            testID="input-edit-cat-voice"
+            style={styles.input}
+            placeholder="Ej. finanzas"
+            placeholderTextColor="#64748B"
+            value={editCatVoice}
+            onChangeText={setEditCatVoice}
+          />
+
+          <Text style={styles.inputLabel}>
+            Color de Categoría (Selecciona o escribe Hex)
+          </Text>
+          <View style={styles.colorInputRow}>
+            <View
+              style={[
+                styles.colorPreviewDot,
+                { backgroundColor: editCatColor || "#38BDF8" },
+              ]}
+            />
+            <TextInput
+              testID="input-edit-cat-color"
+              style={[styles.input, { flex: 1 }]}
+              placeholder="#38BDF8"
+              placeholderTextColor="#64748B"
+              value={editCatColor}
+              onChangeText={setEditCatColor}
+            />
+          </View>
+          <View style={styles.colorRow}>
+            {PRESET_COLORS.map((c) => (
+              <Pressable
+                key={c}
+                style={[
+                  styles.colorDot,
+                  { backgroundColor: c },
+                  editCatColor.toUpperCase() === c && styles.colorDotActive,
+                ]}
+                onPress={() => setEditCatColor(c)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.formActionsRow}>
+            <Pressable
+              testID="btn-save-edit-category"
+              style={[styles.saveBtn, formLoading && styles.btnDisabled]}
+              disabled={formLoading}
+              onPress={handleSaveEditCategory}
+            >
+              <Text style={styles.saveBtnText}>
+                {formLoading ? "Guardando..." : "💾 Guardar Cambios"}
+              </Text>
+            </Pressable>
+            <Pressable
+              testID="btn-cancel-edit-category"
+              style={styles.cancelBtn}
+              onPress={() => setEditingCat(null)}
+            >
+              <Text style={styles.cancelBtnText}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {/* Inline Form for New Tag */}
       {activeTab === "TAGS" && showAddTagForm && (
         <View style={styles.creationFormCard} testID="explorer-tag-form">
@@ -442,6 +789,39 @@ export function ClassificationExplorer({
             value={newTagName}
             onChangeText={setNewTagName}
           />
+
+          <Text style={styles.inputLabel}>
+            Color de Etiqueta (Selecciona o escribe Hex)
+          </Text>
+          <View style={styles.colorInputRow}>
+            <View
+              style={[
+                styles.colorPreviewDot,
+                { backgroundColor: newTagColor || "#38BDF8" },
+              ]}
+            />
+            <TextInput
+              testID="input-new-tag-color"
+              style={[styles.input, { flex: 1 }]}
+              placeholder="#38BDF8"
+              placeholderTextColor="#64748B"
+              value={newTagColor}
+              onChangeText={setNewTagColor}
+            />
+          </View>
+          <View style={styles.colorRow}>
+            {PRESET_COLORS.map((c) => (
+              <Pressable
+                key={c}
+                style={[
+                  styles.colorDot,
+                  { backgroundColor: c },
+                  newTagColor.toUpperCase() === c && styles.colorDotActive,
+                ]}
+                onPress={() => setNewTagColor(c)}
+              />
+            ))}
+          </View>
 
           <View style={styles.formActionsRow}>
             <Pressable
@@ -458,6 +838,76 @@ export function ClassificationExplorer({
               testID="btn-cancel-new-tag"
               style={styles.cancelBtn}
               onPress={() => setShowAddTagForm(false)}
+            >
+              <Text style={styles.cancelBtnText}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Inline Form to Edit Tag */}
+      {activeTab === "TAGS" && editingTag && (
+        <View style={styles.creationFormCard} testID="explorer-edit-tag-form">
+          <Text style={styles.formCardTitle}>Renombrar Etiqueta</Text>
+
+          <Text style={styles.inputLabel}>Nombre de la Etiqueta *</Text>
+          <TextInput
+            testID="input-edit-tag-name"
+            style={styles.input}
+            placeholder="Ej. urgente, importante, compras"
+            placeholderTextColor="#64748B"
+            value={editTagName}
+            onChangeText={setEditTagName}
+          />
+
+          <Text style={styles.inputLabel}>
+            Color de Etiqueta (Selecciona o escribe Hex)
+          </Text>
+          <View style={styles.colorInputRow}>
+            <View
+              style={[
+                styles.colorPreviewDot,
+                { backgroundColor: editTagColor || "#38BDF8" },
+              ]}
+            />
+            <TextInput
+              testID="input-edit-tag-color"
+              style={[styles.input, { flex: 1 }]}
+              placeholder="#38BDF8"
+              placeholderTextColor="#64748B"
+              value={editTagColor}
+              onChangeText={setEditTagColor}
+            />
+          </View>
+          <View style={styles.colorRow}>
+            {PRESET_COLORS.map((c) => (
+              <Pressable
+                key={c}
+                style={[
+                  styles.colorDot,
+                  { backgroundColor: c },
+                  editTagColor.toUpperCase() === c && styles.colorDotActive,
+                ]}
+                onPress={() => setEditTagColor(c)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.formActionsRow}>
+            <Pressable
+              testID="btn-save-edit-tag"
+              style={[styles.saveBtn, formLoading && styles.btnDisabled]}
+              disabled={formLoading}
+              onPress={handleSaveEditTag}
+            >
+              <Text style={styles.saveBtnText}>
+                {formLoading ? "Guardando..." : "💾 Guardar Cambios"}
+              </Text>
+            </Pressable>
+            <Pressable
+              testID="btn-cancel-edit-tag"
+              style={styles.cancelBtn}
+              onPress={() => setEditingTag(null)}
             >
               <Text style={styles.cancelBtnText}>Cancelar</Text>
             </Pressable>
@@ -544,26 +994,152 @@ export function ClassificationExplorer({
         </View>
       ) : (
         <View style={styles.chipsRow} testID="explorer-tag-list">
-          {tagsWithUsage.map(({ tag, count }) => (
-            <Pressable
-              key={tag.id}
-              testID={`explore-tag-${tag.id}`}
-              style={[
-                styles.chip,
-                selectedTagId === tag.id && styles.chipActive,
-              ]}
-              onPress={() => handleSelectTag(tag.id)}
-            >
-              <Text
+          {tagsWithUsage.map(({ tag, count }) => {
+            const isSelected = selectedTagId === tag.id;
+            const tagColor = tag.color || "#38BDF8";
+            return (
+              <Pressable
+                key={tag.id}
+                testID={`explore-tag-${tag.id}`}
                 style={[
-                  styles.chipText,
-                  selectedTagId === tag.id && styles.chipTextActive,
+                  styles.chip,
+                  isSelected
+                    ? {
+                        backgroundColor: tagColor,
+                        borderColor: tagColor,
+                      }
+                    : {
+                        borderColor: `${tagColor}88`,
+                      },
                 ]}
+                onPress={() => handleSelectTag(tag.id)}
               >
-                {`#${tag.name} (${count})`}
-              </Text>
+                <View style={styles.chipInnerRow}>
+                  {!isSelected && (
+                    <View
+                      style={[
+                        styles.colorDotTiny,
+                        { backgroundColor: tagColor },
+                      ]}
+                      testID={`tag-dot-${tag.id}`}
+                    />
+                  )}
+                  <Text
+                    style={[
+                      styles.chipText,
+                      isSelected && styles.chipTextSelected,
+                    ]}
+                  >
+                    {`#${tag.name} (${count})`}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Action Bar for active Category or Tag */}
+      {activeTab === "CATEGORIES" && activeCategory && (
+        <View style={styles.itemActionBar} testID="cat-action-bar">
+          <View style={styles.itemActionInfo}>
+            <View
+              style={[
+                styles.colorDotSmall,
+                { backgroundColor: activeCategory.color || "#38BDF8" },
+              ]}
+            />
+            <Text style={styles.itemActionTitle}>
+              {`Categoría activa: ${activeCategory.name}`}
+            </Text>
+          </View>
+          <View style={styles.itemActionBtns}>
+            <Pressable
+              testID="btn-rename-cat"
+              style={styles.actionBtnSecondary}
+              onPress={() => handleStartEditCategory(activeCategory)}
+            >
+              <Text style={styles.actionBtnSecondaryText}>✏️ Editar / Renombrar</Text>
             </Pressable>
-          ))}
+            {confirmDeleteCatId === activeCategory.id ? (
+              <View style={styles.confirmDeleteInline}>
+                <Text style={styles.confirmDeleteText}>¿Borrar?</Text>
+                <Pressable
+                  testID="btn-confirm-delete-cat"
+                  style={styles.confirmDeleteBtn}
+                  onPress={() => handleDeleteCategory(activeCategory.id)}
+                >
+                  <Text style={styles.confirmDeleteBtnText}>Sí</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.cancelDeleteBtn}
+                  onPress={() => setConfirmDeleteCatId(null)}
+                >
+                  <Text style={styles.cancelDeleteBtnText}>No</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                testID="btn-delete-cat"
+                style={styles.actionBtnDanger}
+                onPress={() => setConfirmDeleteCatId(activeCategory.id)}
+              >
+                <Text style={styles.actionBtnDangerText}>🗑️ Borrar</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
+
+      {activeTab === "TAGS" && activeTag && (
+        <View style={styles.itemActionBar} testID="tag-action-bar">
+          <View style={styles.itemActionInfo}>
+            <View
+              style={[
+                styles.colorDotSmall,
+                { backgroundColor: activeTag.color || "#38BDF8" },
+              ]}
+              testID="tag-action-color-dot"
+            />
+            <Text style={styles.itemActionTitle}>
+              {`Etiqueta activa: #${activeTag.name}`}
+            </Text>
+          </View>
+          <View style={styles.itemActionBtns}>
+            <Pressable
+              testID="btn-rename-tag"
+              style={styles.actionBtnSecondary}
+              onPress={() => handleStartEditTag(activeTag)}
+            >
+              <Text style={styles.actionBtnSecondaryText}>✏️ Renombrar</Text>
+            </Pressable>
+            {confirmDeleteTagId === activeTag.id ? (
+              <View style={styles.confirmDeleteInline}>
+                <Text style={styles.confirmDeleteText}>¿Borrar?</Text>
+                <Pressable
+                  testID="btn-confirm-delete-tag"
+                  style={styles.confirmDeleteBtn}
+                  onPress={() => handleDeleteTag(activeTag.id)}
+                >
+                  <Text style={styles.confirmDeleteBtnText}>Sí</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.cancelDeleteBtn}
+                  onPress={() => setConfirmDeleteTagId(null)}
+                >
+                  <Text style={styles.cancelDeleteBtnText}>No</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                testID="btn-delete-tag"
+                style={styles.actionBtnDanger}
+                onPress={() => setConfirmDeleteTagId(activeTag.id)}
+              >
+                <Text style={styles.actionBtnDangerText}>🗑️ Borrar</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       )}
 
@@ -670,26 +1246,86 @@ export function ClassificationExplorer({
                     </Text>
                   </View>
                 )}
-                {entry.occurred_at ? (
-                  <Text style={styles.entryDate}>
-                    {`📅 ${new Date(entry.occurred_at).toLocaleDateString(
-                      "es-ES",
-                      {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      },
-                    )}`}
-                  </Text>
-                ) : (
-                  <Text style={styles.entryDate}>
-                    {`Creado: ${entry.created_at.substring(0, 10)}`}
-                  </Text>
+                {activeTab === "TAGS" && activeTag && (
+                  <View style={styles.catBadgeContainer}>
+                    <View
+                      style={[
+                        styles.catColorBadge,
+                        { backgroundColor: activeTag.color || "#38BDF8" },
+                      ]}
+                    />
+                    <Text style={styles.catBadgeName}>
+                      {`🏷️ #${activeTag.name}`}
+                    </Text>
+                  </View>
                 )}
+                <View style={styles.entryDatesColumn}>
+                  {entry.occurred_at && (
+                    <Text style={styles.entryDateAssigned}>
+                      📅 {formatDateTime(entry.occurred_at)}
+                    </Text>
+                  )}
+                  <Text style={styles.entryDateCreated}>
+                    🕒 Creado: {formatDateTime(entry.created_at)}
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.entryContent}>{entry.content}</Text>
+              {editingTitleEntryId === entry.id ? (
+                <View style={styles.quickTitleForm}>
+                  <TextInput
+                    testID={`input-quick-title-${entry.id}`}
+                    style={styles.quickTitleInput}
+                    placeholder="Escribe un título..."
+                    placeholderTextColor="#64748B"
+                    value={quickTitleText}
+                    onChangeText={setQuickTitleText}
+                    autoFocus
+                  />
+                  <View style={styles.quickTitleActions}>
+                    <Pressable
+                      testID={`btn-save-quick-title-${entry.id}`}
+                      style={styles.quickTitleSaveBtn}
+                      onPress={() => handleSaveQuickTitle(entry.id)}
+                    >
+                      <Text style={styles.quickTitleSaveText}>Guardar</Text>
+                    </Pressable>
+                    <Pressable
+                      testID={`btn-cancel-quick-title-${entry.id}`}
+                      style={styles.quickTitleCancelBtn}
+                      onPress={() => setEditingTitleEntryId(null)}
+                    >
+                      <Text style={styles.quickTitleCancelText}>Cancelar</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <>
+                  {entry.title ? (
+                    <>
+                      <Text style={styles.entryCardTitle}>📌 {entry.title}</Text>
+                      <Text style={styles.entryContentPreview} numberOfLines={2}>
+                        {entry.content}
+                      </Text>
+                    </>
+                  ) : (
+                    <View style={styles.noTitleContainer}>
+                      <Text style={styles.entryContent}>
+                        {getEntryDisplayTitle(entry, 70)}
+                      </Text>
+                      <Pressable
+                        testID={`btn-add-title-${entry.id}`}
+                        style={styles.addTitleBtn}
+                        onPress={() => {
+                          setEditingTitleEntryId(entry.id);
+                          setQuickTitleText("");
+                        }}
+                      >
+                        <Text style={styles.addTitleBtnText}>✏️ Añadir Título</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </>
+              )}
             </Pressable>
           ))
         )}
@@ -915,6 +1551,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
+  chipInnerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  colorDotTiny: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   chipActive: {
     backgroundColor: "#38BDF8",
     borderColor: "#38BDF8",
@@ -1020,11 +1666,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  entryCardTitle: {
+    color: "#38BDF8",
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  entryContentPreview: {
+    color: "#CBD5E1",
+    fontSize: 13,
+    lineHeight: 18,
+  },
   entryContent: {
     color: "#F8FAFC",
     fontSize: 14,
   },
-  entryDate: {
+  entryDatesColumn: {
+    alignItems: "flex-end",
+    gap: 2,
+  },
+  entryDateAssigned: {
+    color: "#38BDF8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  entryDateCreated: {
     color: "#64748B",
     fontSize: 11,
   },
@@ -1039,5 +1705,157 @@ const styles = StyleSheet.create({
     color: "#38BDF8",
     fontWeight: "bold",
     fontSize: 13,
+  },
+  noTitleContainer: {
+    gap: 8,
+  },
+  addTitleBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 4,
+  },
+  addTitleBtnText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  quickTitleForm: {
+    marginTop: 4,
+    gap: 8,
+  },
+  quickTitleInput: {
+    backgroundColor: "#0F172A",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 6,
+    color: "#F8FAFC",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+  },
+  quickTitleActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  quickTitleSaveBtn: {
+    backgroundColor: "#10B981",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  quickTitleSaveText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  quickTitleCancelBtn: {
+    backgroundColor: "#334155",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  quickTitleCancelText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  itemActionBar: {
+    backgroundColor: "#1E293B",
+    borderRadius: 8,
+    borderColor: "#334155",
+    borderWidth: 1,
+    padding: 10,
+    marginTop: 8,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  itemActionInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  colorDotSmall: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  itemActionTitle: {
+    color: "#94A3B8",
+    fontSize: 13,
+  },
+  itemActionBtns: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionBtnSecondary: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  actionBtnSecondaryText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  actionBtnDanger: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  actionBtnDangerText: {
+    color: "#F87171",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  confirmDeleteInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    padding: 4,
+    borderRadius: 6,
+  },
+  confirmDeleteText: {
+    color: "#F87171",
+    fontSize: 12,
+    fontWeight: "bold",
+    marginRight: 2,
+  },
+  confirmDeleteBtn: {
+    backgroundColor: "#DC2626",
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  confirmDeleteBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  cancelDeleteBtn: {
+    backgroundColor: "#334155",
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  cancelDeleteBtnText: {
+    color: "#94A3B8",
+    fontSize: 11,
   },
 });

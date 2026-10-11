@@ -36,10 +36,12 @@ describe("ClassificationExplorer Component (Task 37)", () => {
     tagUrgenteId = tag.id;
 
     // Create 7 entries in Trabajo to test pagination (pageSize = 3)
+    const baseTime = Date.now();
     for (let i = 1; i <= 7; i++) {
       await createLocalEntry(db, userId, {
         category_id: catTrabajoId,
         content: `Tarea de trabajo #${i}`,
+        occurred_at: new Date(baseTime + i * 1000).toISOString(),
         tag_ids: i <= 2 ? [tagUrgenteId] : [],
       });
     }
@@ -59,7 +61,14 @@ describe("ClassificationExplorer Component (Task 37)", () => {
     await waitFor(() => {
       expect(getByTestId("classification-explorer")).toBeTruthy();
       expect(getByText("Trabajo")).toBeTruthy();
-      expect(getByText("Tarea de trabajo #1")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("explore-cat-" + catTrabajoId));
+    });
+
+    await waitFor(() => {
+      expect(getByText("Tarea de trabajo #7")).toBeTruthy();
     });
 
     // Pagination test: click load more
@@ -169,5 +178,94 @@ describe("ClassificationExplorer Component (Task 37)", () => {
 
     expect(await findByText("#Importante (0)")).toBeTruthy();
     expect(onCatalogUpdatedMock).toHaveBeenCalled();
+    // Verify that the view stays on the TAGS tab (btn-open-add-tag is unique to TAGS tab)
+    expect(getByTestId("btn-open-add-tag")).toBeTruthy();
+  });
+
+  it("remains on TAGS tab when refreshTrigger updates from parent", async () => {
+    const { getByTestId, rerender } = await render(
+      <ClassificationExplorer
+        db={db}
+        userId={userId}
+        pageSize={5}
+        refreshTrigger={100}
+      />,
+    );
+
+    // Switch to TAGS tab
+    await act(async () => {
+      fireEvent.press(getByTestId("tab-tags"));
+    });
+    expect(getByTestId("btn-open-add-tag")).toBeTruthy();
+
+    // Rerender with updated refreshTrigger (simulating sync completion / parent reload)
+    await act(async () => {
+      rerender(
+        <ClassificationExplorer
+          db={db}
+          userId={userId}
+          pageSize={5}
+          refreshTrigger={200}
+        />,
+      );
+    });
+
+    // Active tab must still be TAGS
+    expect(getByTestId("btn-open-add-tag")).toBeTruthy();
+  });
+
+  it("displays custom tag colors on chips, inactive dots, and tag action bar (#53)", async () => {
+    // Create a tag with specific custom color
+    const customTag = await createLocalTag(db, userId, {
+      name: "Carmen",
+      color: "#F59E0B",
+    });
+
+    const { getByTestId, queryByTestId } = await render(
+      <ClassificationExplorer
+        db={db}
+        userId={userId}
+        pageSize={5}
+      />,
+    );
+
+    // Switch to TAGS tab
+    await act(async () => {
+      fireEvent.press(getByTestId("tab-tags"));
+    });
+
+    // The first tag alphabetically (#Carmen) is selected by default
+    await waitFor(() => {
+      expect(getByTestId("tag-action-color-dot")).toBeTruthy();
+    });
+
+    // Carmen is active, so its chip has backgroundColor: #F59E0B
+    const activeChip = getByTestId(`explore-tag-${customTag.id}`);
+    expect(activeChip.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ backgroundColor: "#F59E0B" }),
+      ]),
+    );
+
+    // And action bar has tag-action-color-dot with #F59E0B
+    const actionDot = getByTestId("tag-action-color-dot");
+    expect(actionDot.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ backgroundColor: "#F59E0B" }),
+      ]),
+    );
+
+    // Unselected tag (#Urgente) has tag-dot
+    expect(getByTestId(`tag-dot-${tagUrgenteId}`)).toBeTruthy();
+
+    // Now select Urgente
+    await act(async () => {
+      fireEvent.press(getByTestId(`explore-tag-${tagUrgenteId}`));
+    });
+
+    // Now Carmen is unselected and must have tag-dot-customTag.id
+    await waitFor(() => {
+      expect(getByTestId(`tag-dot-${customTag.id}`)).toBeTruthy();
+    });
   });
 });
