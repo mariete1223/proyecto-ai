@@ -12,6 +12,7 @@ export interface CalendarMonthViewProps {
   initialDate?: Date;
   onSelectEntry?: (entryId: string) => void;
   selectedCategoryIds?: string[];
+  selectedTagIds?: string[];
   refreshSignal?: number;
   onEntryUpdated?: () => void;
 }
@@ -22,6 +23,7 @@ export function CalendarMonthView({
   initialDate = new Date(),
   onSelectEntry,
   selectedCategoryIds,
+  selectedTagIds,
   refreshSignal,
   onEntryUpdated,
 }: CalendarMonthViewProps) {
@@ -96,6 +98,10 @@ export function CalendarMonthView({
             selectedCategoryIds && selectedCategoryIds.length > 0
               ? selectedCategoryIds
               : undefined,
+          tag_ids:
+            selectedTagIds && selectedTagIds.length > 0
+              ? selectedTagIds
+              : undefined,
         });
 
         if (mounted) {
@@ -111,7 +117,7 @@ export function CalendarMonthView({
     return () => {
       mounted = false;
     };
-  }, [db, userId, year, month, selectedCategoryIds, refreshSignal]);
+  }, [db, userId, year, month, selectedCategoryIds, selectedTagIds, refreshSignal]);
 
   const prevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
