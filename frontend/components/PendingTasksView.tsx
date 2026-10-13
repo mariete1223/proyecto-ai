@@ -14,7 +14,13 @@ import {
   UpdateEntryData,
 } from "../db/entries";
 import { theme } from "../styles/theme";
-import { Entry, TaskStatus } from "../types/domain";
+import {
+  Entry,
+  formatDateTime,
+  getEntryDisplayTitle,
+  TaskPriority,
+  TaskStatus,
+} from "../types/domain";
 
 export interface PendingTasksViewProps {
   db: DatabaseAdapter;
@@ -27,6 +33,8 @@ export interface PendingTasksViewProps {
     entryId: string,
     data: UpdateEntryData,
   ) => Promise<Entry>;
+  onTaskUpdated?: () => void;
+  refreshSignal?: number;
 }
 
 export function PendingTasksView(props: PendingTasksViewProps) {
@@ -36,15 +44,24 @@ export function PendingTasksView(props: PendingTasksViewProps) {
     onSelectEntry,
     fetchTasks = defaultListDatelessTasks,
     updateEntry = defaultUpdateLocalEntry,
+    onTaskUpdated,
+    refreshSignal,
   } = props;
 
   const [tasks, setTasks] = useState<Entry[]>([]);
   const [statusFilter, setStatusFilter] = useState<
     "PENDING" | "IN_PROGRESS" | "DONE" | "ALL"
   >("PENDING");
+  const [priorityFilter, setPriorityFilter] = useState<
+    "ALL" | "HIGH" | "MEDIUM" | "LOW"
+  >("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [exportedJson, setExportedJson] = useState<string | null>(null);
+  const [editingTitleEntryId, setEditingTitleEntryId] = useState<string | null>(
+    null,
+  );
+  const [quickTitleText, setQuickTitleText] = useState<string>("");
 
   const loadTasks = async () => {
     try {
@@ -81,7 +98,7 @@ export function PendingTasksView(props: PendingTasksViewProps) {
     return () => {
       mounted = false;
     };
-  }, [db, userId, fetchTasks]);
+  }, [db, userId, fetchTasks, refreshSignal]);
 
   const handleStatusChange = async (entry: Entry, newStatus: TaskStatus) => {
     try {
@@ -94,9 +111,52 @@ export function PendingTasksView(props: PendingTasksViewProps) {
           t.id === entry.id ? { ...t, task_status: newStatus } : t,
         ),
       );
+      onTaskUpdated?.();
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Error al actualizar la tarea.",
+      );
+    }
+  };
+
+  const handlePriorityChange = async (
+    entry: Entry,
+    newPriority: TaskPriority,
+  ) => {
+    try {
+      await updateEntry(db, userId, entry.id, {
+        task_priority: newPriority,
+        task_status: entry.task_status ?? "PENDING",
+        task_recurrence: entry.task_recurrence ?? "ONCE",
+      });
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === entry.id ? { ...t, task_priority: newPriority } : t,
+        ),
+      );
+      onTaskUpdated?.();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Error al actualizar la prioridad.",
+      );
+    }
+  };
+
+  const handleSaveQuickTitle = async (entryId: string) => {
+    if (!quickTitleText.trim()) return;
+    try {
+      const updated = await updateEntry(db, userId, entryId, {
+        title: quickTitleText.trim(),
+      });
+      setTasks((prev) =>
+        prev.map((t) => (t.id === entryId ? { ...t, title: updated.title } : t)),
+      );
+      setEditingTitleEntryId(null);
+      setQuickTitleText("");
+      onTaskUpdated?.();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Error al actualizar el título.",
       );
     }
   };
@@ -122,14 +182,22 @@ export function PendingTasksView(props: PendingTasksViewProps) {
       if (statusFilter === "DONE") return t.task_status === "DONE";
       return true;
     })
-    .filter((t) => t.content.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter((t) => {
+      if (priorityFilter === "ALL") return true;
+      return (t.task_priority ?? "MEDIUM") === priorityFilter;
+    })
+    .filter(
+      (t) =>
+        t.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.title && t.title.toLowerCase().includes(searchQuery.toLowerCase())),
+    );
 
   return (
     <View style={styles.container} testID="pending-tasks-view">
       {/* Header bar */}
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.title}>Tareas sin Fecha</Text>
+          <Text style={styles.title}>Tareas Pendientes</Text>
           <Text style={styles.subtitle}>
             Organización ágil de tareas pendientes, en progreso y realizadas
           </Text>
@@ -218,6 +286,38 @@ export function PendingTasksView(props: PendingTasksViewProps) {
         </Pressable>
       </View>
 
+      {/* Priority Filter Row */}
+      <View style={styles.priorityFilterRow}>
+        <Text style={styles.priorityFilterLabel}>Prioridad:</Text>
+        {(
+          [
+            { id: "ALL", label: "Todas" },
+            { id: "HIGH", label: "🔴 Alta" },
+            { id: "MEDIUM", label: "🟡 Media" },
+            { id: "LOW", label: "🔵 Baja" },
+          ] as const
+        ).map((p) => (
+          <Pressable
+            key={p.id}
+            testID={`tab-prio-${p.id.toLowerCase()}`}
+            style={[
+              styles.prioFilterChip,
+              priorityFilter === p.id && styles.prioFilterChipActive,
+            ]}
+            onPress={() => setPriorityFilter(p.id)}
+          >
+            <Text
+              style={[
+                styles.prioFilterText,
+                priorityFilter === p.id && styles.prioFilterTextActive,
+              ]}
+            >
+              {p.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       {/* Live Search Input Bar */}
       <View style={styles.searchContainer}>
         <TextInput
@@ -262,10 +362,10 @@ export function PendingTasksView(props: PendingTasksViewProps) {
             {searchQuery
               ? `No se encontraron tareas para "${searchQuery}"`
               : statusFilter === "DONE"
-                ? "No hay tareas realizadas sin fecha"
+                ? "No hay tareas realizadas"
                 : statusFilter === "IN_PROGRESS"
                   ? "No hay tareas en progreso"
-                  : "No hay tareas pendientes sin fecha"}
+                  : "No hay tareas pendientes"}
           </Text>
           {statusFilter !== "PENDING" && (
             <Pressable
@@ -285,21 +385,136 @@ export function PendingTasksView(props: PendingTasksViewProps) {
         <ScrollView style={styles.taskList}>
           {filteredTasks.map((item) => (
             <View key={item.id} style={styles.taskCard}>
-              <Pressable
-                style={styles.cardContent}
-                onPress={() => onSelectEntry?.(item)}
-                testID={`task-card-${item.id}`}
-              >
-                <Text style={styles.taskContent}>{item.content}</Text>
-                <Text style={styles.taskMeta}>
-                  Estado actual:{" "}
-                  {item.task_status === "PENDING"
-                    ? "Pendiente"
-                    : item.task_status === "IN_PROGRESS"
-                      ? "En progreso"
-                      : "Realizada"}
-                </Text>
-              </Pressable>
+              {editingTitleEntryId === item.id ? (
+                <View style={styles.quickTitleForm}>
+                  <TextInput
+                    testID={`input-quick-title-${item.id}`}
+                    style={styles.quickTitleInput}
+                    placeholder="Escribe un título..."
+                    placeholderTextColor="#64748B"
+                    value={quickTitleText}
+                    onChangeText={setQuickTitleText}
+                    autoFocus
+                  />
+                  <View style={styles.quickTitleActions}>
+                    <Pressable
+                      testID={`btn-save-quick-title-${item.id}`}
+                      style={styles.quickTitleSaveBtn}
+                      onPress={() => handleSaveQuickTitle(item.id)}
+                    >
+                      <Text style={styles.quickTitleSaveText}>Guardar</Text>
+                    </Pressable>
+                    <Pressable
+                      testID={`btn-cancel-quick-title-${item.id}`}
+                      style={styles.quickTitleCancelBtn}
+                      onPress={() => setEditingTitleEntryId(null)}
+                    >
+                      <Text style={styles.quickTitleCancelText}>Cancelar</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.cardContent}
+                  onPress={() => onSelectEntry?.(item)}
+                  testID={`task-card-${item.id}`}
+                >
+                  {item.title ? (
+                    <View style={styles.cardHeaderWithBadge}>
+                      <Text style={styles.taskTitleHeader}>📌 {item.title}</Text>
+                      <View
+                        testID={`task-priority-badge-${item.id}`}
+                        style={[
+                          styles.taskPriorityBadge,
+                          item.task_priority === "HIGH" && styles.priorityBadgeHigh,
+                          item.task_priority === "LOW" && styles.priorityBadgeLow,
+                          (!item.task_priority || item.task_priority === "MEDIUM") &&
+                            styles.priorityBadgeMedium,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.taskPriorityBadgeText,
+                            item.task_priority === "HIGH" && styles.priorityBadgeHighText,
+                            item.task_priority === "LOW" && styles.priorityBadgeLowText,
+                            (!item.task_priority || item.task_priority === "MEDIUM") &&
+                              styles.priorityBadgeMediumText,
+                          ]}
+                        >
+                          {item.task_priority === "HIGH"
+                            ? "🔴 Alta"
+                            : item.task_priority === "LOW"
+                              ? "🔵 Baja"
+                              : "🟡 Media"}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  {item.title ? (
+                    <Text style={styles.taskContentPreview} numberOfLines={2}>
+                      {item.content}
+                    </Text>
+                  ) : (
+                    <View style={styles.noTitleContainer}>
+                      <View style={styles.cardHeaderWithBadge}>
+                        <Text style={styles.taskContent}>
+                          {getEntryDisplayTitle(item, 70)}
+                        </Text>
+                        <View
+                          testID={`task-priority-badge-${item.id}`}
+                          style={[
+                            styles.taskPriorityBadge,
+                            item.task_priority === "HIGH" && styles.priorityBadgeHigh,
+                            item.task_priority === "LOW" && styles.priorityBadgeLow,
+                            (!item.task_priority || item.task_priority === "MEDIUM") &&
+                              styles.priorityBadgeMedium,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.taskPriorityBadgeText,
+                              item.task_priority === "HIGH" && styles.priorityBadgeHighText,
+                              item.task_priority === "LOW" && styles.priorityBadgeLowText,
+                              (!item.task_priority || item.task_priority === "MEDIUM") &&
+                                styles.priorityBadgeMediumText,
+                            ]}
+                          >
+                            {item.task_priority === "HIGH"
+                              ? "🔴 Alta"
+                              : item.task_priority === "LOW"
+                                ? "🔵 Baja"
+                                : "🟡 Media"}
+                          </Text>
+                        </View>
+                      </View>
+                      <Pressable
+                        testID={`btn-add-title-${item.id}`}
+                        style={styles.addTitleBtn}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          setEditingTitleEntryId(item.id);
+                          setQuickTitleText("");
+                        }}
+                      >
+                        <Text style={styles.addTitleBtnText}>✏️ Añadir Título</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                  <Text style={styles.taskMeta}>
+                    {item.occurred_at
+                      ? `📅 ${formatDateTime(item.occurred_at)} • `
+                      : ""}
+                    {item.reminder_enabled ? "🔔 Recordatorio activo • " : ""}
+                    Estado:{" "}
+                    {item.task_status === "PENDING"
+                      ? "Pendiente"
+                      : item.task_status === "IN_PROGRESS"
+                        ? "En progreso"
+                        : "Realizada"}{" "}
+                    • 🕒 Creado: {formatDateTime(item.created_at)}
+                  </Text>
+                </Pressable>
+              )}
 
               <View style={styles.statusButtonsRow}>
                 <Pressable
@@ -360,6 +575,40 @@ export function PendingTasksView(props: PendingTasksViewProps) {
                   </Text>
                 </Pressable>
               </View>
+
+              {/* Quick Priority Switcher */}
+              <View style={styles.cardPriorityRow}>
+                <Text style={styles.cardPriorityLabel}>Prioridad:</Text>
+                {(
+                  [
+                    { id: "HIGH", label: "🔴 Alta", testId: `set-prio-high-${item.id}` },
+                    { id: "MEDIUM", label: "🟡 Media", testId: `set-prio-med-${item.id}` },
+                    { id: "LOW", label: "🔵 Baja", testId: `set-prio-low-${item.id}` },
+                  ] as const
+                ).map((p) => {
+                  const isCurrent = (item.task_priority ?? "MEDIUM") === p.id;
+                  return (
+                    <Pressable
+                      key={p.id}
+                      testID={p.testId}
+                      style={[
+                        styles.miniPrioBtn,
+                        isCurrent && styles.miniPrioBtnActive,
+                      ]}
+                      onPress={() => handlePriorityChange(item, p.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.miniPrioBtnText,
+                          isCurrent && styles.miniPrioBtnTextActive,
+                        ]}
+                      >
+                        {p.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -374,6 +623,9 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: "#0f172a",
     borderRadius: 16,
+    width: "100%",
+    maxWidth: 1000,
+    alignSelf: "center",
   },
   headerRow: {
     flexDirection: "row",
@@ -540,6 +792,18 @@ const styles = StyleSheet.create({
   cardContent: {
     marginBottom: 12,
   },
+  taskTitleHeader: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#38BDF8",
+    marginBottom: 4,
+  },
+  taskContentPreview: {
+    fontSize: 14,
+    color: "#CBD5E1",
+    marginBottom: 6,
+    lineHeight: 20,
+  },
   taskContent: {
     fontSize: 16,
     fontWeight: "600",
@@ -576,6 +840,172 @@ const styles = StyleSheet.create({
   },
   activeStatusButtonText: {
     color: "#ffffff",
+    fontWeight: "700",
+  },
+  noTitleContainer: {
+    gap: 6,
+    marginBottom: 6,
+  },
+  addTitleBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  addTitleBtnText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  quickTitleForm: {
+    marginBottom: 12,
+    gap: 8,
+  },
+  quickTitleInput: {
+    backgroundColor: "rgba(15, 23, 42, 0.9)",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 6,
+    color: "#ffffff",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+  },
+  quickTitleActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  quickTitleSaveBtn: {
+    backgroundColor: "#10B981",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  quickTitleSaveText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  quickTitleCancelBtn: {
+    backgroundColor: "#334155",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  quickTitleCancelText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  priorityFilterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  priorityFilterLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#94A3B8",
+  },
+  prioFilterChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    borderColor: "#334155",
+    borderWidth: 1,
+  },
+  prioFilterChipActive: {
+    backgroundColor: "rgba(56, 189, 248, 0.2)",
+    borderColor: "#38BDF8",
+  },
+  prioFilterText: {
+    fontSize: 12,
+    color: "#94A3B8",
+    fontWeight: "500",
+  },
+  prioFilterTextActive: {
+    color: "#38BDF8",
+    fontWeight: "700",
+  },
+  cardHeaderWithBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  taskPriorityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  taskPriorityBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  priorityBadgeHigh: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "#EF4444",
+  },
+  priorityBadgeHighText: {
+    color: "#FCA5A5",
+  },
+  priorityBadgeMedium: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "#F59E0B",
+  },
+  priorityBadgeMediumText: {
+    color: "#FCD34D",
+  },
+  priorityBadgeLow: {
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
+    borderColor: "#3B82F6",
+  },
+  priorityBadgeLowText: {
+    color: "#93C5FD",
+  },
+  cardPriorityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+  },
+  cardPriorityLabel: {
+    fontSize: 11,
+    color: "#94A3B8",
+    fontWeight: "600",
+    marginRight: 2,
+  },
+  miniPrioBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+  },
+  miniPrioBtnActive: {
+    borderColor: "#38BDF8",
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+  },
+  miniPrioBtnText: {
+    fontSize: 11,
+    color: "#94A3B8",
+    fontWeight: "500",
+  },
+  miniPrioBtnTextActive: {
+    color: "#38BDF8",
     fontWeight: "700",
   },
 });

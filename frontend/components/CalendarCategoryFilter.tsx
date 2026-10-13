@@ -38,8 +38,12 @@ export function CalendarCategoryFilter({
         if (mounted) {
           setCategories(cats);
           setTags(tagList);
-          setSelectedCatIds([]);
-          setSelectedTagIds([]);
+          setSelectedCatIds((prev) =>
+            prev.filter((id) => cats.some((c) => c.id === id)),
+          );
+          setSelectedTagIds((prev) =>
+            prev.filter((id) => tagList.some((t) => t.id === id)),
+          );
         }
       } catch {
         // Fallback
@@ -276,7 +280,8 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
     width: "100%",
-    maxWidth: 600,
+    maxWidth: 1000,
+    alignSelf: "center",
   },
   headerRow: {
     flexDirection: "row",

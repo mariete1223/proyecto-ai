@@ -62,88 +62,90 @@ export function WebMainLayout({
     <View style={styles.container} testID="web-main-layout">
       {/* Top Header */}
       <View style={styles.header}>
-        <View style={styles.brandContainer}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoBadgeText}>AI</Text>
+        <View style={styles.headerInner}>
+          <View style={styles.brandContainer}>
+            <View style={styles.logoBadge}>
+              <Text style={styles.logoBadgeText}>AI</Text>
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>Proyecto AI</Text>
+              <Text style={styles.headerSubtitle}>Personal Knowledge Hub</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.headerTitle}>Proyecto AI</Text>
-            <Text style={styles.headerSubtitle}>Personal Knowledge Hub</Text>
-          </View>
-        </View>
 
-        {/* Quick Stats Bar */}
-        <View style={styles.statsBar} testID="web-quick-stats">
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{stats?.totalEntries ?? 0}</Text>
-            <Text style={styles.statLabel}>Entradas</Text>
+          {/* Quick Stats Bar */}
+          <View style={styles.statsBar} testID="web-quick-stats">
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats?.totalEntries ?? 0}</Text>
+              <Text style={styles.statLabel}>Entradas</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: theme.colors.warning }]}>
+                {stats?.pendingTasks ?? 0}
+              </Text>
+              <Text style={styles.statLabel}>Pendientes</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: theme.colors.purple }]}>
+                {stats?.totalCategories ?? 0}
+              </Text>
+              <Text style={styles.statLabel}>Categorías</Text>
+            </View>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.colors.warning }]}>
-              {stats?.pendingTasks ?? 0}
-            </Text>
-            <Text style={styles.statLabel}>Pendientes</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.colors.purple }]}>
-              {stats?.totalCategories ?? 0}
-            </Text>
-            <Text style={styles.statLabel}>Categorías</Text>
-          </View>
-        </View>
 
-        {/* Backend Status Indicator */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.statusIndicator,
-            pressed && { opacity: 0.7 },
-          ]}
-          onPress={() => {
-            checkBackendHealth(apiConfig).then((healthy) => {
-              setIsBackendConnected(healthy);
-            });
-            onSync?.();
-          }}
-          testID="btn-web-sync"
-        >
-          <View
-            style={[
-              styles.statusDot,
-              isSyncing
-                ? styles.dotPending
-                : isBackendConnected === true
-                  ? styles.dotConnected
-                  : isBackendConnected === false
-                    ? styles.dotDisconnected
-                    : styles.dotPending,
+          {/* Backend Status Indicator */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.statusIndicator,
+              pressed && { opacity: 0.7 },
             ]}
-          />
-          <Text style={styles.statusText}>
-            {isSyncing
-              ? "Sincronizando..."
-              : isBackendConnected === true
-                ? "Backend Conectado 🔄"
-                : isBackendConnected === false
-                  ? "Backend Desconectado ⚠️"
-                  : "Comprobando..."}
-          </Text>
-        </Pressable>
+            onPress={() => {
+              checkBackendHealth(apiConfig).then((healthy) => {
+                setIsBackendConnected(healthy);
+              });
+              onSync?.();
+            }}
+            testID="btn-web-sync"
+          >
+            <View
+              style={[
+                styles.statusDot,
+                isSyncing
+                  ? styles.dotPending
+                  : isBackendConnected === true
+                    ? styles.dotConnected
+                    : isBackendConnected === false
+                      ? styles.dotDisconnected
+                      : styles.dotPending,
+              ]}
+            />
+            <Text style={styles.statusText}>
+              {isSyncing
+                ? "Sincronizando..."
+                : isBackendConnected === true
+                  ? "Backend Conectado 🔄"
+                  : isBackendConnected === false
+                    ? "Backend Desconectado ⚠️"
+                    : "Comprobando..."}
+            </Text>
+          </Pressable>
 
-        {/* User Account / Auth Button */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.authBadge,
-            pressed && { opacity: 0.7 },
-          ]}
-          onPress={currentUserEmail ? onLogout : onOpenAuth}
-          testID="btn-user-auth"
-        >
-          <Text style={styles.authBadgeText}>
-            {currentUserEmail ? `👤 ${currentUserEmail} (Salir)` : "👤 Iniciar Sesión"}
-          </Text>
-        </Pressable>
+          {/* User Account / Auth Button */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.authBadge,
+              pressed && { opacity: 0.7 },
+            ]}
+            onPress={currentUserEmail ? onLogout : onOpenAuth}
+            testID="btn-user-auth"
+          >
+            <Text style={styles.authBadgeText}>
+              {currentUserEmail ? `👤 ${currentUserEmail} (Salir)` : "👤 Iniciar Sesión"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Backend Unreachable Banner */}
@@ -269,17 +271,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f172a",
     width: "100%",
     minHeight: "100%",
+    alignItems: "center",
   },
   header: {
+    width: "100%",
+    backgroundColor: "#1e293b",
+    borderBottomWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "center",
+  },
+  headerInner: {
+    width: "100%",
+    maxWidth: 1280,
     paddingTop: Platform.OS === "web" ? 14 : (StatusBar.currentHeight || 44) + 8,
     paddingBottom: 14,
     paddingHorizontal: Platform.OS === "web" ? 28 : 16,
-    backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
     flexWrap: "wrap",
     gap: 12,
   },
@@ -392,11 +401,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
     width: "100%",
+    alignItems: "center",
   },
   navBarScroll: {
     flexDirection: "row",
     paddingHorizontal: 16,
     gap: 8,
+    maxWidth: 1280,
+    width: "100%",
+    alignSelf: "center",
+    justifyContent: Platform.OS === "web" ? "center" : "flex-start",
   },
   navButton: {
     paddingVertical: 14,
@@ -420,8 +434,9 @@ const styles = StyleSheet.create({
   contentArea: {
     flex: 1,
     padding: Platform.OS === "web" ? 24 : 12,
-    maxWidth: 1280,
+    maxWidth: 1200,
     alignSelf: "center",
+    alignItems: "center",
     width: "100%",
   },
   authBadge: {

@@ -183,19 +183,16 @@ export function ClassificationExplorer({
           setCategoryCounts(counts);
           setTagsWithUsage(tgsUsage);
 
-          if (
-            cats.length > 0 &&
-            (selectedCatId === null ||
-              !cats.some((c) => c.id === selectedCatId))
-          ) {
-            setSelectedCatId(cats[0].id);
-          }
-          if (
-            tgs.length > 0 &&
-            (selectedTagId === null || !tgs.some((t) => t.id === selectedTagId))
-          ) {
-            setSelectedTagId(tgs[0].id);
-          }
+          setSelectedCatId((prev) => {
+            if (cats.length === 0) return null;
+            if (prev && cats.some((c) => c.id === prev)) return prev;
+            return cats[0].id;
+          });
+          setSelectedTagId((prev) => {
+            if (tgs.length === 0) return null;
+            if (prev && tgs.some((t) => t.id === prev)) return prev;
+            return tgs[0].id;
+          });
         }
       } catch {
         // Fallback
@@ -205,7 +202,7 @@ export function ClassificationExplorer({
     return () => {
       mounted = false;
     };
-  }, [db, userId, selectedCatId, selectedTagId, refreshTrigger]);
+  }, [db, userId, refreshTrigger]);
 
   useEffect(() => {
     let mounted = true;
@@ -282,14 +279,17 @@ export function ClassificationExplorer({
       });
 
       setFormSuccess(`¡Categoría "${created.name}" creada con éxito!`);
+      setTimeout(() => setFormSuccess(null), 3000);
       setNewCatName("");
       setNewCatVoice("");
-      setNewCatColor(getFirstAvailablePresetColor(categories));
+      setNewCatColor(getFirstAvailablePresetColor([...categories, created]));
       setNewCatKind("STANDARD");
       setShowAddCatForm(false);
 
+      // Actualizar solo el estado local en memoria
+      setCategories((prev) => [...prev, created]);
+      setCategoryCounts((prev) => ({ ...prev, [created.id]: 0 }));
       setSelectedCatId(created.id);
-      await loadCatalogs();
       onCatalogUpdated?.();
     } catch (err) {
       const msg = (err as Error).message || "";
@@ -330,14 +330,19 @@ export function ClassificationExplorer({
       });
 
       setFormSuccess(`¡Etiqueta #${created.name} creada con éxito!`);
+      setTimeout(() => setFormSuccess(null), 3000);
       setNewTagName("");
       setNewTagColor(
-        getFirstAvailableTagPresetColor(tagsWithUsage.map((u) => u.tag)),
+        getFirstAvailableTagPresetColor([
+          ...tagsWithUsage.map((u) => u.tag),
+          created,
+        ]),
       );
       setShowAddTagForm(false);
 
+      // Actualizar solo el estado local en memoria
+      setTagsWithUsage((prev) => [...prev, { tag: created, count: 0 }]);
       setSelectedTagId(created.id);
-      await loadCatalogs();
       onCatalogUpdated?.();
     } catch (err) {
       const msg = (err as Error).message || "";
@@ -375,8 +380,20 @@ export function ClassificationExplorer({
         color: editCatColor,
       });
       setFormSuccess("¡Categoría actualizada correctamente!");
+      setTimeout(() => setFormSuccess(null), 3000);
+      setCategories((prev) =>
+        prev.map((c) =>
+          c.id === editingCat.id
+            ? {
+                ...c,
+                name: editCatName.trim(),
+                voice_command: editCatVoice.trim(),
+                color: editCatColor,
+              }
+            : c,
+        ),
+      );
       setEditingCat(null);
-      await loadCatalogs();
       onCatalogUpdated?.();
     } catch (err) {
       setFormError((err as Error).message);
@@ -391,15 +408,21 @@ export function ClassificationExplorer({
     try {
       await deleteLocalCategory(db, userId, catId);
       setFormSuccess("Categoría eliminada.");
+      setTimeout(() => setFormSuccess(null), 3000);
       setConfirmDeleteCatId(null);
       if (editingCat?.id === catId) setEditingCat(null);
-      await loadCatalogs();
-      const updatedCats = await listCategories(db, userId);
-      if (updatedCats.length > 0) {
-        setSelectedCatId(updatedCats[0].id);
-      } else {
-        setSelectedCatId(null);
-      }
+      setCategories((prev) => {
+        const next = prev.filter((c) => c.id !== catId);
+        if (selectedCatId === catId) {
+          setSelectedCatId(next.length > 0 ? next[0].id : null);
+        }
+        return next;
+      });
+      setCategoryCounts((prev) => {
+        const next = { ...prev };
+        delete next[catId];
+        return next;
+      });
       onCatalogUpdated?.();
     } catch (err) {
       setFormError((err as Error).message);
@@ -443,8 +466,22 @@ export function ClassificationExplorer({
         color: trimmedColor,
       });
       setFormSuccess("¡Etiqueta actualizada correctamente!");
+      setTimeout(() => setFormSuccess(null), 3000);
+      setTagsWithUsage((prev) =>
+        prev.map((item) =>
+          item.tag.id === editingTag.id
+            ? {
+                ...item,
+                tag: {
+                  ...item.tag,
+                  name: trimmedName,
+                  color: trimmedColor,
+                },
+              }
+            : item,
+        ),
+      );
       setEditingTag(null);
-      await loadCatalogs();
       onCatalogUpdated?.();
     } catch (err) {
       const msg = (err as Error).message || "";
@@ -464,15 +501,16 @@ export function ClassificationExplorer({
     try {
       await deleteLocalTag(db, userId, tagId);
       setFormSuccess("Etiqueta eliminada.");
+      setTimeout(() => setFormSuccess(null), 3000);
       setConfirmDeleteTagId(null);
       if (editingTag?.id === tagId) setEditingTag(null);
-      await loadCatalogs();
-      const updatedTags = await listTags(db, userId);
-      if (updatedTags.length > 0) {
-        setSelectedTagId(updatedTags[0].id);
-      } else {
-        setSelectedTagId(null);
-      }
+      setTagsWithUsage((prev) => {
+        const next = prev.filter((item) => item.tag.id !== tagId);
+        if (selectedTagId === tagId) {
+          setSelectedTagId(next.length > 0 ? next[0].tag.id : null);
+        }
+        return next;
+      });
       onCatalogUpdated?.();
     } catch (err) {
       setFormError((err as Error).message);
@@ -1347,10 +1385,11 @@ export function ClassificationExplorer({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#1E293B",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 24,
     width: "100%",
-    maxWidth: 600,
+    maxWidth: 1000,
+    alignSelf: "center",
   },
   headerRow: {
     flexDirection: "row",

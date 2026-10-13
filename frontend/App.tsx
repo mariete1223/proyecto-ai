@@ -44,6 +44,7 @@ import { Category, Entry, Tag } from "./types/domain";
 import { performSync } from "./services/syncEngine";
 import { notificationService } from "./services/notificationService";
 import { AuthModal } from "./components/AuthModal";
+import { AuthScreen } from "./components/AuthScreen";
 import { AuthSession, authStorage } from "./services/authService";
 import appConfig from "./app.json";
 
@@ -454,6 +455,19 @@ export default function App() {
     );
   }
 
+  // Si no hay sesión activa, requerimos inicio de sesión o registro antes de usar la app
+  if (!authSession) {
+    return (
+      <AuthScreen
+        baseUrl={getBackendUrl()}
+        onSuccess={(session) => {
+          setAuthSession(session);
+          loadDatabaseState(true);
+        }}
+      />
+    );
+  }
+
   const renderMainTabContent = () => {
     if (selectedEntryId || showVoiceCaptureModal || showEntryFormModal) {
       return (
@@ -770,6 +784,9 @@ const styles = StyleSheet.create({
   tabContentWrapper: {
     flex: 1,
     width: "100%",
+    maxWidth: 1040,
+    alignSelf: "center",
+    alignItems: "center",
   },
   mainScrollView: {
     flex: 1,
@@ -778,6 +795,8 @@ const styles = StyleSheet.create({
   mainScrollContent: {
     paddingBottom: 40,
     flexGrow: 1,
+    width: "100%",
+    alignItems: "center",
   },
   loadingContainer: {
     flex: 1,
@@ -794,11 +813,13 @@ const styles = StyleSheet.create({
   topActionsBar: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 16,
-    justifyContent: "flex-start",
+    gap: 12,
+    marginBottom: 20,
+    justifyContent: "center",
     alignItems: "center",
     width: "100%",
+    maxWidth: 1040,
+    alignSelf: "center",
   },
   overlayNavHeader: {
     marginBottom: 16,
@@ -883,5 +904,8 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flex: 1,
+    width: "100%",
+    maxWidth: 1040,
+    alignSelf: "center",
   },
 });
