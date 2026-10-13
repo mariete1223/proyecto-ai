@@ -148,3 +148,35 @@ def test_logout_success(client: TestClient, test_db_session: Session) -> None:
 
     assert response.status_code == 200
     assert response.json()["message"] == "Successfully logged out."
+
+
+def test_register_success(client: TestClient, test_db_session: Session) -> None:
+    payload = {
+        "email": "newuser@example.com",
+        "password": "ValidPassword123!",
+    }
+    response = client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+
+
+def test_register_duplicate_email(client: TestClient, test_db_session: Session) -> None:
+    create_user(test_db_session, "existing@example.com", "Password123!")
+    payload = {
+        "email": "existing@example.com",
+        "password": "Password123!",
+    }
+    response = client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+
+def test_register_invalid_email(client: TestClient, test_db_session: Session) -> None:
+    payload = {
+        "email": "not-an-email",
+        "password": "Password123!",
+    }
+    response = client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 422

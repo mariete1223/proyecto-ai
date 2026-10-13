@@ -11,9 +11,40 @@ from app.core.auth import create_access_token
 from app.core.security import verify_password
 from app.models.domain import User
 from app.schemas.auth import LoginRequest, MessageResponse, TokenResponse, UserResponse
-from app.services.user_service import normalize_email
+from app.services.user_service import (
+    InvalidUserDataError,
+    UserAlreadyExistsError,
+    create_user,
+    normalize_email,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post(
+    "/register",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new user",
+)
+def register(
+    request: LoginRequest, db: Annotated[Session, Depends(get_db)]
+) -> TokenResponse:
+    try:
+        user = create_user(db, request.email, request.password)
+    except UserAlreadyExistsError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A user with this email already exists.",
+        ) from None
+    except InvalidUserDataError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from None
+
+    access_token = create_access_token(user_id=str(user.id), email=user.email)
+    return TokenResponse(access_token=access_token, token_type="bearer")
 
 
 @router.post("/login", response_model=TokenResponse)

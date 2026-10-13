@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { CalendarCategoryFilter } from "./components/CalendarCategoryFilter";
@@ -42,40 +43,86 @@ import { Category, Entry, Tag } from "./types/domain";
 
 import { performSync } from "./services/syncEngine";
 import { notificationService } from "./services/notificationService";
+import { AuthModal } from "./components/AuthModal";
+import { AuthSession, authStorage } from "./services/authService";
 import appConfig from "./app.json";
 
-// Lee la URL del backend en tiempo de ejecución
+const ACTIVE_BACKEND_TUNNEL = "https://baltimore-exclusion-mean-dominant.trycloudflare.com";
+
 const getBackendUrl = (): string => {
-  if (Platform.OS === "web") {
-    if (typeof window !== "undefined" && window.location?.hostname) {
-      return `http://${window.location.hostname}:8000`;
+  // 1. En navegador web:
+  if (Platform.OS === "web" && typeof window !== "undefined" && window.location?.hostname) {
+    const host = window.location.hostname;
+    // Si estamos en localhost o 127.0.0.1
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
+      return `http://${host}:8000`;
+    }
+    // Si estamos en la red local Wi-Fi de casa (192.168.x.x o 10.x.x.x)
+    if (
+      host.startsWith("192.168.") ||
+      host.startsWith("10.") ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+    ) {
+      return `http://${host}:8000`;
+    }
+    // Si estamos en el túnel Cloudflare Web (acceso remoto/móvil por internet):
+    if (host.includes("trycloudflare.com")) {
+      return ACTIVE_BACKEND_TUNNEL;
     }
   }
-  // 1. Variable de entorno inyectada vía .env.local
+
+  // 2. Si no es web o para apps nativas:
   const fromEnv = process.env.EXPO_PUBLIC_BACKEND_URL;
-  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+  if (fromEnv && fromEnv.trim() && !fromEnv.includes("explorer-server-forgot-engineering")) {
+    return fromEnv.trim();
+  }
 
-  // 2. Extra configurado en app.json (actualizado automáticamente por start.ps1)
   const fromAppJson = (appConfig as any)?.expo?.extra?.backendUrl;
-  if (fromAppJson && fromAppJson.trim()) return fromAppJson.trim();
+  if (fromAppJson && fromAppJson.trim() && !fromAppJson.includes("explorer-server-forgot-engineering")) {
+    return fromAppJson.trim();
+  }
 
-  // 3. Fallback al túnel Cloudflare activo
-  return "https://vector-middle-entity-television.trycloudflare.com";
+  // 3. Fallback al túnel Cloudflare activo para backend
+  return ACTIVE_BACKEND_TUNNEL;
 };
 
 const defaultApiConfig = {
-  baseUrl: getBackendUrl(),
+  get baseUrl() {
+    return getBackendUrl();
+  },
   fetchFn: globalThis.fetch ? globalThis.fetch.bind(globalThis) : undefined,
 };
 
 export default function App() {
   const [db] = useState(() => new MemoryDatabaseAdapter("proyecto_ai_local_db"));
-  const [userId] = useState("user-demo-123");
+  const [authSession, setAuthSession] = useState<AuthSession | null>(() =>
+    authStorage.loadSession(),
+  );
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const userId = authSession ? authSession.userId : "user-demo-123";
+  const userToken = authSession ? authSession.token : "demo-token";
   const [isInitialized, setIsInitialized] = useState(false);
+  const { width } = useWindowDimensions();
+  const isMobileScreen =
+    Platform.OS !== "web" ||
+    width < 768 ||
+    (typeof navigator !== "undefined" &&
+      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
 
   const [activeTab, setActiveTab] = useState<
     "VOICE_CAPTURE" | "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT"
-  >(Platform.OS === "web" ? "CALENDAR" : "VOICE_CAPTURE");
+  >(() => {
+    if (Platform.OS !== "web") return "VOICE_CAPTURE";
+    if (typeof window !== "undefined") {
+      if (
+        window.innerWidth < 768 ||
+        /Mobi|Android|iPhone|iPad|iPod/i.test(navigator?.userAgent || "")
+      ) {
+        return "VOICE_CAPTURE";
+      }
+    }
+    return "CALENDAR";
+  });
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [, setTags] = useState<Tag[]>([]);
@@ -176,7 +223,7 @@ export default function App() {
       try {
         await performSync(db, {
           apiBaseUrl: getBackendUrl(),
-          token: "demo-token",
+          token: userToken,
           userId,
         });
       } catch (_) {
@@ -194,7 +241,7 @@ export default function App() {
       try {
         const syncRes = await performSync(db, {
           apiBaseUrl: getBackendUrl(),
-          token: "demo-token",
+          token: userToken,
           userId,
         });
         if (!syncRes.success && syncRes.error) {
@@ -239,6 +286,43 @@ export default function App() {
       console.error("Error al cargar la base de datos:", err);
     } finally {
       setIsSyncing(false);
+    }
+  }, [db, userId, userToken]);
+
+  // Sincronización silenciosa en background para cambios locales granulares.
+  // No altera isSyncing visualmente ni dispara lastSyncTime a menos que lleguen cambios remotos nuevos del servidor.
+  const syncSilentlyInBackground = useCallback(async () => {
+    try {
+      const syncRes = await performSync(db, {
+        apiBaseUrl: getBackendUrl(),
+        token: userToken,
+        userId,
+      });
+
+      // Actualizar conteos del encabezado sin parpadear
+      const [allEntries, cats, datelessPending] = await Promise.all([
+        listLocalEntries(db, userId),
+        listCategories(db, userId),
+        listPendingDatelessTasks(db, userId),
+      ]);
+
+      setEntries((prev) => (prev.length === allEntries.length ? prev : allEntries));
+      setCategories((prev) => (prev.length === cats.length ? prev : cats));
+      setPendingTasksCount((prev) =>
+        prev === datelessPending.length ? prev : datelessPending.length,
+      );
+
+      // Si llegaron cambios externos del servidor que requieren actualizar otras vistas:
+      if (
+        syncRes.success &&
+        (syncRes.pulled_changes > 0 ||
+          syncRes.pulled_tombstones > 0 ||
+          syncRes.pushed_conflicts > 0)
+      ) {
+        setLastSyncTime(Date.now());
+      }
+    } catch {
+      // Silencioso en background
     }
   }, [db, userId]);
 
@@ -471,9 +555,9 @@ export default function App() {
     }
 
     return (
-      <View>
-        {/* Floating Action Bar (Web view) */}
-        {Platform.OS === "web" && (
+      <View style={styles.tabContentWrapper}>
+        {/* Floating Action Bar (Only on Desktop Web view) */}
+        {!isMobileScreen && (
           <View style={styles.topActionsBar}>
             <Pressable
               style={styles.voiceCaptureButton}
@@ -508,9 +592,10 @@ export default function App() {
         {/* Tab 0: VOICE CAPTURE HERO VIEW (Mobile Home) */}
         {activeTab === "VOICE_CAPTURE" && (
           <MobileHomeVoiceView
-            key={`voice-${lastSyncTime}`}
+            key="voice-home"
             db={db}
             userId={userId}
+            refreshSignal={lastSyncTime}
             onOpenManualForm={() => setShowEntryFormModal(true)}
             onOpenLlmImport={() => setActiveTab("LLM_IMPORT")}
             onEntryCreated={() => loadDatabaseState(true)}
@@ -519,11 +604,12 @@ export default function App() {
 
         {/* Tab 1: CALENDAR */}
         {activeTab === "CALENDAR" && (
-          <View style={styles.tabContainer} key={`cal-container-${lastSyncTime}`}>
+          <View style={styles.tabContainer} key="cal-container">
             <CalendarCategoryFilter
-              key={`filter-${lastSyncTime}`}
+              key="cal-filter"
               db={db}
               userId={userId}
+              refreshSignal={lastSyncTime}
               onFilterChange={setSelectedCategoryIds}
               onTagFilterChange={setSelectedTagIds}
             />
@@ -543,7 +629,7 @@ export default function App() {
               }
               refreshSignal={lastSyncTime}
               onSelectEntry={(entryId) => setSelectedEntryId(entryId)}
-              onEntryUpdated={() => loadDatabaseState(true)}
+              onEntryUpdated={syncSilentlyInBackground}
             />
           </View>
         )}
@@ -557,7 +643,7 @@ export default function App() {
               userId={userId}
               refreshSignal={lastSyncTime}
               onSelectEntry={(entry) => setSelectedEntryId(entry.id)}
-              onTaskUpdated={() => loadDatabaseState(true)}
+              onTaskUpdated={syncSilentlyInBackground}
             />
           </View>
         )}
@@ -570,7 +656,7 @@ export default function App() {
               db={db}
               userId={userId}
               onSelectEntry={(entryId) => setSelectedEntryId(entryId)}
-              onCatalogUpdated={() => loadDatabaseState(true)}
+              onCatalogUpdated={syncSilentlyInBackground}
               refreshTrigger={lastSyncTime}
             />
           </View>
@@ -597,11 +683,24 @@ export default function App() {
             />
           </View>
         )}
+
+        {/* Modal de Autenticación Privada */}
+        <AuthModal
+          visible={showAuthModal}
+          baseUrl={getBackendUrl()}
+          onSuccess={(session) => {
+            setAuthSession(session);
+            setShowAuthModal(false);
+            loadDatabaseState(true);
+          }}
+          onClose={() => setShowAuthModal(false)}
+          onContinueOffline={() => setShowAuthModal(false)}
+        />
       </View>
     );
   };
 
-  if (Platform.OS !== "web") {
+  if (isMobileScreen) {
     return (
       <MobileMainLayout
         apiConfig={defaultApiConfig}
@@ -614,6 +713,13 @@ export default function App() {
         }}
         onSync={loadDatabaseState}
         isSyncing={isSyncing}
+        currentUserEmail={authSession ? authSession.email : null}
+        onOpenAuth={() => setShowAuthModal(true)}
+        onLogout={() => {
+          authStorage.clearSession();
+          setAuthSession(null);
+          loadDatabaseState(true);
+        }}
       >
         <ScrollView
           ref={mainScrollViewRef}
@@ -638,6 +744,13 @@ export default function App() {
       }}
       onSync={loadDatabaseState}
       isSyncing={isSyncing}
+      currentUserEmail={authSession ? authSession.email : null}
+      onOpenAuth={() => setShowAuthModal(true)}
+      onLogout={() => {
+        authStorage.clearSession();
+        setAuthSession(null);
+        loadDatabaseState(true);
+      }}
     >
       <StatusBar style="light" />
 
@@ -654,12 +767,17 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  tabContentWrapper: {
+    flex: 1,
+    width: "100%",
+  },
   mainScrollView: {
     flex: 1,
     width: "100%",
   },
   mainScrollContent: {
     paddingBottom: 40,
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,

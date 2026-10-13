@@ -1,18 +1,23 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
 
 export interface WebMainLayoutProps {
   apiConfig: WebApiConfig;
   onTabChange?: (
-    tab: "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS",
+    tab: "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT",
   ) => void;
   stats?: {
     totalEntries?: number;
     pendingTasks?: number;
     totalCategories?: number;
   };
+  onSync?: () => void;
+  isSyncing?: boolean;
+  currentUserEmail?: string | null;
+  onOpenAuth?: () => void;
+  onLogout?: () => void;
   children?: React.ReactNode;
 }
 
@@ -20,10 +25,15 @@ export function WebMainLayout({
   apiConfig,
   onTabChange,
   stats,
+  onSync,
+  isSyncing,
+  currentUserEmail,
+  onOpenAuth,
+  onLogout,
   children,
 }: WebMainLayoutProps) {
   const [activeTab, setActiveTab] = useState<
-    "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS"
+    "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT"
   >("CALENDAR");
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(
     null,
@@ -42,7 +52,7 @@ export function WebMainLayout({
   }, [apiConfig]);
 
   const handleTabSelect = (
-    tab: "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS",
+    tab: "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT",
   ) => {
     setActiveTab(tab);
     onTabChange?.(tab);
@@ -85,25 +95,55 @@ export function WebMainLayout({
         </View>
 
         {/* Backend Status Indicator */}
-        <View style={styles.statusIndicator}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.statusIndicator,
+            pressed && { opacity: 0.7 },
+          ]}
+          onPress={() => {
+            checkBackendHealth(apiConfig).then((healthy) => {
+              setIsBackendConnected(healthy);
+            });
+            onSync?.();
+          }}
+          testID="btn-web-sync"
+        >
           <View
             style={[
               styles.statusDot,
-              isBackendConnected === true
-                ? styles.dotConnected
-                : isBackendConnected === false
-                  ? styles.dotDisconnected
-                  : styles.dotPending,
+              isSyncing
+                ? styles.dotPending
+                : isBackendConnected === true
+                  ? styles.dotConnected
+                  : isBackendConnected === false
+                    ? styles.dotDisconnected
+                    : styles.dotPending,
             ]}
           />
           <Text style={styles.statusText}>
-            {isBackendConnected === true
-              ? "Backend Conectado"
-              : isBackendConnected === false
-                ? "Backend Desconectado"
-                : "Comprobando..."}
+            {isSyncing
+              ? "Sincronizando..."
+              : isBackendConnected === true
+                ? "Backend Conectado 🔄"
+                : isBackendConnected === false
+                  ? "Backend Desconectado ⚠️"
+                  : "Comprobando..."}
           </Text>
-        </View>
+        </Pressable>
+
+        {/* User Account / Auth Button */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.authBadge,
+            pressed && { opacity: 0.7 },
+          ]}
+          onPress={currentUserEmail ? onLogout : onOpenAuth}
+          testID="btn-user-auth"
+        >
+          <Text style={styles.authBadgeText}>
+            {currentUserEmail ? `👤 ${currentUserEmail} (Salir)` : "👤 Iniciar Sesión"}
+          </Text>
+        </Pressable>
       </View>
 
       {/* Backend Unreachable Banner */}
@@ -118,77 +158,101 @@ export function WebMainLayout({
 
       {/* Glassmorphic Navigation Bar */}
       <View style={styles.navBar}>
-        <Pressable
-          style={[
-            styles.navButton,
-            activeTab === "CALENDAR" && styles.activeNavButton,
-          ]}
-          onPress={() => handleTabSelect("CALENDAR")}
-          testID="nav-calendar"
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.navBarScroll}
         >
-          <Text
+          <Pressable
             style={[
-              styles.navButtonText,
-              activeTab === "CALENDAR" && styles.activeNavButtonText,
+              styles.navButton,
+              activeTab === "CALENDAR" && styles.activeNavButton,
             ]}
+            onPress={() => handleTabSelect("CALENDAR")}
+            testID="nav-calendar"
           >
-            📅 Calendario
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                styles.navButtonText,
+                activeTab === "CALENDAR" && styles.activeNavButtonText,
+              ]}
+            >
+              📅 Calendario
+            </Text>
+          </Pressable>
 
-        <Pressable
-          style={[
-            styles.navButton,
-            activeTab === "PENDING_TASKS" && styles.activeNavButton,
-          ]}
-          onPress={() => handleTabSelect("PENDING_TASKS")}
-          testID="nav-pending-tasks"
-        >
-          <Text
+          <Pressable
             style={[
-              styles.navButtonText,
-              activeTab === "PENDING_TASKS" && styles.activeNavButtonText,
+              styles.navButton,
+              activeTab === "PENDING_TASKS" && styles.activeNavButton,
             ]}
+            onPress={() => handleTabSelect("PENDING_TASKS")}
+            testID="nav-pending-tasks"
           >
-            ☑️ Tareas Pendientes
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                styles.navButtonText,
+                activeTab === "PENDING_TASKS" && styles.activeNavButtonText,
+              ]}
+            >
+              ☑️ Tareas Pendientes
+            </Text>
+          </Pressable>
 
-        <Pressable
-          style={[
-            styles.navButton,
-            activeTab === "EXPLORER" && styles.activeNavButton,
-          ]}
-          onPress={() => handleTabSelect("EXPLORER")}
-          testID="nav-explorer"
-        >
-          <Text
+          <Pressable
             style={[
-              styles.navButtonText,
-              activeTab === "EXPLORER" && styles.activeNavButtonText,
+              styles.navButton,
+              activeTab === "EXPLORER" && styles.activeNavButton,
             ]}
+            onPress={() => handleTabSelect("EXPLORER")}
+            testID="nav-explorer"
           >
-            🏷️ Categorías y Etiquetas
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                styles.navButtonText,
+                activeTab === "EXPLORER" && styles.activeNavButtonText,
+              ]}
+            >
+              🏷️ Categorías y Etiquetas
+            </Text>
+          </Pressable>
 
-        <Pressable
-          style={[
-            styles.navButton,
-            activeTab === "CONFLICTS" && styles.activeNavButton,
-          ]}
-          onPress={() => handleTabSelect("CONFLICTS")}
-          testID="nav-conflicts"
-        >
-          <Text
+          <Pressable
             style={[
-              styles.navButtonText,
-              activeTab === "CONFLICTS" && styles.activeNavButtonText,
+              styles.navButton,
+              activeTab === "CONFLICTS" && styles.activeNavButton,
             ]}
+            onPress={() => handleTabSelect("CONFLICTS")}
+            testID="nav-conflicts"
           >
-            ⚡ Conflictos Sync
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                styles.navButtonText,
+                activeTab === "CONFLICTS" && styles.activeNavButtonText,
+              ]}
+            >
+              ⚡ Conflictos Sync
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.navButton,
+              activeTab === "LLM_IMPORT" && styles.activeNavButton,
+            ]}
+            onPress={() => handleTabSelect("LLM_IMPORT")}
+            testID="nav-llm-import"
+          >
+            <Text
+              style={[
+                styles.navButtonText,
+                activeTab === "LLM_IMPORT" && styles.activeNavButtonText,
+              ]}
+            >
+              🤖 Estructurar con IA
+            </Text>
+          </Pressable>
+        </ScrollView>
       </View>
 
       {/* Main Content Area */}
@@ -207,8 +271,9 @@ const styles = StyleSheet.create({
     minHeight: "100%",
   },
   header: {
-    paddingVertical: 14,
-    paddingHorizontal: 28,
+    paddingTop: Platform.OS === "web" ? 14 : (StatusBar.currentHeight || 44) + 8,
+    paddingBottom: 14,
+    paddingHorizontal: Platform.OS === "web" ? 28 : 16,
     backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
@@ -216,7 +281,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
     flexWrap: "wrap",
-    gap: 16,
+    gap: 12,
   },
   brandContainer: {
     flexDirection: "row",
@@ -323,16 +388,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   navBar: {
-    flexDirection: "row",
     backgroundColor: "#1e293b",
     borderBottomWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
-    paddingHorizontal: 24,
+    width: "100%",
+  },
+  navBarScroll: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
     gap: 8,
   },
   navButton: {
     paddingVertical: 14,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     borderBottomWidth: 3,
     borderBottomColor: "transparent",
   },
@@ -351,9 +419,24 @@ const styles = StyleSheet.create({
   },
   contentArea: {
     flex: 1,
-    padding: 24,
+    padding: Platform.OS === "web" ? 24 : 12,
     maxWidth: 1280,
     alignSelf: "center",
     width: "100%",
+  },
+  authBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  authBadgeText: {
+    color: "#93C5FD",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
