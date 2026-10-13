@@ -9,10 +9,12 @@ export interface VoiceRecognitionOptions {
 
 interface SpeechRecognitionResultItem {
   transcript: string;
+  isFinal?: boolean;
 }
 
 interface SpeechRecognitionResult {
   [key: number]: SpeechRecognitionResultItem;
+  isFinal?: boolean;
 }
 
 interface SpeechRecognitionResults {
@@ -22,6 +24,7 @@ interface SpeechRecognitionResults {
 
 interface SpeechRecognitionEvent {
   results: SpeechRecognitionResults;
+  resultIndex?: number;
 }
 
 interface SpeechRecognitionErrorEvent {
@@ -34,6 +37,7 @@ interface SpeechRecognitionInstance {
   lang: string;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
   start: () => void;
   stop: () => void;
 }
@@ -47,6 +51,7 @@ export class VoiceRecognitionService {
   private options: VoiceRecognitionOptions;
   private isListening = false;
   private recognitionInstance: SpeechRecognitionInstance | null = null;
+  private finalizedText = "";
 
   constructor(options: VoiceRecognitionOptions = {}) {
     this.options = options;
@@ -92,6 +97,7 @@ export class VoiceRecognitionService {
     if (!hasPermission) return;
 
     this.isListening = true;
+    this.finalizedText = "";
     this.setState("LISTENING");
 
     // Initialize Web Speech API if supported in browser
@@ -119,14 +125,32 @@ export class VoiceRecognitionService {
           instance.continuous = true;
           instance.interimResults = true;
           instance.lang = "es-ES";
+          this.finalizedText = "";
 
           instance.onresult = (event: SpeechRecognitionEvent) => {
-            let text = "";
+            let finalizedAccumulator = "";
+            let interimText = "";
+
             for (let i = 0; i < event.results.length; i++) {
-              text += event.results[i][0].transcript;
+              const result = event.results[i];
+              const text = result[0]?.transcript ? result[0].transcript.trim() : "";
+              if (!text) continue;
+
+              if (result.isFinal) {
+                finalizedAccumulator += (finalizedAccumulator ? " " : "") + text;
+              } else {
+                interimText += (interimText ? " " : "") + text;
+              }
             }
-            if (this.options.onResult) {
-              this.options.onResult(text);
+
+            this.finalizedText = finalizedAccumulator;
+
+            const fullText = this.finalizedText
+              ? this.finalizedText + (interimText ? " " + interimText : "")
+              : interimText;
+
+            if (this.options.onResult && fullText) {
+              this.options.onResult(fullText);
             }
           };
 
@@ -135,6 +159,12 @@ export class VoiceRecognitionService {
               this.options.onError(
                 `Aviso del micrófono: ${errEvent.error || "audio no disponible"}`,
               );
+            }
+          };
+
+          instance.onend = () => {
+            if (this.options.onResult && this.finalizedText) {
+              this.options.onResult(this.finalizedText);
             }
           };
 
@@ -166,6 +196,8 @@ export class VoiceRecognitionService {
 
     if (this.options.onResult && finalTranscript) {
       this.options.onResult(finalTranscript);
+    } else if (this.options.onResult && this.finalizedText) {
+      this.options.onResult(this.finalizedText);
     }
 
     this.setState("IDLE");
