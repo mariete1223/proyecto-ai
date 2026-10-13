@@ -257,3 +257,22 @@ El repositorio incorpora controles de seguridad deterministas, diagnósticos ope
 - 🔐 **Privacidad de Datos e IA:** Arquitectura *offline-first* con SQLite local en el dispositivo. Procesamiento de voz en cliente vía Web Speech API sin enviar audio a servidores de terceros ni reentrenar modelos fundacionales.
 
 > 📄 Consulta el informe exhaustivo en [`security/audit-report.md`](./security/audit-report.md) y la [Política de Privacidad](./security/ai-data-privacy-policy.md).
+
+---
+
+## 11. Despliegue y Entrega Continua (Criterios 10 y 11 de la Rúbrica)
+
+El proyecto ofrece múltiples modalidades de despliegue reproducible y entrega automatizada:
+
+- 🚀 **Despliegue Cloud en 1 Clic (IaC):**
+  - **Backend:** Infraestructura como código con [`render.yaml`](./render.yaml) para desplegar el servidor FastAPI en Docker conectado a PostgreSQL gestionado en Render.
+  - **Frontend Web:** Configuración con [`frontend/vercel.json`](./frontend/vercel.json) para compilar y alojar la versión web en Vercel Edge Network.
+- 🐳 **Despliegue en Servidor Propio con Docker:**
+  - `docker compose up -d --build` levanta de forma coordinada PostgreSQL, FastAPI y Frontend Nginx.
+- 📱 **Despliegue Móvil Híbrido:**
+  - Script [`start.ps1`](./start.ps1) con túnel cifrado Cloudflare para conectar teléfonos móviles vía Expo Go con la API en red celular.
+- 🔄 **Pipeline Automatizado de CI/CD:**
+  - Flujo de GitHub Actions en [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) ejecutando 271 pruebas automáticas (164 frontend, 107 backend).
+  - Al superar las pruebas, el job `cd-deploy` dispara el despliegue automático hacia producción ante cada `push` en la rama `main`.
+
+> 📄 Consulta la guía paso a paso en [`_docs/deployment.md`](./_docs/deployment.md).

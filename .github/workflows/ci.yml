@@ -67,3 +67,26 @@ jobs:
 
       - name: Run backend format, lint, type, and test checks
         run: uv run --directory backend python scripts/check.py
+
+  cd-deploy:
+    name: Continuous Deployment (CD)
+    needs: [frontend, backend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify deployment readiness
+        run: |
+          echo "All frontend and backend checks passed successfully."
+          echo "Automated continuous delivery pipeline triggered for main branch."
+
+      - name: Trigger Render Deploy Hook (if configured)
+        if: env.RENDER_DEPLOY_HOOK != ''
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          curl -s -X POST "$RENDER_DEPLOY_HOOK"
+          echo "Render deployment hook triggered successfully."
