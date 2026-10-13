@@ -200,9 +200,41 @@ npx expo start --web
 
 ---
 
-## 8. Persistencia y Base de Datos
+## 8. Contenedores y Docker Compose (Criterio 8 de la Rúbrica)
 
-Por defecto, el backend funciona con **SQLite local** (`backend/app.db`) sin requerir configuración adicional. Para conectar a una base de datos PostgreSQL:
+El sistema completo puede levantarse de forma aislada y reproducible mediante **Docker Compose**, sin requerir instalar Node.js ni Python en la máquina anfitriona.
+
+### Servicios Orquestados en `docker-compose.yml`
+- **`db` (PostgreSQL 16 Alpine):** Base de datos relacional con comprobación de salud (`pg_isready`) y volumen persistente `postgres_data`.
+- **`api` (FastAPI + Python 3.11):** Backend compilado con [`backend/Dockerfile`](./backend/Dockerfile), ejecuta automáticamente las migraciones Alembic (`alembic upgrade head`) al arrancar y valida salud en `/health`.
+- **`web` (React Native Expo Web + Nginx):** Frontend web compilado mediante build multi-etapa con [`frontend/Dockerfile`](./frontend/Dockerfile) y servido mediante Nginx en el puerto 8081.
+
+### 1. Iniciar el Sistema Completo
+Desde la raíz del repositorio:
+
+```bash
+docker compose up -d --build
+```
+
+### 2. Verificar los Servicios
+- 🌐 **Frontend Web:** Abre [http://localhost:8081](http://localhost:8081) en tu navegador.
+- ⚙️ **Backend API Health:** [http://localhost:8000/health](http://localhost:8000/health) devuelve `{"status":"ok"}`.
+- 📑 **Swagger UI (OpenAPI interactivo):** [http://localhost:8000/docs](http://localhost:8000/docs).
+- 📋 **Ver logs en tiempo real:**
+  ```bash
+  docker compose logs -f
+  ```
+
+### 3. Detener los Contenedores
+```bash
+docker compose down
+```
+
+---
+
+## 9. Persistencia y Base de Datos (Criterio 7 de la Rúbrica)
+
+Por defecto, en ejecución local nativa sin Docker, el backend funciona con **SQLite local** (`backend/app.db`) sin requerir configuración adicional. Para conectar a una base de datos PostgreSQL:
 
 ```bash
 # Configurar variable de entorno

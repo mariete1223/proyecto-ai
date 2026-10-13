@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml .
-RUN pip install --no-cache-dir uvicorn fastapi sqlalchemy alembic psycopg2-binary pydantic
+RUN pip install --no-cache-dir "uvicorn[standard]>=0.30" "fastapi>=0.115" "sqlalchemy>=2.0" "alembic>=1.20" "psycopg[binary]>=3.2" pydantic
 
 COPY . .
 
