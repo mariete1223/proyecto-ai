@@ -1,8 +1,35 @@
-# Proyecto AI
+# Proyecto AI — Asistente Personal de Memoria y Organización
 
-Aplicación personal para registrar y consultar recuerdos, aprendizajes, tareas y eventos. La [especificación funcional](./_docs/spec.md), la [arquitectura](./_docs/arch.md) y el [modelo de dominio v0.1](./_docs/domain-model-v0.1.md) están en [`_docs/`](./_docs/).
+Aplicación personal unificada para registrar, organizar y consultar recuerdos, aprendizajes, tareas y eventos con interacción guiada por voz.
 
-## Estructura
+---
+
+## 1. Problema y Producto
+
+### ¿Qué problema resuelve?
+Tradicionalmente, las personas separan su organización diaria (calendarios, listas de tareas pendientes) de su memoria personal (diarios, notas reflexivas, aprendizajes o momentos destacados). Esta fragmentación provoca dos problemas habituales:
+1. **Pérdida de momentos destacados:** Con el paso del tiempo, olvidamos anécdotas, aprendizajes o vivencias personales importantes por falta de un registro accesible y centralizado.
+2. **Fricción al registrar información:** Rellenar formularios manuales en el móvil (seleccionar fecha, hora, categoría y escribir párrafos en pantallas pequeñas) quita tiempo y desalienta el hábito diario.
+
+**Proyecto AI** resuelve esta fricción unificando la agenda de compromisos y el diario de vida en un único lugar, permitiendo capturar cualquier acontecimiento o tarea en segundos mediante **comandos de voz naturales**, sin perder tiempo y sin fricción.
+
+### ¿A quién va dirigido y qué necesidad cubre?
+- **Público objetivo:** Cualquier usuario que desee recopilar lo que hace día a día, tener un registro de sus vivencias pasadas y un control ordenado de lo que tiene pendiente por hacer en el futuro.
+- **Necesidades clave:**
+  - Reducir la carga mental mediante un vaciado rápido de ideas (*brain dump*) sobre la marcha.
+  - Conservar una memoria vital a largo plazo conectada a un calendario cronológico.
+  - Asegurar la privacidad total y la disponibilidad sin conexión a Internet (*offline-first*).
+
+### Funcionalidades principales y comportamiento esperado
+- 🎙️ **Captura por voz inteligente (Speech-to-Text):** Hablas con naturalidad y el asistente interpreta automáticamente la categoría, fecha/hora relativa (ej. *"para el lunes de la semana que viene a las 17:00"*), prioridad (*"prioridad alta"*) y etiquetas, extrayendo el contenido limpio sin intervención manual.
+- 📅 **Calendario y Diario unificado:** Visualización mensual y diaria para consultar tanto eventos y citas futuras como notas y recuerdos registrados en el pasado.
+- ✅ **Gestor de Tareas y Prioridades:** Soporte para tareas con fecha y tareas flotantes/pendientes con transiciones de estado (*Pendiente*, *En progreso*, *Completada*) y clasificación visual por prioridad (*Alta*, *Media*, *Baja*).
+- 🏷️ **Categorías y Etiquetas personalizadas:** Catálogo configurable con comandos de voz propios, colores únicos e iconos para adaptar el sistema al estilo de vida del usuario.
+- 🔄 **Sincronización robusta Offline-First:** Los datos se guardan al instante en la base de datos local SQLite del dispositivo (móvil o web) y se sincronizan de manera bidireccional e idempotente con el backend FastAPI / PostgreSQL.
+
+La [especificación funcional en detalle](./_docs/spec.md), la [arquitectura técnica](./_docs/arch.md) y el [modelo de dominio](./_docs/domain-model-v0.1.md) se encuentran disponibles en [`_docs/`](./_docs/).
+
+---
 
 - `frontend/`: aplicación Expo, React Native y TypeScript.
 - `backend/`: API mínima de FastAPI.
@@ -64,39 +91,61 @@ servicios externos.
 
 ## Arrancar la aplicación
 
-### Front-end (Expo / Web)
+### Flujo habitual (ordenador + iPhone)
 
-Para iniciar la aplicación Expo desde la raíz:
+> **Usa este proceso cada vez que enciendas el ordenador.**
 
+**Terminal 1 — Backend y túnel:**
 ```powershell
-npm.cmd --prefix frontend start
+.\start.ps1
+```
+El script hace automáticamente:
+1. Lanza un túnel público Cloudflare y captura su URL
+2. Escribe la URL en `frontend/.env.local` y `frontend/app.json`
+3. Arranca el backend FastAPI en `localhost:8000`
+
+Espera hasta que aparezca `Tunel activo: https://xxx.trycloudflare.com`.
+
+**Terminal 2 — Frontend Expo:**
+```powershell
+cd frontend
+npx expo start --lan
 ```
 
-Para iniciar directamente en la versión Web:
+**iPhone:**
+- Abre **Expo Go** → escanea el QR que aparece en la terminal
+- La app ya tiene configurada automáticamente la URL del túnel
+
+> ⚠️ El túnel Cloudflare genera una URL nueva cada vez que se reinicia. El script `start.ps1` la actualiza automáticamente, así que solo tienes que volver a ejecutarlo.
+
+---
+
+### Solo web (sin iPhone)
+
+Si solo usas el ordenador, puedes arrancar el backend directamente:
 
 ```powershell
-npm.cmd --prefix frontend run web
+cd backend
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Back-end (FastAPI)
-
-Para arrancar la API FastAPI localmente evitando el bloqueo de ejecutable de Windows Smart App Control:
-
+Y el frontend:
 ```powershell
-uv run --directory backend python -m uvicorn app.main:app --reload
+cd frontend
+npx expo start --lan
 ```
 
-O directamente mediante el intérprete Python del entorno virtual:
+### Solo back-end
 
 ```powershell
-& "backend\.venv\Scripts\python.exe" -m uvicorn app.main:app --reload --app-dir backend
+cd backend
+uv run uvicorn app.main:app --reload
 ```
 
 ## Conexión del backend a PostgreSQL
 
-El backend obtiene la conexión exclusivamente de `DATABASE_URL`. Configura la
-variable en el entorno antes de utilizar la persistencia; este valor es solo un
-marcador de formato y no contiene credenciales reales:
+Por defecto el backend usa **SQLite local** (`backend/app.db`) sin configuración.
+Para usar PostgreSQL en producción, configura `DATABASE_URL` antes de arrancar:
 
 ```powershell
 $env:DATABASE_URL = "postgresql+psycopg://USUARIO:CONTRASENA@HOST:5432/BASE_DE_DATOS"
