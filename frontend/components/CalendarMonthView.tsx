@@ -2,7 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { listCategories } from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
-import { listLocalEntries, updateLocalEntry } from "../db/entries";
+import {
+  deleteLocalEntry,
+  listLocalEntries,
+  updateLocalEntry,
+} from "../db/entries";
 import { listTags } from "../db/tags";
 import { Category, Entry, Tag, formatDateTime, getEntryDisplayTitle } from "../types/domain";
 
@@ -41,6 +45,30 @@ export function CalendarMonthView({
     null,
   );
   const [quickTitleText, setQuickTitleText] = useState<string>("");
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  const handleDeleteEntry = async (entryId: string) => {
+    try {
+      setIsDeleting(true);
+      await deleteLocalEntry(db, userId, entryId);
+      setEntries((prev) => prev.filter((e) => e.id !== entryId));
+      setSelectedDayEntries((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.filter((e) => e.id !== entryId),
+            }
+          : null,
+      );
+      setDeletingEntryId(null);
+      onEntryUpdated?.();
+    } catch (err) {
+      console.error("Error al eliminar entrada desde el calendario:", err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleSaveQuickTitle = async (entryId: string) => {
     if (!quickTitleText.trim()) return;
@@ -108,6 +136,14 @@ export function CalendarMonthView({
           setCategories(cats);
           setTags(tagList);
           setEntries(fetchedEntries);
+          setSelectedDayEntries((prev) => {
+            if (!prev) return null;
+            const updatedItems = fetchedEntries.filter((e) => {
+              if (!e.occurred_at) return false;
+              return e.occurred_at.substring(0, 10) === prev.dateStr;
+            });
+            return { ...prev, items: updatedItems };
+          });
         }
       } catch {
         // Offline fallback handling
@@ -415,11 +451,65 @@ export function CalendarMonthView({
                     </View>
                   )}
 
-                  <View style={styles.editHintRow}>
-                    <Text style={styles.editHintText}>
-                      👁️ Ver detalles / Editar
-                    </Text>
-                  </View>
+                  {deletingEntryId === ent.id ? (
+                    <View
+                      style={styles.deleteConfirmBox}
+                      testID={`delete-confirm-box-${ent.id}`}
+                    >
+                      <Text style={styles.deleteConfirmText}>
+                        ⚠️ ¿Seguro que quieres borrar esta entrada?
+                      </Text>
+                      <View style={styles.deleteConfirmActions}>
+                        <Pressable
+                          testID={`btn-confirm-delete-${ent.id}`}
+                          style={styles.deleteConfirmBtn}
+                          disabled={isDeleting}
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            handleDeleteEntry(ent.id);
+                          }}
+                        >
+                          <Text style={styles.deleteConfirmBtnText}>
+                            {isDeleting ? "Borrando..." : "Sí, borrar"}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          testID={`btn-cancel-delete-${ent.id}`}
+                          style={styles.deleteCancelBtn}
+                          disabled={isDeleting}
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            setDeletingEntryId(null);
+                          }}
+                        >
+                          <Text style={styles.deleteCancelBtnText}>
+                            Cancelar
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.entryCardFooterRow}>
+                      <Pressable
+                        testID={`btn-open-delete-${ent.id}`}
+                        style={styles.deleteEntryBtn}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          setDeletingEntryId(ent.id);
+                        }}
+                      >
+                        <Text style={styles.deleteEntryBtnText}>
+                          🗑️ Eliminar
+                        </Text>
+                      </Pressable>
+
+                      <View style={styles.editHintRow}>
+                        <Text style={styles.editHintText}>
+                          👁️ Ver detalles / Editar
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                 </Pressable>
               );
             })
@@ -631,11 +721,76 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 6,
   },
+  entryCardFooterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+  },
+  deleteEntryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderColor: "rgba(239, 68, 68, 0.35)",
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  deleteEntryBtnText: {
+    color: "#F87171",
+    fontSize: 11,
+    fontWeight: "700",
+  },
   editHintRow: {
     alignItems: "flex-end",
   },
   editHintText: {
     color: "#38BDF8",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  deleteConfirmBox: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 8,
+    gap: 8,
+  },
+  deleteConfirmText: {
+    color: "#FECACA",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  deleteConfirmActions: {
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "flex-end",
+  },
+  deleteConfirmBtn: {
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  deleteConfirmBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  deleteCancelBtn: {
+    backgroundColor: "#334155",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  deleteCancelBtnText: {
+    color: "#94A3B8",
     fontSize: 11,
     fontWeight: "600",
   },
