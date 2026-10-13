@@ -484,6 +484,19 @@ describe("Spoken Command Parser (voiceParser)", () => {
       expect(result.content).toContain("prioridad alta");
       expect(result.tokens?.some((t) => t.label.startsWith("Prioridad:"))).toBe(false);
     });
+
+    it("extracts content, date and priority when priority is at the end of the phrase (Issue #59)", () => {
+      const transcript = "Tarea fecha mañana tengo que ir a comprar al mercado prioridad alta";
+      const result = parseSpokenCommand(transcript, sampleCategories, sampleTags, refDate);
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryId).toBe("cat-2");
+      expect(result.categoryName).toBe("Tareas");
+      expect(result.taskPriority).toBe("HIGH");
+      expect(result.content).toBe("tengo que ir a comprar al mercado");
+      expect(result.occurredAt).toBeDefined();
+      expect(result.errors).toEqual([]);
+    });
   });
 
   describe("Relative Next-Week Date Parsing ('lunes de la semana que viene', 'semana siguiente', etc.)", () => {

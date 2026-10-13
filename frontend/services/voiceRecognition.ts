@@ -52,6 +52,7 @@ export class VoiceRecognitionService {
   private isListening = false;
   private recognitionInstance: SpeechRecognitionInstance | null = null;
   private finalizedText = "";
+  private lastFullText = "";
 
   constructor(options: VoiceRecognitionOptions = {}) {
     this.options = options;
@@ -126,6 +127,7 @@ export class VoiceRecognitionService {
           instance.interimResults = true;
           instance.lang = "es-ES";
           this.finalizedText = "";
+          this.lastFullText = "";
 
           instance.onresult = (event: SpeechRecognitionEvent) => {
             let finalizedAccumulator = "";
@@ -149,6 +151,8 @@ export class VoiceRecognitionService {
               ? this.finalizedText + (interimText ? " " + interimText : "")
               : interimText;
 
+            this.lastFullText = fullText;
+
             if (this.options.onResult && fullText) {
               this.options.onResult(fullText);
             }
@@ -163,8 +167,9 @@ export class VoiceRecognitionService {
           };
 
           instance.onend = () => {
-            if (this.options.onResult && this.finalizedText) {
-              this.options.onResult(this.finalizedText);
+            const textToDeliver = this.lastFullText || this.finalizedText;
+            if (this.options.onResult && textToDeliver) {
+              this.options.onResult(textToDeliver);
             }
           };
 
@@ -196,8 +201,11 @@ export class VoiceRecognitionService {
 
     if (this.options.onResult && finalTranscript) {
       this.options.onResult(finalTranscript);
-    } else if (this.options.onResult && this.finalizedText) {
-      this.options.onResult(this.finalizedText);
+    } else if (this.options.onResult) {
+      const textToDeliver = this.lastFullText || this.finalizedText;
+      if (textToDeliver) {
+        this.options.onResult(textToDeliver);
+      }
     }
 
     this.setState("IDLE");
@@ -213,6 +221,8 @@ export class VoiceRecognitionService {
       this.recognitionInstance = null;
     }
     this.isListening = false;
+    this.finalizedText = "";
+    this.lastFullText = "";
     this.setState("IDLE");
   }
 }

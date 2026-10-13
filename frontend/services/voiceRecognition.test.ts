@@ -138,6 +138,39 @@ describe("VoiceRecognitionService (Task 30)", () => {
       );
     });
 
+    it("preserves interim phrases when stopListening() is called (Issue #59 regression)", async () => {
+      const results: string[] = [];
+      const service = new VoiceRecognitionService({
+        onResult: (text) => results.push(text),
+      });
+
+      await service.startListening();
+      expect(mockInstance).not.toBeNull();
+
+      // Safari emits event where earlier part is final, but current phrase is interim
+      mockInstance.onresult({
+        results: [
+          { isFinal: true, 0: { transcript: "Tarea fecha mañana" } },
+          { isFinal: false, 0: { transcript: "tengo que ir a comprar al mercado prioridad alta" } },
+        ],
+      });
+
+      expect(results[results.length - 1]).toBe(
+        "Tarea fecha mañana tengo que ir a comprar al mercado prioridad alta",
+      );
+
+      // When stopListening() is called, it must NOT discard the interim segment
+      let finalDelivered = "";
+      service["options"].onResult = (text: string) => {
+        finalDelivered = text;
+      };
+      service.stopListening();
+
+      expect(finalDelivered).toBe(
+        "Tarea fecha mañana tengo que ir a comprar al mercado prioridad alta",
+      );
+    });
+
     it("handles speech recognition error callback", async () => {
       let errorMessage = "";
       const service = new VoiceRecognitionService({
