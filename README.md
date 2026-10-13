@@ -243,3 +243,17 @@ export DATABASE_URL="postgresql+psycopg://USUARIO:CONTRASENA@HOST:5432/BASE_DE_D
 # Comprobar conectividad
 uv run --directory backend python -m scripts.check_database
 ```
+
+---
+
+## 10. Seguridad, Auditoría y DevOps (Criterio 13 de la Rúbrica)
+
+El repositorio incorpora controles de seguridad deterministas, diagnósticos operativos y salvaguardas para el desarrollo con agentes:
+
+- 🛡️ **Auditoría de Dependencias:** Prevención de paquetes maliciosos/alucinados (*package hallucination*) mediante archivos de bloqueo inmutables (`package-lock.json` y `uv.lock`) y escaneo determinista con `npm audit`.
+- 🔍 **Análisis Estático:** Validación de sintaxis, antipatrones y seguridad en backend con `ruff` y tipado estricto con `mypy` (`strict = true`). En frontend, linter con `eslint` y tipado con `tsc`.
+- 🤖 **Guardarraíles de Agentes (Agent Guardrails):** Aislamiento de directorio al workspace, intake de reportes en modo estricto de solo lectura, prohibición de modificar dependencias sin permiso y cero almacenamiento de credenciales privadas.
+- 🩺 **Diagnóstico Operativo (Healthchecks):** Endpoint de salud `/health` en FastAPI y comprobador de conexión a base de datos [`backend/scripts/check_database.py`](./backend/scripts/check_database.py) (`SELECT 1` seguro sin filtrar credenciales en logs).
+- 🔐 **Privacidad de Datos e IA:** Arquitectura *offline-first* con SQLite local en el dispositivo. Procesamiento de voz en cliente vía Web Speech API sin enviar audio a servidores de terceros ni reentrenar modelos fundacionales.
+
+> 📄 Consulta el informe exhaustivo en [`security/audit-report.md`](./security/audit-report.md) y la [Política de Privacidad](./security/ai-data-privacy-policy.md).
