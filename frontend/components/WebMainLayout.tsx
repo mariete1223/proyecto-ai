@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
 
@@ -32,6 +41,10 @@ export function WebMainLayout({
   onLogout,
   children,
 }: WebMainLayoutProps) {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 900;
+  const isNarrow = width < 600;
+
   const [activeTab, setActiveTab] = useState<
     "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT"
   >("CALENDAR");
@@ -62,7 +75,15 @@ export function WebMainLayout({
     <View style={styles.container} testID="web-main-layout">
       {/* Top Header */}
       <View style={styles.header}>
-        <View style={styles.headerInner}>
+        <View
+          style={[
+            styles.headerInner,
+            {
+              paddingHorizontal: isNarrow ? 12 : isCompact ? 18 : 28,
+              gap: isNarrow ? 8 : 12,
+            },
+          ]}
+        >
           <View style={styles.brandContainer}>
             <View style={styles.logoBadge}>
               <Text style={styles.logoBadgeText}>AI</Text>
@@ -163,7 +184,10 @@ export function WebMainLayout({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.navBarScroll}
+          contentContainerStyle={[
+            styles.navBarScroll,
+            { justifyContent: isCompact ? "flex-start" : "center" },
+          ]}
         >
           <Pressable
             style={[
@@ -258,7 +282,15 @@ export function WebMainLayout({
       </View>
 
       {/* Main Content Area */}
-      <View style={styles.contentArea} testID="web-content-area">
+      <View
+        style={[
+          styles.contentArea,
+          {
+            padding: isNarrow ? 12 : isCompact ? 16 : 24,
+          },
+        ]}
+        testID="web-content-area"
+      >
         {children}
       </View>
     </View>

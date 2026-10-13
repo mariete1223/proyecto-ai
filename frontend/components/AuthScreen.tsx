@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { AuthSession, loginUser, registerUser } from "../services/authService";
@@ -19,6 +20,10 @@ export interface AuthScreenProps {
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ baseUrl, onSuccess }) => {
+  const { width } = useWindowDimensions();
+  const isSmallScreen = width < 480;
+  const isTablet = width >= 480 && width < 900;
+
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -65,17 +70,59 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ baseUrl, onSuccess }) =>
       testID="auth-screen"
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { padding: isSmallScreen ? 14 : 24 },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.card}>
+        <View
+          style={[
+            styles.card,
+            {
+              padding: isSmallScreen ? 20 : isTablet ? 28 : 36,
+              maxWidth: isSmallScreen ? "100%" : 460,
+              borderRadius: isSmallScreen ? 16 : 22,
+            },
+          ]}
+        >
           {/* Brand Header */}
           <View style={styles.brandContainer}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoBadgeText}>AI</Text>
+            <View
+              style={[
+                styles.logoBadge,
+                {
+                  width: isSmallScreen ? 44 : 54,
+                  height: isSmallScreen ? 44 : 54,
+                  borderRadius: isSmallScreen ? 12 : 16,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.logoBadgeText,
+                  { fontSize: isSmallScreen ? 18 : 22 },
+                ]}
+              >
+                AI
+              </Text>
             </View>
-            <Text style={styles.brandTitle}>Proyecto AI</Text>
-            <Text style={styles.brandSubtitle}>Personal Knowledge Hub</Text>
+            <Text
+              style={[
+                styles.brandTitle,
+                { fontSize: isSmallScreen ? 22 : 28 },
+              ]}
+            >
+              Proyecto AI
+            </Text>
+            <Text
+              style={[
+                styles.brandSubtitle,
+                { fontSize: isSmallScreen ? 13 : 15 },
+              ]}
+            >
+              Personal Knowledge Hub
+            </Text>
             <View style={styles.privacyPill}>
               <Text style={styles.privacyPillText}>🔒 Entorno Privado & Aislado</Text>
             </View>

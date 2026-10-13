@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DatabaseAdapter } from "../db/database";
+import {
+  applyRemoteDeletion,
+  RemoteDeletionEntityType,
+} from "../services/remoteDeletion";
 
 export interface ConflictRecord {
   id: string;
@@ -16,6 +20,20 @@ export interface ConflictResolverProps {
   db: DatabaseAdapter;
   userId: string;
   onResolved?: () => void;
+}
+
+function isRemoteDeletionConflict(
+  conflict: ConflictRecord,
+  serverPayload: Record<string, unknown>,
+): boolean {
+  const normalizedReason = (conflict.error_message ?? "")
+    .trim()
+    .replace(/\.$/, "")
+    .toLowerCase();
+  return (
+    Object.keys(serverPayload).length === 0 &&
+    normalizedReason === "entity was deleted on server"
+  );
 }
 
 export function ConflictResolver({
@@ -132,7 +150,30 @@ export function ConflictResolver({
       if (conflict.entity_type === "TAG") table = "tags";
 
       if (choice === "REMOTE") {
-        if (table === "entries") {
+        if (isRemoteDeletionConflict(conflict, serverPayload)) {
+          if (
+            conflict.entity_type !== "CATEGORY" &&
+            conflict.entity_type !== "TAG" &&
+            conflict.entity_type !== "ENTRY"
+          ) {
+            throw new Error(
+              `No se admite el borrado remoto de ${conflict.entity_type}.`,
+            );
+          }
+          await applyRemoteDeletion(
+            db,
+            userId,
+            conflict.entity_type as RemoteDeletionEntityType,
+            conflict.entity_id,
+          );
+          await db.runAsync(
+            `DELETE FROM sync_conflicts WHERE user_id = ? AND entity_type = ? AND entity_id = ?;`,
+            [userId, conflict.entity_type, conflict.entity_id],
+          );
+          await loadConflicts();
+          onResolved?.();
+          return;
+        } else if (table === "entries") {
           await db.runAsync(
             `UPDATE entries SET category_id = ?, occurred_at = ?, content = ?, task_status = ?, task_recurrence = ?, updated_at = ?, version = ?, sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ?;`,
             [
@@ -319,6 +360,10 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     backgroundColor: "#f4f6f8",
+    width: "100%",
+    maxWidth: 1000,
+    alignSelf: "center",
+    borderRadius: 12,
   },
   title: {
     fontSize: 20,
