@@ -547,6 +547,14 @@ export function parseSpokenCommand(
       type: "DATE",
       label: `Fecha: ${labelDate}${labelTime}`,
     });
+  } else if (matchedCategory && matchedCategory.kind === "TASK") {
+    targetDate = new Date(refDate);
+    occurredAt = targetDate.toISOString();
+    tokens.push({
+      text: "hoy",
+      type: "DATE",
+      label: "Fecha: Hoy",
+    });
   }
 
   // 3. Tag extraction: matches "etiquetas ..." stopping before keywords, periods, or sentence ends

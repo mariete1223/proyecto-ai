@@ -48,9 +48,11 @@ import { AuthScreen } from "./components/AuthScreen";
 import { AuthSession, authStorage } from "./services/authService";
 import appConfig from "./app.json";
 
-const ACTIVE_BACKEND_TUNNEL = "https://baltimore-exclusion-mean-dominant.trycloudflare.com";
+const ACTIVE_BACKEND_TUNNEL = "https://division-supporters-logical-graphical.trycloudflare.com";
 
 const getBackendUrl = (): string => {
+  const fromEnv = process.env.EXPO_PUBLIC_BACKEND_URL;
+
   // 1. En navegador web:
   if (Platform.OS === "web" && typeof window !== "undefined" && window.location?.hostname) {
     const host = window.location.hostname;
@@ -66,14 +68,16 @@ const getBackendUrl = (): string => {
     ) {
       return `http://${host}:8000`;
     }
-    // Si estamos en el túnel Cloudflare Web (acceso remoto/móvil por internet):
-    if (host.includes("trycloudflare.com")) {
+    // Si estamos en el túnel Cloudflare Web o en Vercel (acceso remoto/móvil por internet):
+    if (host.includes("trycloudflare.com") || host.includes("vercel.app")) {
+      if (fromEnv && fromEnv.trim()) {
+        return fromEnv.trim();
+      }
       return ACTIVE_BACKEND_TUNNEL;
     }
   }
 
   // 2. Si no es web o para apps nativas:
-  const fromEnv = process.env.EXPO_PUBLIC_BACKEND_URL;
   if (fromEnv && fromEnv.trim() && !fromEnv.includes("explorer-server-forgot-engineering")) {
     return fromEnv.trim();
   }
@@ -152,6 +156,15 @@ export default function App() {
     }
   }, [selectedEntryId, showVoiceCaptureModal, showEntryFormModal]);
 
+  useEffect(() => {
+    if (authSession?.token) {
+      notificationService.setAuth(getBackendUrl(), authSession.token);
+      if (notificationService.getPermissionStatus() === "granted") {
+        notificationService.subscribeToWebPush(getBackendUrl(), authSession.token).catch(() => {});
+      }
+    }
+  }, [authSession]);
+
   // Ref que indica si hay formulario/modal abierto.
   // Debe declararse ANTES de loadDatabaseState para que la función pueda leerlo.
   const isFormOpenRef = useRef(false);
@@ -171,37 +184,19 @@ export default function App() {
       const trimmed = (entry.content || "").trim();
       if (!trimmed) continue;
 
-      // 1. Restaurar la categoría correcta según semántica de contenido
-      let properCatId = entry.category_id;
-      let properTaskStatus = entry.task_status;
-
+      // Eliminar notas semilla predeterminadas si quedaron guardadas previamente
       if (
+        entry.id === "00000000-0000-0000-0000-000000000011" ||
+        entry.id === "00000000-0000-0000-0000-000000000012" ||
+        entry.id === "00000000-0000-0000-0000-000000000013" ||
         trimmed.toLowerCase().includes("rediseño con tema glassmorphism") ||
         trimmed.toLowerCase().includes("rediseno con tema glassmorphism") ||
-        trimmed.toLowerCase().includes("completado el rediseño")
-      ) {
-        properCatId = CANONICAL_NOTAS_ID;
-        properTaskStatus = null;
-      } else if (
-        trimmed.toLowerCase().includes("reunión de revisión") ||
-        trimmed.toLowerCase().includes("reunion de revision")
-      ) {
-        properCatId = CANONICAL_EVENTOS_ID;
-        properTaskStatus = null;
-      } else if (
-        trimmed.toLowerCase().includes("revisar la configuración") ||
-        trimmed.toLowerCase().includes("revisar la configuracion") ||
+        trimmed.toLowerCase().includes("reunión de revisión de arquitectura del proyecto ai") ||
+        trimmed.toLowerCase().includes("reunion de revision de arquitectura del proyecto ai") ||
         trimmed.toLowerCase().includes("servidor backend y fastapi")
       ) {
-        properCatId = CANONICAL_TAREAS_ID;
-        properTaskStatus = properTaskStatus || "PENDING";
-      }
-
-      if (properCatId !== entry.category_id || properTaskStatus !== entry.task_status) {
-        await database.runAsync(
-          `UPDATE entries SET category_id = ?, task_status = ?, sync_status = 'PENDING_PUSH' WHERE id = ?;`,
-          [properCatId, properTaskStatus, entry.id],
-        );
+        toDeleteIds.push(entry.id);
+        continue;
       }
 
       // 2. Deduplicar por contenido exacto
@@ -215,6 +210,21 @@ export default function App() {
     for (const delId of toDeleteIds) {
       await database.runAsync(`DELETE FROM entries WHERE id = ? AND user_id = ?;`, [delId, uId]);
       await database.runAsync(`DELETE FROM entry_tags WHERE entry_id = ? AND user_id = ?;`, [delId, uId]);
+    }
+
+    // 3. Reparar tareas existentes sin fecha asignándoles su created_at para que aparezcan en el calendario
+    for (const entry of all) {
+      if (
+        entry.task_status &&
+        entry.occurred_at === null &&
+        !toDeleteIds.includes(entry.id)
+      ) {
+        const fallbackDate = entry.created_at || new Date().toISOString();
+        await database.runAsync(
+          `UPDATE entries SET occurred_at = ? WHERE id = ? AND user_id = ?;`,
+          [fallbackDate, entry.id, uId],
+        );
+      }
     }
   };
 
@@ -281,8 +291,13 @@ export default function App() {
       );
       setLastSyncTime(Date.now());
 
-      // Sincronizar todos los recordatorios activos en el servicio de notificaciones
-      notificationService.syncAllReminders(db, userId);
+      // Sincronizar todos los recordatorios activos en el servicio de notificaciones y suscripción push en servidor
+      notificationService.syncAllReminders(
+        db,
+        userId,
+        getBackendUrl(),
+        authSession ? authSession.token : undefined,
+      );
     } catch (err) {
       console.error("Error al cargar la base de datos:", err);
     } finally {
@@ -365,36 +380,13 @@ export default function App() {
       await ensureCanonicalCategories(db, userId);
       await deduplicateAndHealEntries(db, userId);
 
-      const existingEntries = await listLocalEntries(db, userId);
-      if (existingEntries.length === 0) {
-        const nowIso = new Date().toISOString();
-        const SEED_TASK_ID = "00000000-0000-0000-0000-000000000011";
-        const SEED_NOTE_ID = "00000000-0000-0000-0000-000000000012";
-        const SEED_EVENT_ID = "00000000-0000-0000-0000-000000000013";
-
-        await createLocalEntry(db, userId, {
-          id: SEED_TASK_ID,
-          category_id: CANONICAL_TAREAS_ID,
-          content: "Revisar la configuración del servidor backend y FastAPI",
-          occurred_at: null,
-          task_status: "PENDING",
-          task_recurrence: "ONCE",
-        });
-
-        await createLocalEntry(db, userId, {
-          id: SEED_NOTE_ID,
-          category_id: CANONICAL_NOTAS_ID,
-          content: "Completado el rediseño con tema Glassmorphism y panel Web",
-          occurred_at: nowIso,
-        });
-
-        await createLocalEntry(db, userId, {
-          id: SEED_EVENT_ID,
-          category_id: CANONICAL_EVENTOS_ID,
-          content: "Reunión de revisión de arquitectura del Proyecto AI",
-          occurred_at: nowIso,
-        });
-      }
+      // Purgar notas semilla predeterminadas para garantizar una lista de notas completamente limpia
+      await db.runAsync(
+        "DELETE FROM entries WHERE id IN ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000013');",
+      );
+      await db.runAsync(
+        "DELETE FROM entry_tags WHERE entry_id IN ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000013');",
+      );
 
       if (isMounted) {
         await loadDatabaseState(true);

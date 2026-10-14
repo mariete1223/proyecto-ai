@@ -363,6 +363,46 @@ describe("CalendarMonthView Component (Task 35)", () => {
     });
   });
 
+  it("renders a task created for today in the today cell and detail panel", async () => {
+    const taskCat = await createLocalCategory(db, userId, {
+      name: "Tareas",
+      voice_command: "tarea",
+      color: "#F59E0B",
+      kind: "TASK",
+    });
+
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    const todayStr = `${y}-${m}-${d}`;
+
+    const createdTask = await createLocalEntry(db, userId, {
+      category_id: taskCat.id,
+      content: "Comprar leche para el desayuno",
+      occurred_at: today.toISOString(),
+      task_status: "PENDING",
+      task_recurrence: "ONCE",
+      task_priority: "HIGH",
+    });
+
+    const { getByTestId, findByTestId, getByText } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={today} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId(`day-cell-${todayStr}`)).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId(`day-cell-${todayStr}`));
+    });
+
+    expect(await findByTestId("day-detail-panel")).toBeTruthy();
+    expect(getByText("Comprar leche para el desayuno")).toBeTruthy();
+    expect(getByTestId(`btn-toggle-task-${createdTask.id}`)).toBeTruthy();
+  });
+
   it("creates a new entry directly on the selected day using inline quick add", async () => {
     const onEntryUpdatedMock = jest.fn();
     const { getByTestId, findByTestId, getByText } = await render(

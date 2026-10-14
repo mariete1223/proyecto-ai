@@ -81,8 +81,8 @@ describe("Spoken Command Parser (voiceParser)", () => {
     expect(result.tagNames).toEqual(["Urgente", "Salud"]);
   });
 
-  it("handles optional date and optional tags correctly", () => {
-    const transcript = "tarea llamar al doctor por la mañana";
+  it("defaults task date to today when not specified", () => {
+    const transcript = "tarea llamar al doctor por la tarde";
     const result = parseSpokenCommand(
       transcript,
       sampleCategories,
@@ -92,8 +92,13 @@ describe("Spoken Command Parser (voiceParser)", () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.categoryId).toBe("cat-2");
-    expect(result.occurredAt).toBeNull();
-    expect(result.content).toBe("llamar al doctor por la mañana");
+    expect(result.occurredAt).toBe(refDate.toISOString());
+    expect(
+      result.tokens?.some(
+        (t) => t.type === "DATE" && t.label === "Fecha: Hoy",
+      ),
+    ).toBe(true);
+    expect(result.content).toBe("llamar al doctor por la tarde");
     expect(result.tagIds).toEqual([]);
   });
 
