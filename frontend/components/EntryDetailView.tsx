@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { listCategories } from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
@@ -12,6 +12,7 @@ import {
   Category,
   Entry,
   formatDateTime,
+  formatReminderSummary,
   ReminderRecurrence,
   Tag,
   TaskPriority,
@@ -22,6 +23,8 @@ import { DateTimePicker } from "./DateTimePicker";
 import { LlmBatchProcessor } from "./LlmBatchProcessor";
 import { ReminderConfigSection } from "./ReminderConfigSection";
 import { notificationService } from "../services/notificationService";
+import { parseVoiceEditCommand } from "../services/voiceEditParser";
+import { VoiceRecognitionService } from "../services/voiceRecognition";
 
 export interface EntryDetailViewProps {
   db: DatabaseAdapter;
@@ -69,12 +72,113 @@ export function EntryDetailView({
   // Recordatorios y Notificaciones
   const [reminderEnabled, setReminderEnabled] = useState<boolean>(false);
   const [reminderTime, setReminderTime] = useState<string>("");
+  const [reminderEndTime, setReminderEndTime] = useState<string>("");
   const [reminderOffsetMinutes, setReminderOffsetMinutes] = useState<number>(0);
   const [reminderRecurrence, setReminderRecurrence] = useState<ReminderRecurrence>("NONE");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+
+  // Edición por Comandos de Voz (#68)
+  const [showVoiceEditModal, setShowVoiceEditModal] = useState<boolean>(false);
+  const [voiceEditTranscript, setVoiceEditTranscript] = useState<string>("");
+  const [isListeningVoiceEdit, setIsListeningVoiceEdit] = useState<boolean>(false);
+  const [voiceEditFeedback, setVoiceEditFeedback] = useState<string | null>(null);
+  const voiceServiceRef = useRef<VoiceRecognitionService | null>(null);
+
+  const handleApplyVoiceEdit = async (commandText: string) => {
+    if (!commandText.trim()) return;
+    const result = parseVoiceEditCommand(commandText, entry);
+    if (!result.hasChanges) {
+      setVoiceEditFeedback(
+        "No se detectaron cambios reconocibles. Prueba diciendo: 'cambiar hora a las 18:00', 'poner título...' o 'poner aviso...'",
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const updatePayload: Record<string, any> = {};
+      if (result.changes.title !== undefined) {
+        updatePayload.title = result.changes.title;
+        setTitle(result.changes.title);
+      }
+      if (result.changes.occurred_at !== undefined) {
+        updatePayload.occurred_at = result.changes.occurred_at;
+        setOccurredAt(result.changes.occurred_at);
+      }
+      if (result.changes.content !== undefined) {
+        updatePayload.content = result.changes.content;
+        setContent(result.changes.content);
+      }
+      if (result.changes.reminder_enabled !== undefined) {
+        updatePayload.reminder_enabled = result.changes.reminder_enabled;
+        setReminderEnabled(result.changes.reminder_enabled);
+      }
+      if (result.changes.reminder_time !== undefined) {
+        updatePayload.reminder_time = result.changes.reminder_time;
+        setReminderTime(result.changes.reminder_time);
+      }
+      if (result.changes.reminder_offset_minutes !== undefined) {
+        updatePayload.reminder_offset_minutes = result.changes.reminder_offset_minutes;
+        setReminderOffsetMinutes(result.changes.reminder_offset_minutes);
+      }
+      if (result.changes.reminder_recurrence !== undefined) {
+        updatePayload.reminder_recurrence = result.changes.reminder_recurrence;
+        setReminderRecurrence(result.changes.reminder_recurrence);
+      }
+
+      const updated = await updateLocalEntry(db, userId, entryId, updatePayload);
+      if (updated.reminder_enabled) {
+        notificationService.scheduleForEntry(updated);
+      } else if (result.changes.reminder_enabled === false) {
+        notificationService.cancelNotification(updated.id);
+      }
+
+      setEntry(updated);
+      setSuccessMessage(
+        `¡Edición por voz aplicada con éxito! ${result.actions.join(" · ")}`,
+      );
+      setShowVoiceEditModal(false);
+      setVoiceEditTranscript("");
+      setVoiceEditFeedback(null);
+      if (onUpdated) {
+        onUpdated(updated);
+      }
+    } catch (err) {
+      setErrorMessage((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleVoiceListening = async () => {
+    if (isListeningVoiceEdit) {
+      voiceServiceRef.current?.stopListening();
+      setIsListeningVoiceEdit(false);
+      if (voiceEditTranscript.trim()) {
+        handleApplyVoiceEdit(voiceEditTranscript);
+      }
+    } else {
+      setVoiceEditFeedback(null);
+      const service = new VoiceRecognitionService({
+        onResult: (liveText) => {
+          setVoiceEditTranscript(liveText);
+        },
+        onError: (err) => {
+          setVoiceEditFeedback(`Error micrófono: ${err}`);
+          setIsListeningVoiceEdit(false);
+        },
+        onStateChange: (st) => {
+          if (st === "LISTENING") setIsListeningVoiceEdit(true);
+          if (st === "IDLE" || st === "ERROR") setIsListeningVoiceEdit(false);
+        },
+      });
+      voiceServiceRef.current = service;
+      await service.startListening();
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -99,6 +203,7 @@ export function EntryDetailView({
             if (ent.task_priority) setTaskPriority(ent.task_priority);
             setReminderEnabled(!!ent.reminder_enabled);
             setReminderTime(ent.reminder_time ?? "");
+            setReminderEndTime(ent.reminder_end_time ?? "");
             setReminderOffsetMinutes(ent.reminder_offset_minutes ?? 0);
             setReminderRecurrence((ent.reminder_recurrence as ReminderRecurrence) || "NONE");
           } else {
@@ -149,6 +254,7 @@ export function EntryDetailView({
         task_priority: isTaskCategory ? taskPriority : null,
         reminder_enabled: reminderEnabled,
         reminder_time: reminderTime.trim() ? reminderTime.trim() : null,
+        reminder_end_time: reminderEndTime.trim() ? reminderEndTime.trim() : null,
         reminder_recurrence: reminderRecurrence,
         reminder_offset_minutes: reminderOffsetMinutes,
         tag_ids: selectedTagIds,
@@ -366,23 +472,9 @@ export function EntryDetailView({
 
           {/* Reminder Box if Enabled */}
           {entry.reminder_enabled ? (
-            <View style={styles.reminderActiveBox}>
+            <View style={styles.reminderActiveBox} testID="entry-reminder-banner">
               <Text style={styles.reminderActiveText}>
-                🔔 Recordatorio programado{" "}
-                {entry.reminder_time
-                  ? `para ${formatDateTime(entry.reminder_time)}`
-                  : entry.reminder_offset_minutes
-                    ? `(${entry.reminder_offset_minutes} min antes)`
-                    : "(a la hora asignada)"}
-                {entry.reminder_recurrence && entry.reminder_recurrence !== "NONE"
-                  ? ` • Repite: ${
-                      entry.reminder_recurrence === "DAILY"
-                        ? "Diario"
-                        : entry.reminder_recurrence === "WEEKLY"
-                          ? "Semanal"
-                          : "Mensual"
-                    }`
-                  : ""}
+                🔔 Recordatorio activo: {formatReminderSummary(entry)}
               </Text>
             </View>
           ) : null}
@@ -427,6 +519,83 @@ export function EntryDetailView({
               </View>
             </View>
           )}
+
+          {/* Voice Edit Help & Action Banner (#68) */}
+          <View style={styles.voiceGuideCard} testID="voice-edit-guide-card">
+            <View style={styles.voiceGuideHeader}>
+              <Text style={styles.voiceGuideTitle}>🎙️ Edición Inteligente por Voz</Text>
+              <Pressable
+                testID="btn-voice-edit-entry"
+                style={[
+                  styles.voiceGuideActionBtn,
+                  isListeningVoiceEdit && styles.voiceGuideActionBtnActive,
+                ]}
+                onPress={() => setShowVoiceEditModal((prev) => !prev)}
+              >
+                <Text style={styles.voiceGuideActionBtnText}>
+                  {showVoiceEditModal ? "✕ Cerrar Dictado" : "🎤 Dictar Cambios"}
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={styles.voiceGuideDesc}>
+              Modifica la hora, el título o el recordatorio de esta entrada con tu voz:
+            </Text>
+            <View style={styles.voiceGuideExamples}>
+              <Text style={styles.voiceGuideExampleItem}>
+                ⏰ <Text style={styles.voiceGuideExampleBold}>Cambiar hora:</Text> "cambiar la hora a las 18:30" o "poner a las 5 de la tarde"
+              </Text>
+              <Text style={styles.voiceGuideExampleItem}>
+                📌 <Text style={styles.voiceGuideExampleBold}>Poner título:</Text> "poner título Comprar víveres" o "título: Reunión Urgente"
+              </Text>
+              <Text style={styles.voiceGuideExampleItem}>
+                🔔 <Text style={styles.voiceGuideExampleBold}>Avisos:</Text> "poner aviso 15 minutos antes", "aviso cada 4 horas" o "quitar aviso"
+              </Text>
+            </View>
+
+            {showVoiceEditModal && (
+              <View style={styles.voiceEditModalPanel} testID="voice-edit-panel">
+                <Text style={styles.voiceEditModalLabel}>
+                  {isListeningVoiceEdit
+                    ? "🔴 Escuchando... Di tus cambios:"
+                    : "Escribe o dicta tu comando de edición:"}
+                </Text>
+                <View style={styles.voiceEditInputRow}>
+                  <TextInput
+                    style={styles.voiceEditInput}
+                    placeholder="Ej: poner título Revisión y cambiar la hora a las 17:00"
+                    placeholderTextColor="#64748B"
+                    value={voiceEditTranscript}
+                    onChangeText={setVoiceEditTranscript}
+                    testID="input-voice-edit-transcript"
+                  />
+                  <Pressable
+                    style={[
+                      styles.voiceMicBtn,
+                      isListeningVoiceEdit && styles.voiceMicBtnActive,
+                    ]}
+                    onPress={handleToggleVoiceListening}
+                    testID="btn-toggle-mic-edit"
+                  >
+                    <Text style={styles.voiceMicBtnText}>
+                      {isListeningVoiceEdit ? "⏹️ Parar" : "🎙️ Hablar"}
+                    </Text>
+                  </Pressable>
+                </View>
+                {voiceEditFeedback ? (
+                  <Text style={styles.voiceEditFeedbackText}>{voiceEditFeedback}</Text>
+                ) : null}
+                <View style={styles.voiceEditActionsRow}>
+                  <Pressable
+                    style={styles.voiceApplyBtn}
+                    onPress={() => handleApplyVoiceEdit(voiceEditTranscript)}
+                    testID="btn-apply-voice-edit"
+                  >
+                    <Text style={styles.voiceApplyBtnText}>⚡ Aplicar Cambio</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </View>
 
           {/* Action Buttons Row */}
           <View style={styles.buttonRow}>
@@ -532,6 +701,8 @@ export function EntryDetailView({
             onEnabledChange={setReminderEnabled}
             reminderTime={reminderTime}
             onReminderTimeChange={setReminderTime}
+            reminderEndTime={reminderEndTime}
+            onReminderEndTimeChange={setReminderEndTime}
             offsetMinutes={reminderOffsetMinutes}
             onOffsetMinutesChange={setReminderOffsetMinutes}
             recurrence={reminderRecurrence}
@@ -996,5 +1167,127 @@ const styles = StyleSheet.create({
   successText: {
     color: "#A7F3D0",
     fontSize: 14,
+  },
+  voiceGuideCard: {
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.35)",
+    borderRadius: 12,
+    padding: 14,
+    marginVertical: 12,
+  },
+  voiceGuideHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  voiceGuideTitle: {
+    color: "#38BDF8",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  voiceGuideActionBtn: {
+    backgroundColor: "rgba(56, 189, 248, 0.2)",
+    borderWidth: 1,
+    borderColor: "#38BDF8",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  voiceGuideActionBtnActive: {
+    backgroundColor: "rgba(239, 68, 68, 0.3)",
+    borderColor: "#EF4444",
+  },
+  voiceGuideActionBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  voiceGuideDesc: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  voiceGuideExamples: {
+    backgroundColor: "rgba(30, 41, 59, 0.6)",
+    borderRadius: 8,
+    padding: 10,
+    gap: 6,
+  },
+  voiceGuideExampleItem: {
+    color: "#94A3B8",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  voiceGuideExampleBold: {
+    color: "#F1F5F9",
+    fontWeight: "700",
+  },
+  voiceEditModalPanel: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(56, 189, 248, 0.2)",
+  },
+  voiceEditModalLabel: {
+    color: "#F8FAFC",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  voiceEditInputRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  voiceEditInput: {
+    flex: 1,
+    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.4)",
+    borderRadius: 8,
+    color: "#F8FAFC",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+  },
+  voiceMicBtn: {
+    backgroundColor: "#0284C7",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  voiceMicBtnActive: {
+    backgroundColor: "#DC2626",
+  },
+  voiceMicBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  voiceEditFeedbackText: {
+    color: "#F87171",
+    fontSize: 11,
+    marginTop: 4,
+  },
+  voiceEditActionsRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 8,
+  },
+  voiceApplyBtn: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  voiceApplyBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

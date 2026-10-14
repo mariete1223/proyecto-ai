@@ -160,4 +160,60 @@ describe("EntryDetailView Component (Task 38)", () => {
       expect(getByText("#Carmen")).toBeTruthy();
     });
   });
+
+  it("renders voice edit guide card and applies voice edit command (#68)", async () => {
+    const onUpdatedMock = jest.fn();
+    const { getByTestId, getByText, findByTestId } = await render(
+      <EntryDetailView
+        db={db}
+        userId={userId}
+        entryId={entryId}
+        onUpdated={onUpdatedMock}
+      />,
+    );
+
+    // Guide card should be visible in read mode
+    await waitFor(() => {
+      expect(getByTestId("voice-edit-guide-card")).toBeTruthy();
+      expect(getByText("🎙️ Edición Inteligente por Voz")).toBeTruthy();
+      expect(getByTestId("btn-voice-edit-entry")).toBeTruthy();
+    });
+
+    // Open voice edit panel
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-voice-edit-entry"));
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("voice-edit-panel")).toBeTruthy();
+      expect(getByTestId("input-voice-edit-transcript")).toBeTruthy();
+    });
+
+    // Type a voice command
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-voice-edit-transcript"),
+        "poner título Tarea Urgente y cambiar la hora a las 19:30 y poner aviso 15 minutos antes",
+      );
+    });
+
+    // Apply voice command
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-apply-voice-edit"));
+    });
+
+    // Verify success feedback
+    expect(await findByTestId("entry-detail-success")).toBeTruthy();
+    expect(getByText("📌 Tarea Urgente")).toBeTruthy();
+    expect(onUpdatedMock).toHaveBeenCalledTimes(1);
+
+    // Verify database was updated
+    const updatedInDb = await getEntryById(db, userId, entryId);
+    expect(updatedInDb?.title).toBe("Tarea Urgente");
+    expect(Boolean(updatedInDb?.reminder_enabled)).toBe(true);
+    expect(updatedInDb?.reminder_offset_minutes).toBe(15);
+    const d = new Date(updatedInDb!.occurred_at!);
+    expect(d.getHours()).toBe(19);
+    expect(d.getMinutes()).toBe(30);
+  });
 });
