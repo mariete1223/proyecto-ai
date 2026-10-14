@@ -1,5 +1,12 @@
-import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { listCategories } from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
 import { createLocalEntry } from "../db/entries";
@@ -8,11 +15,20 @@ import {
   ParsedSpokenCommand,
   parseSpokenCommand,
 } from "../services/voiceParser";
+import { notificationService } from "../services/notificationService";
 import {
   VoiceRecognitionService,
   VoiceRecognitionState,
 } from "../services/voiceRecognition";
-import { Category, SaveMode, Tag } from "../types/domain";
+import {
+  Category,
+  normalizeTagName,
+  normalizeUtcIso,
+  SaveMode,
+  Tag,
+  TaskPriority,
+  toLocalDateString,
+} from "../types/domain";
 
 export interface VoiceCaptureFlowProps {
   db: DatabaseAdapter;
@@ -32,16 +48,29 @@ export function VoiceCaptureFlow({
   const [voiceState, setVoiceState] = useState<VoiceRecognitionState>("IDLE");
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [showAllHelpCategories, setShowAllHelpCategories] = useState(false);
 
   const [transcript, setTranscript] = useState<string>("");
+  const transcriptRef = useRef<string>("");
   const [parsedResult, setParsedResult] = useState<ParsedSpokenCommand | null>(
     null,
   );
 
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.scrollTo === "function"
+    ) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, []);
+
+  const [manualTitle, setManualTitle] = useState<string>("");
   const [manualContent, setManualContent] = useState<string>("");
   const [manualCategoryId, setManualCategoryId] = useState<string>("");
   const [manualDateStr, setManualDateStr] = useState<string>("");
   const [manualTimeStr, setManualTimeStr] = useState<string>("12:00");
+  const [manualPriority, setManualPriority] = useState<TaskPriority>("MEDIUM");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -74,6 +103,16 @@ export function VoiceCaptureFlow({
     };
   }, [db, userId]);
 
+  const uniqueTags = useMemo(() => {
+    const seen = new Set<string>();
+    return tags.filter((t) => {
+      const norm = t.name_normalized || normalizeTagName(t.name);
+      if (seen.has(norm)) return false;
+      seen.add(norm);
+      return true;
+    });
+  }, [tags]);
+
   const setQuickDate = (daysFromToday: number | null) => {
     if (daysFromToday === null) {
       setManualDateStr("");
@@ -81,7 +120,7 @@ export function VoiceCaptureFlow({
     }
     const d = new Date();
     d.setDate(d.getDate() + daysFromToday);
-    setManualDateStr(d.toISOString().substring(0, 10));
+    setManualDateStr(toLocalDateString(d));
   };
 
   const buildOccurredAtIso = (): string | null => {
@@ -90,12 +129,30 @@ export function VoiceCaptureFlow({
       const timeParts = manualTimeStr.trim().split(":");
       const h = parseInt(timeParts[0], 10) || 0;
       const m = parseInt(timeParts[1], 10) || 0;
-      const dateParts = manualDateStr.trim().split("-");
-      const y = parseInt(dateParts[0], 10);
-      const mon = parseInt(dateParts[1], 10);
-      const day = parseInt(dateParts[2], 10);
-
+      const cleanDate = manualDateStr.trim();
+      let y: number, mon: number, day: number;
+      if (cleanDate.includes("-")) {
+        const dateParts = cleanDate.split("-");
+        y = parseInt(dateParts[0], 10);
+        mon = parseInt(dateParts[1], 10);
+        day = parseInt(dateParts[2], 10);
+      } else if (cleanDate.includes("/")) {
+        const dateParts = cleanDate.split("/");
+        if (dateParts[0].length === 4) {
+          y = parseInt(dateParts[0], 10);
+          mon = parseInt(dateParts[1], 10);
+          day = parseInt(dateParts[2], 10);
+        } else {
+          day = parseInt(dateParts[0], 10);
+          mon = parseInt(dateParts[1], 10);
+          y = parseInt(dateParts[2], 10);
+        }
+      } else {
+        return null;
+      }
+      if (isNaN(y) || isNaN(mon) || isNaN(day)) return null;
       const d = new Date(y, mon - 1, day, h, m, 0, 0);
+      if (isNaN(d.getTime())) return null;
       return d.toISOString();
     } catch {
       return null;
@@ -106,12 +163,14 @@ export function VoiceCaptureFlow({
     setErrorMessage(null);
     setSuccessMessage(null);
     setTranscript("");
+    transcriptRef.current = "";
     setParsedResult(null);
 
     const service = new VoiceRecognitionService({
       onStateChange: (st) => setVoiceState(st),
       onResult: (liveText) => {
         if (liveText) {
+          transcriptRef.current = liveText;
           setTranscript(liveText);
         }
       },
@@ -129,8 +188,9 @@ export function VoiceCaptureFlow({
       setVoiceState("IDLE");
     }
 
-    if (transcript.trim()) {
-      handleProcessTranscript(transcript);
+    const currentTranscript = transcriptRef.current || transcript;
+    if (currentTranscript.trim()) {
+      handleProcessTranscript(currentTranscript);
     } else {
       setErrorMessage(
         "No se detectó voz del micrófono. Puedes escribir el comando o frase manualmente en la casilla inferior y pulsar Procesar.",
@@ -149,13 +209,24 @@ export function VoiceCaptureFlow({
     setParsedResult(parsed);
 
     if (parsed.occurredAt) {
-      const d = new Date(parsed.occurredAt);
-      setManualDateStr(d.toISOString().substring(0, 10));
+      const norm = normalizeUtcIso(parsed.occurredAt) || parsed.occurredAt;
+      const d = new Date(norm);
+      setManualDateStr(toLocalDateString(d));
       const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
       setManualTimeStr(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
     } else {
       setManualDateStr("");
       setManualTimeStr("12:00");
+    }
+
+    if (parsed.taskPriority) {
+      setManualPriority(parsed.taskPriority);
+    }
+
+    if (parsed.title) {
+      setManualTitle(parsed.title);
+    } else {
+      setManualTitle("");
     }
 
     if (parsed.isSuccess && parsed.categoryId && parsed.content) {
@@ -165,6 +236,11 @@ export function VoiceCaptureFlow({
           parsed.content,
           parsed.occurredAt,
           parsed.tagIds,
+          parsed.taskPriority,
+          parsed.title,
+          parsed.reminderEnabled,
+          parsed.reminderOffsetMinutes,
+          parsed.reminderOffsetsMinutes,
         );
       } else {
         setManualContent(parsed.content);
@@ -186,6 +262,11 @@ export function VoiceCaptureFlow({
     contentStr: string,
     occurredAtStr: string | null,
     tagIdList: string[],
+    priority?: TaskPriority | null,
+    titleStr?: string | null,
+    remEnabled?: boolean | null,
+    remOffsetMins?: number | null,
+    remOffsetsMins?: number[] | null,
   ) => {
     if (!catId || !contentStr.trim()) {
       setErrorMessage("Selecciona una categoría y escribe el contenido.");
@@ -196,15 +277,28 @@ export function VoiceCaptureFlow({
     try {
       const category = categories.find((c) => c.id === catId);
       const isTask = category?.kind === "TASK";
+      const finalTitle =
+        titleStr !== undefined
+          ? (titleStr && titleStr.trim() ? titleStr.trim() : null)
+          : (manualTitle.trim() ? manualTitle.trim() : null);
 
       const entry = await createLocalEntry(db, userId, {
         category_id: catId,
+        title: finalTitle,
         content: contentStr,
         occurred_at: occurredAtStr,
         task_status: isTask ? "PENDING" : null,
         task_recurrence: isTask ? "ONCE" : null,
+        task_priority: isTask ? (priority ?? manualPriority ?? "MEDIUM") : null,
+        reminder_enabled: remEnabled ?? null,
+        reminder_offset_minutes: remOffsetMins ?? null,
+        reminder_offsets_minutes: remOffsetsMins ?? null,
         tag_ids: tagIdList,
       });
+
+      if (entry.reminder_enabled) {
+        notificationService.scheduleForEntry(entry);
+      }
 
       setSuccessMessage("¡Entrada creada por voz correctamente!");
       if (onEntryCreated) {
@@ -269,6 +363,16 @@ export function VoiceCaptureFlow({
         </Text>
       </View>
 
+      {/* Mobile Keyboard Dictation Notice if WebSpeech is unsupported in Expo Go */}
+      {typeof window !== "undefined" &&
+        !("SpeechRecognition" in window || "webkitSpeechRecognition" in window) && (
+          <View style={styles.mobileDictationHintBox} testID="mobile-dictation-hint">
+            <Text style={styles.mobileDictationHintText}>
+              💡 <Text style={{ fontWeight: "700" }}>Dictado por Móvil:</Text> En Expo Go (iOS), toca el campo de transcripción más abajo y presiona el ícono de micrófono 🎙️ en la barra espaciadora de tu teclado nativo para dictar con tu voz.
+            </Text>
+          </View>
+        )}
+
       {/* Voice Wave Visualizer indicator */}
       {voiceState === "LISTENING" && (
         <View style={styles.waveVisualizer} testID="voice-wave-visualizer">
@@ -289,8 +393,8 @@ export function VoiceCaptureFlow({
             style={[styles.listenButton, { flex: 1 }]}
             onPress={handleStartListening}
           >
-            <Text style={styles.listenButtonText}>
-              🎙️ Iniciar Grabación por Voz
+            <Text style={styles.listenButtonText} numberOfLines={1}>
+              🎙️ Dictar
             </Text>
           </Pressable>
         ) : (
@@ -299,7 +403,9 @@ export function VoiceCaptureFlow({
             style={[styles.stopButton, { flex: 1 }]}
             onPress={handleStopListening}
           >
-            <Text style={styles.stopButtonText}>⏹️ Detener y Procesar</Text>
+            <Text style={styles.stopButtonText} numberOfLines={1}>
+              ⏹️ Detener
+            </Text>
           </Pressable>
         )}
 
@@ -308,7 +414,9 @@ export function VoiceCaptureFlow({
           style={styles.resetControlBtn}
           onPress={handleResetVoiceCapture}
         >
-          <Text style={styles.resetControlBtnText}>🔄 Reiniciar</Text>
+          <Text style={styles.resetControlBtnText} numberOfLines={1}>
+            🔄 Reiniciar
+          </Text>
         </Pressable>
 
         {onClose && (
@@ -323,37 +431,112 @@ export function VoiceCaptureFlow({
               onClose();
             }}
           >
-            <Text style={styles.cancelControlBtnText}>❌ Salir</Text>
+            <Text style={styles.cancelControlBtnText} numberOfLines={1}>
+              ✕ Salir
+            </Text>
           </Pressable>
         )}
       </View>
 
-      {/* Visual Voice Commands Guide */}
+      {/* Visual Voice Commands Guide (Dynamic) */}
       <View style={styles.guideContainer} testID="voice-commands-guide">
-        <Text style={styles.guideHeader}>💡 Comandos de Voz Disponibles:</Text>
+        <View style={styles.guideHeaderRow}>
+          <Text style={styles.guideHeader}>💡 Comandos de Voz Disponibles:</Text>
+          {categories.length > 5 && (
+            <Pressable
+              testID="btn-toggle-all-categories-help"
+              onPress={() => setShowAllHelpCategories((prev) => !prev)}
+            >
+              <Text style={styles.toggleHelpText}>
+                {showAllHelpCategories
+                  ? "Ver menos"
+                  : `Ver todas (${categories.length})`}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
         <View style={styles.guideGrid}>
-          <View style={styles.guideRow}>
-            <Text style={styles.guideBadgeCat}>📁 Categorías</Text>
-            <Text style={styles.guideText}>
-              Comienza con <Text style={styles.boldCode}>{'"nota"'}</Text>,{" "}
-              <Text style={styles.boldCode}>{'"tarea"'}</Text> o{" "}
-              <Text style={styles.boldCode}>{'"evento"'}</Text>
-            </Text>
+          {/* Dynamic Categories */}
+          <View style={styles.guideRowColumn}>
+            <View style={styles.guideRowHeader}>
+              <Text style={styles.guideBadgeCat}>
+                📁 Categorías ({categories.length})
+              </Text>
+              <Text style={styles.guideSubtext}>
+                Comienza diciendo el comando de la categoría:
+              </Text>
+            </View>
+            <View style={styles.catCommandsWrap} testID="help-category-commands">
+              {(showAllHelpCategories ? categories : categories.slice(0, 5)).map(
+                (cat) => (
+                  <View
+                    key={cat.id}
+                    style={[
+                      styles.catCommandChip,
+                      { borderColor: cat.color || "#38BDF8" },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.catDot,
+                        { backgroundColor: cat.color || "#38BDF8" },
+                      ]}
+                    />
+                    <Text style={styles.catCommandText}>
+                      {`"${cat.voice_command || cat.name.toLowerCase()}"`}
+                    </Text>
+                  </View>
+                ),
+              )}
+            </View>
           </View>
+
+          {/* Dates & Times */}
           <View style={styles.guideRow}>
             <Text style={styles.guideBadgeDate}>📅 Fechas & Horas</Text>
             <Text style={styles.guideText}>
               Di <Text style={styles.boldCode}>{'"fecha hoy"'}</Text>,{" "}
-              <Text style={styles.boldCode}>{'"fecha mañana"'}</Text>,{" "}
+              <Text style={styles.boldCode}>{'"para el 6 del 10"'}</Text>,{" "}
               <Text style={styles.boldCode}>{'"pasado mañana"'}</Text> o{" "}
               <Text style={styles.boldCode}>{'"a las 16:00"'}</Text>
             </Text>
           </View>
-          <View style={styles.guideRow}>
-            <Text style={styles.guideBadgeTag}>🏷️ Etiquetas</Text>
+
+          {/* Task priority */}
+          <View style={styles.guideRow} testID="help-priority-command">
+            <Text style={styles.guideBadgeDate}>Prioridad de tareas</Text>
             <Text style={styles.guideText}>
-              Di <Text style={styles.boldCode}>{'"etiquetas urgente"'}</Text>
+              Solo para tareas, di{" "}
+              <Text style={styles.boldCode}>{'"prioridad alta"'}</Text>,{" "}
+              <Text style={styles.boldCode}>{'"prioridad media"'}</Text> o{" "}
+              <Text style={styles.boldCode}>{'"prioridad baja"'}</Text>.
             </Text>
+          </View>
+
+          {/* Dynamic Tags */}
+          <View style={styles.guideRowColumn}>
+            <View style={styles.guideRowHeader}>
+              <Text style={styles.guideBadgeTag}>
+                🏷️ Etiquetas ({uniqueTags.length})
+              </Text>
+              <Text style={styles.guideSubtext}>
+                Di <Text style={styles.boldCode}>{'"etiquetas"'}</Text> seguido de:
+              </Text>
+            </View>
+            <View style={styles.catCommandsWrap} testID="help-tag-commands">
+              {uniqueTags.length === 0 ? (
+                <Text style={styles.guideText}>
+                  Di <Text style={styles.boldCode}>{'"etiquetas urgente"'}</Text>
+                </Text>
+              ) : (
+                uniqueTags.map((tag) => (
+                  <View key={tag.id} style={styles.tagCommandChip}>
+                    <Text style={styles.tagCommandText}>{`#${tag.name}`}</Text>
+                  </View>
+                ))
+              )}
+            </View>
           </View>
         </View>
       </View>
@@ -386,6 +569,40 @@ export function VoiceCaptureFlow({
                   <Text style={styles.tokenText}>{`"${tok.text}"`}</Text>
                 </View>
               ))}
+            </View>
+
+            {/* Quick Action Bar below tokens for no-scroll saving */}
+            <View style={styles.quickSaveTokensRow} testID="quick-save-tokens-row">
+              <Pressable
+                testID="btn-quick-save-tokens"
+                style={[styles.quickSaveBtn, loading && styles.buttonDisabled]}
+                disabled={loading}
+                onPress={() =>
+                  saveParsedEntry(
+                    manualCategoryId,
+                    manualContent,
+                    buildOccurredAtIso() ?? parsedResult.occurredAt,
+                    parsedResult.tagIds || [],
+                    parsedResult.taskPriority ?? manualPriority,
+                  )
+                }
+              >
+                <Text style={styles.quickSaveBtnText} numberOfLines={1}>
+                  💾 Guardar Entrada
+                </Text>
+              </Pressable>
+
+              {onClose && (
+                <Pressable
+                  testID="btn-quick-cancel-tokens"
+                  style={styles.quickCancelBtn}
+                  onPress={onClose}
+                >
+                  <Text style={styles.quickCancelBtnText} numberOfLines={1}>
+                    ✕ Salir
+                  </Text>
+                </Pressable>
+              )}
             </View>
           </View>
         )}
@@ -439,13 +656,47 @@ export function VoiceCaptureFlow({
             ))}
           </View>
 
+          {categories.find((c) => c.id === manualCategoryId)?.kind === "TASK" && (
+            <>
+              <Text style={styles.label}>⚡ Prioridad de la Tarea</Text>
+              <View style={styles.chipsRow}>
+                {(
+                  [
+                    { id: "HIGH", label: "🔴 Alta", testId: "voice-prio-high" },
+                    { id: "MEDIUM", label: "🟡 Media", testId: "voice-prio-med" },
+                    { id: "LOW", label: "🔵 Baja", testId: "voice-prio-low" },
+                  ] as const
+                ).map((p) => (
+                  <Pressable
+                    key={p.id}
+                    testID={p.testId}
+                    style={[
+                      styles.chip,
+                      manualPriority === p.id && styles.chipActive,
+                    ]}
+                    onPress={() => setManualPriority(p.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        manualPriority === p.id && styles.chipTextActive,
+                      ]}
+                    >
+                      {p.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
+
           <Text style={styles.label}>📅 Ajuste de Fecha y Hora</Text>
           <View style={styles.datePresetRow}>
             <Pressable
               testID="btn-preset-date-today"
               style={[
                 styles.datePresetChip,
-                manualDateStr === new Date().toISOString().substring(0, 10) &&
+                manualDateStr === toLocalDateString() &&
                   styles.datePresetChipActive,
               ]}
               onPress={() => setQuickDate(0)}
@@ -453,7 +704,7 @@ export function VoiceCaptureFlow({
               <Text
                 style={[
                   styles.datePresetChipText,
-                  manualDateStr === new Date().toISOString().substring(0, 10) &&
+                  manualDateStr === toLocalDateString() &&
                     styles.datePresetChipTextActive,
                 ]}
               >
@@ -486,31 +737,107 @@ export function VoiceCaptureFlow({
             </Pressable>
           </View>
 
-          <View style={styles.dateTimeInputsRow}>
-            <View style={{ flex: 2 }}>
-              <Text style={styles.subInputLabel}>Fecha (AAAA-MM-DD)</Text>
+          {Platform.OS === "web" ? (
+            <View style={styles.dateTimeInputsRow}>
+              <View style={{ flex: 2 }}>
+                <Text style={styles.subInputLabel}>📅 Fecha (Calendario):</Text>
+                {React.createElement("input", {
+                  type: "date",
+                  value: manualDateStr,
+                  onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                    setManualDateStr(e.target.value),
+                  style: {
+                    backgroundColor: "#0f172a",
+                    color: "#ffffff",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    borderRadius: "8px",
+                    padding: "10px 14px",
+                    fontSize: "15px",
+                    fontFamily: "inherit",
+                    colorScheme: "dark",
+                    outline: "none",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    cursor: "pointer",
+                  },
+                })}
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.subInputLabel}>⏰ Hora (Reloj):</Text>
+                {React.createElement("input", {
+                  type: "time",
+                  value: manualTimeStr,
+                  onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                    setManualTimeStr(e.target.value),
+                  style: {
+                    backgroundColor: "#0f172a",
+                    color: "#ffffff",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    borderRadius: "8px",
+                    padding: "10px 14px",
+                    fontSize: "15px",
+                    fontFamily: "inherit",
+                    colorScheme: "dark",
+                    outline: "none",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    cursor: "pointer",
+                  },
+                })}
+              </View>
+
+              {/* Hidden textinputs for testID compatibility */}
               <TextInput
                 testID="input-manual-date"
-                style={styles.input}
+                style={{ display: "none" }}
                 value={manualDateStr}
                 onChangeText={setManualDateStr}
-                placeholder="AAAA-MM-DD"
-                placeholderTextColor="#64748B"
               />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.subInputLabel}>Hora (HH:MM)</Text>
               <TextInput
                 testID="input-manual-time"
-                style={styles.input}
+                style={{ display: "none" }}
                 value={manualTimeStr}
                 onChangeText={setManualTimeStr}
-                placeholder="16:00"
-                placeholderTextColor="#64748B"
               />
             </View>
-          </View>
+          ) : (
+            <View style={styles.dateTimeInputsRow}>
+              <View style={{ flex: 2 }}>
+                <Text style={styles.subInputLabel}>Fecha (AAAA-MM-DD)</Text>
+                <TextInput
+                  testID="input-manual-date"
+                  style={styles.input}
+                  value={manualDateStr}
+                  onChangeText={setManualDateStr}
+                  placeholder="AAAA-MM-DD"
+                  placeholderTextColor="#64748B"
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.subInputLabel}>Hora (HH:MM)</Text>
+                <TextInput
+                  testID="input-manual-time"
+                  style={styles.input}
+                  value={manualTimeStr}
+                  onChangeText={setManualTimeStr}
+                  placeholder="16:00"
+                  placeholderTextColor="#64748B"
+                />
+              </View>
+            </View>
+          )}
+
+          <Text style={styles.label}>Título (Opcional)</Text>
+          <TextInput
+            testID="input-manual-title"
+            style={styles.input}
+            value={manualTitle}
+            onChangeText={setManualTitle}
+            placeholder="Título de la entrada o tarea..."
+            placeholderTextColor="#64748B"
+          />
 
           <Text style={styles.label}>Contenido de la Entrada</Text>
           <TextInput
@@ -535,17 +862,20 @@ export function VoiceCaptureFlow({
                   buildOccurredAtIso() ??
                     (parsedResult ? parsedResult.occurredAt : null),
                   parsedResult ? parsedResult.tagIds : [],
+                  parsedResult?.taskPriority ?? manualPriority,
                 )
               }
             >
-              <Text style={styles.saveButtonText}>
-                💾 Confirmar y Guardar Entrada
+              <Text style={styles.saveButtonText} numberOfLines={1}>
+                💾 Confirmar y Guardar
               </Text>
             </Pressable>
 
             {onClose && (
               <Pressable style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>❌ Cancelar / Salir</Text>
+                <Text style={styles.cancelButtonText} numberOfLines={1}>
+                  ✕ Salir
+                </Text>
               </Pressable>
             )}
           </View>
@@ -580,9 +910,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#1E293B",
     borderRadius: 12,
-    padding: 20,
+    padding: 16,
     width: "100%",
-    maxWidth: 650,
+    flex: 1,
   },
   title: {
     fontSize: 20,
@@ -636,58 +966,80 @@ const styles = StyleSheet.create({
   },
   controlsRow: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 14,
+    alignItems: "center",
   },
   listenButton: {
     backgroundColor: "#38BDF8",
     borderRadius: 8,
-    paddingVertical: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     alignItems: "center",
+    justifyContent: "center",
   },
   listenButtonText: {
     color: "#0F172A",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "bold",
+    textAlign: "center",
   },
   stopButton: {
     backgroundColor: "#EF4444",
     borderRadius: 8,
-    paddingVertical: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     alignItems: "center",
+    justifyContent: "center",
   },
   stopButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "bold",
+    textAlign: "center",
   },
   resetControlBtn: {
     backgroundColor: "rgba(245, 158, 11, 0.2)",
     borderColor: "#F59E0B",
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     justifyContent: "center",
     alignItems: "center",
   },
   resetControlBtnText: {
     color: "#FBBF24",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 12,
   },
   cancelControlBtn: {
     backgroundColor: "rgba(239, 68, 68, 0.2)",
     borderColor: "#EF4444",
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     justifyContent: "center",
     alignItems: "center",
   },
   cancelControlBtnText: {
     color: "#F87171",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 12,
+  },
+  mobileDictationHintBox: {
+    backgroundColor: "rgba(56, 189, 248, 0.1)",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  mobileDictationHintText: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    lineHeight: 18,
   },
   guideContainer: {
     backgroundColor: "#0F172A",
@@ -697,14 +1049,78 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
   },
+  guideHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   guideHeader: {
     color: "#38BDF8",
     fontSize: 13,
     fontWeight: "700",
-    marginBottom: 8,
+  },
+  toggleHelpText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
   guideGrid: {
+    gap: 10,
+  },
+  guideRowColumn: {
+    gap: 4,
+  },
+  guideRowHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  guideSubtext: {
+    color: "#94A3B8",
+    fontSize: 12,
+  },
+  catCommandsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
+    marginTop: 4,
+  },
+  catCommandChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#1E293B",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  catDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  catCommandText: {
+    color: "#F8FAFC",
+    fontSize: 12,
+    fontWeight: "700",
+    fontFamily: "monospace",
+  },
+  tagCommandChip: {
+    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    borderColor: "#A855F7",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  tagCommandText: {
+    color: "#C084FC",
+    fontSize: 12,
+    fontWeight: "600",
   },
   guideRow: {
     flexDirection: "row",
@@ -756,6 +1172,9 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 10,
     marginBottom: 12,
+    width: "100%",
+    maxWidth: "100%",
+    overflow: "hidden",
   },
   tokensHeader: {
     color: "#F8FAFC",
@@ -780,6 +1199,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    width: "100%",
+    maxWidth: "100%",
   },
   tokenBadge: {
     borderWidth: 1,
@@ -787,6 +1208,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     gap: 2,
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   tokenCategory: {
     backgroundColor: "rgba(56, 189, 248, 0.15)",
@@ -818,6 +1241,8 @@ const styles = StyleSheet.create({
     color: "#F8FAFC",
     fontSize: 13,
     fontWeight: "600",
+    flexWrap: "wrap",
+    maxWidth: "100%",
   },
   label: {
     fontSize: 14,
@@ -937,9 +1362,44 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 4,
   },
+  quickSaveTokensRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  quickSaveBtn: {
+    flex: 1,
+    backgroundColor: "#10B981",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickSaveBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  quickCancelBtn: {
+    flex: 1,
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickCancelBtnText: {
+    color: "#F87171",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   actionsRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     marginTop: 16,
   },
   saveButton: {
@@ -947,23 +1407,29 @@ const styles = StyleSheet.create({
     backgroundColor: "#10B981",
     borderRadius: 8,
     paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: "center",
+    justifyContent: "center",
   },
   saveButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "bold",
   },
   cancelButton: {
-    backgroundColor: "#334155",
+    flex: 1,
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    borderColor: "#EF4444",
+    borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 16,
     paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: "center",
+    justifyContent: "center",
   },
   cancelButtonText: {
-    color: "#F8FAFC",
-    fontSize: 14,
+    color: "#F87171",
+    fontSize: 13,
     fontWeight: "600",
   },
   buttonDisabled: {

@@ -68,6 +68,7 @@ export interface Entry {
   reminder_end_time?: string | null;
   reminder_recurrence?: ReminderRecurrence | null;
   reminder_offset_minutes?: number | null;
+  reminder_offsets_minutes?: number[] | null;
   created_at: string;
   updated_at: string;
   version: number;
@@ -138,15 +139,50 @@ export function normalizeTagName(name: string): string {
     .replace(/[_\-\s]+/g, " ");
 }
 
+export function formatOffsetLabel(offsetMinutes: number): string {
+  if (offsetMinutes === 1440) return "1 día antes";
+  if (offsetMinutes === 180) return "3 horas antes";
+  if (offsetMinutes === 120) return "2 horas antes";
+  if (offsetMinutes === 60) return "1 hora antes";
+  if (offsetMinutes === 30) return "30 min antes";
+  if (offsetMinutes === 15) return "15 min antes";
+  if (offsetMinutes === 0) return "a la hora del evento";
+  return `${offsetMinutes} min antes`;
+}
+
 export function formatReminderSummary(entry: {
   reminder_enabled?: boolean | null;
   reminder_time?: string | null;
   reminder_end_time?: string | null;
   reminder_recurrence?: string | null;
   reminder_offset_minutes?: number | null;
+  reminder_offsets_minutes?: number[] | null;
   occurred_at?: string | null;
 }): string {
   if (!entry.reminder_enabled) return "";
+
+  const rec = entry.reminder_recurrence;
+  const endDesc = entry.reminder_end_time
+    ? ` hasta ${formatDateTime(entry.reminder_end_time)}`
+    : "";
+
+  let recSuffix = "";
+  const hourMatch = rec ? rec.match(/^EVERY_(\d+)_HOURS?$/) : null;
+  if (hourMatch) {
+    recSuffix = ` (Cada ${hourMatch[1]}h${endDesc})`;
+  } else if (rec === "DAILY") {
+    recSuffix = ` (Diario${endDesc})`;
+  } else if (rec === "WEEKLY") {
+    recSuffix = ` (Semanal${endDesc})`;
+  } else if (rec === "MONTHLY") {
+    recSuffix = ` (Mensual${endDesc})`;
+  }
+
+  // Multi-offset display
+  if (entry.reminder_offsets_minutes && entry.reminder_offsets_minutes.length > 1) {
+    const labels = entry.reminder_offsets_minutes.map(formatOffsetLabel);
+    return `Avisos: ${labels.join(", ")}${recSuffix}`;
+  }
 
   const offset = entry.reminder_offset_minutes || 0;
   const baseIso = entry.occurred_at || entry.reminder_time;
@@ -173,13 +209,15 @@ export function formatReminderSummary(entry: {
 
       if (offset === 1440) {
         timeDesc = `${timeDisplay} (1 día antes)`;
+      } else if (offset === 180) {
+        timeDesc = `${timeDisplay} (3h antes)`;
       } else if (offset === 60) {
         timeDesc = `${timeDisplay} (1h antes)`;
       } else {
         timeDesc = `${timeDisplay} (${offset} min antes)`;
       }
     } else {
-      timeDesc = offset === 60 ? "1 hora antes" : `${offset} min antes`;
+      timeDesc = formatOffsetLabel(offset);
     }
   } else if (entry.occurred_at && offset === 0) {
     const norm = normalizeUtcIso(entry.occurred_at) || entry.occurred_at;
@@ -199,22 +237,7 @@ export function formatReminderSummary(entry: {
     timeDesc = "Hora programada";
   }
 
-  const rec = entry.reminder_recurrence;
-  const endDesc = entry.reminder_end_time
-    ? ` hasta ${formatDateTime(entry.reminder_end_time)}`
-    : "";
-
-  const hourMatch = rec ? rec.match(/^EVERY_(\d+)_HOURS?$/) : null;
-  if (hourMatch) {
-    return `${timeDesc} (Cada ${hourMatch[1]}h${endDesc})`;
-  } else if (rec === "DAILY") {
-    return `${timeDesc} (Diario${endDesc})`;
-  } else if (rec === "WEEKLY") {
-    return `${timeDesc} (Semanal${endDesc})`;
-  } else if (rec === "MONTHLY") {
-    return `${timeDesc} (Mensual${endDesc})`;
-  }
-  return timeDesc;
+  return `${timeDesc}${recSuffix}`;
 }
 
 

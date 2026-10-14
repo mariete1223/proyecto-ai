@@ -1,3 +1,14 @@
+export function generateUuid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export interface DatabaseAdapter {
   execAsync(sql: string): Promise<void>;
   runAsync(
@@ -39,6 +50,7 @@ export const MIGRATIONS: { version: number; sql: string }[] = [
         user_id TEXT NOT NULL,
         name TEXT NOT NULL,
         name_normalized TEXT NOT NULL,
+        color TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         version INTEGER NOT NULL,
@@ -49,10 +61,12 @@ export const MIGRATIONS: { version: number; sql: string }[] = [
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         category_id TEXT NOT NULL,
+        title TEXT,
         occurred_at TEXT,
         content TEXT NOT NULL,
         task_status TEXT,
         task_recurrence TEXT,
+        task_priority TEXT,
         capture_session_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -126,6 +140,28 @@ export const MIGRATIONS: { version: number; sql: string }[] = [
       );
     `,
   },
+  {
+    version: 3,
+    sql: `
+      ALTER TABLE entries ADD COLUMN reminder_enabled INTEGER DEFAULT 0;
+      ALTER TABLE entries ADD COLUMN reminder_time TEXT;
+      ALTER TABLE entries ADD COLUMN reminder_end_time TEXT;
+      ALTER TABLE entries ADD COLUMN reminder_recurrence TEXT;
+      ALTER TABLE entries ADD COLUMN reminder_offset_minutes INTEGER DEFAULT 0;
+    `,
+  },
+  {
+    version: 4,
+    sql: `
+      ALTER TABLE tags ADD COLUMN color TEXT;
+    `,
+  },
+  {
+    version: 5,
+    sql: `
+      ALTER TABLE entries ADD COLUMN reminder_offsets_minutes TEXT;
+    `,
+  },
 ];
 
 export async function runMigrations(db: DatabaseAdapter): Promise<number> {
@@ -156,9 +192,142 @@ export async function runMigrations(db: DatabaseAdapter): Promise<number> {
   return currentVersion;
 }
 
+function parseWhereConditions(
+  whereClause: string | undefined,
+  params: unknown[],
+  startParamIdx: number = 0,
+): {
+  matchRow: (row: Record<string, unknown>) => boolean;
+  consumedParams: number;
+} {
+  if (!whereClause || !whereClause.trim()) {
+    return { matchRow: () => true, consumedParams: 0 };
+  }
+
+  const conds = whereClause.split(/\s+AND\s+/i);
+  let paramIdx = startParamIdx;
+  const matchers: ((row: Record<string, unknown>) => boolean)[] = [];
+
+  for (const rawCond of conds) {
+    const cond = rawCond.trim();
+    if (!cond) continue;
+
+    // IS NOT NULL
+    const isNotNullMatch = cond.match(/^([a-z0-9_]+)\s+IS\s+NOT\s+NULL$/i);
+    if (isNotNullMatch && isNotNullMatch[1]) {
+      const col = isNotNullMatch[1].toLowerCase();
+      matchers.push((row) => row[col] !== null && row[col] !== undefined);
+      continue;
+    }
+
+    // IS NULL
+    const isNullMatch = cond.match(/^([a-z0-9_]+)\s+IS\s+NULL$/i);
+    if (isNullMatch && isNullMatch[1]) {
+      const col = isNullMatch[1].toLowerCase();
+      matchers.push((row) => row[col] === null || row[col] === undefined);
+      continue;
+    }
+
+    // trim(col) != ''
+    const trimNotEqMatch = cond.match(/^trim\(([a-z0-9_]+)\)\s*(!=|<>)\s*['"](.*)['"]$/i);
+    if (trimNotEqMatch && trimNotEqMatch[1]) {
+      const col = trimNotEqMatch[1].toLowerCase();
+      const val = trimNotEqMatch[3] ?? "";
+      matchers.push((row) => {
+        const strVal = typeof row[col] === "string" ? (row[col] as string).trim() : "";
+        return strVal !== val;
+      });
+      continue;
+    }
+
+    // normal col = val or col != val
+    const isNotEq = cond.includes("!=") || cond.includes("<>");
+    const sep = cond.includes("!=") ? "!=" : cond.includes("<>") ? "<>" : "=";
+    const parts = cond.split(sep).map((s) => s.trim());
+    const col = parts[0].toLowerCase();
+    const rightSide = parts[1];
+
+    let targetVal: unknown;
+    if (rightSide === "?") {
+      targetVal = params[paramIdx++];
+    } else if (rightSide !== undefined) {
+      targetVal = rightSide.replace(/^['"]|['"]$/g, "");
+    }
+
+    matchers.push((row) => {
+      const rowVal = row[col];
+      if (isNotEq) {
+        return rowVal !== targetVal;
+      } else {
+        return rowVal === targetVal;
+      }
+    });
+  }
+
+  return {
+    matchRow: (row: Record<string, unknown>) => matchers.every((m) => m(row)),
+    consumedParams: paramIdx - startParamIdx,
+  };
+}
+
 export class MemoryDatabaseAdapter implements DatabaseAdapter {
   private tables = new Map<string, Record<string, unknown>[]>();
   private migrations: { version: number; applied_at: string }[] = [];
+  private storageKey: string | null;
+
+  constructor(storageKey: string | null = "proyecto_ai_db_v1") {
+    this.storageKey = storageKey;
+    this.loadFromStorage();
+  }
+
+  private loadFromStorage() {
+    if (
+      this.storageKey &&
+      typeof window !== "undefined" &&
+      window.localStorage
+    ) {
+      try {
+        const raw = window.localStorage.getItem(this.storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.tables) {
+            Object.entries(parsed.tables).forEach(([table, rows]) => {
+              this.tables.set(table, rows as Record<string, unknown>[]);
+            });
+          }
+          if (parsed.migrations) {
+            this.migrations = parsed.migrations;
+          }
+        }
+      } catch {
+        // Fallback ignore
+      }
+    }
+  }
+
+  private saveToStorage() {
+    if (
+      this.storageKey &&
+      typeof window !== "undefined" &&
+      window.localStorage
+    ) {
+      try {
+        const tablesObj: Record<string, Record<string, unknown>[]> = {};
+        this.tables.forEach((rows, table) => {
+          tablesObj[table] = rows;
+        });
+        window.localStorage.setItem(
+          this.storageKey,
+          JSON.stringify({
+            tables: tablesObj,
+            migrations: this.migrations,
+          }),
+        );
+      } catch {
+        // Fallback ignore
+      }
+    }
+  }
 
   async execAsync(sql: string): Promise<void> {
     const statements = sql
@@ -177,6 +346,7 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
         }
       }
     }
+    this.saveToStorage();
   }
 
   async runAsync(
@@ -189,16 +359,20 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
       const version = params[0] as number;
       const appliedAt = params[1] as string;
       this.migrations.push({ version, applied_at: appliedAt });
+      this.saveToStorage();
       return { lastInsertRowId: version, changes: 1 };
     }
 
-    // Parse INSERT INTO <table> (<cols>) VALUES (...)
+    // Parse INSERT INTO <table> (<cols>) VALUES (<values>)
     const insertMatch = trimmed.match(
-      /INSERT INTO\s+([a-z0-9_]+)\s*\(([^)]+)\)\s*VALUES/i,
+      /INSERT INTO\s+([a-z0-9_]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
     );
     if (insertMatch && insertMatch[1] && insertMatch[2]) {
       const tableName = insertMatch[1].toLowerCase();
       const cols = insertMatch[2].split(",").map((c) => c.trim());
+      const rawVals = insertMatch[3]
+        ? insertMatch[3].split(",").map((v) => v.trim())
+        : [];
       let table = this.tables.get(tableName);
       if (!table) {
         table = [];
@@ -206,10 +380,17 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
       }
 
       const row: Record<string, unknown> = {};
+      let pIdx = 0;
       cols.forEach((col, idx) => {
-        row[col] = params[idx];
+        const rawVal = rawVals[idx];
+        if (rawVal !== undefined && rawVal !== "?") {
+          row[col] = rawVal.replace(/^'|'$/g, "");
+        } else {
+          row[col] = params[pIdx++];
+        }
       });
       table.push(row);
+      this.saveToStorage();
       return { lastInsertRowId: table.length, changes: 1 };
     }
 
@@ -238,34 +419,16 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
         }
       }
 
-      // Extract where column names
-      const whereCols: string[] = [];
-      if (whereClause) {
-        const conds = whereClause.split(/\s+AND\s+/i);
-        for (const cond of conds) {
-          const colName = cond.split(/=|!=/)[0].trim();
-          whereCols.push(colName);
-        }
-      }
-      const whereVals: unknown[] = [];
-      for (let i = 0; i < whereCols.length; i++) {
-        whereVals.push(params[paramIdx++]);
-      }
+      const { matchRow } = parseWhereConditions(whereClause, params, paramIdx);
 
       let changes = 0;
       for (const row of table) {
-        let match = true;
-        for (let i = 0; i < whereCols.length; i++) {
-          if (row[whereCols[i]] !== whereVals[i]) {
-            match = false;
-            break;
-          }
-        }
-        if (match) {
+        if (matchRow(row)) {
           Object.assign(row, updates);
           changes++;
         }
       }
+      this.saveToStorage();
       return { lastInsertRowId: 0, changes };
     }
 
@@ -278,33 +441,23 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
       const table = this.tables.get(tableName) ?? [];
       const whereClause = deleteMatch[2];
 
-      const conds = whereClause.split(/\s+AND\s+/i);
-      const whereCols: string[] = [];
-      for (const cond of conds) {
-        const colName = cond.split(/=|!=/)[0].trim();
-        whereCols.push(colName);
-      }
+      const { matchRow } = parseWhereConditions(whereClause, params, 0);
 
       let changes = 0;
       const remaining: Record<string, unknown>[] = [];
       for (const row of table) {
-        let match = true;
-        for (let i = 0; i < whereCols.length; i++) {
-          if (row[whereCols[i]] !== params[i]) {
-            match = false;
-            break;
-          }
-        }
-        if (match) {
+        if (matchRow(row)) {
           changes++;
         } else {
           remaining.push(row);
         }
       }
       this.tables.set(tableName, remaining);
+      this.saveToStorage();
       return { lastInsertRowId: 0, changes };
     }
 
+    this.saveToStorage();
     return { lastInsertRowId: 0, changes: 1 };
   }
 
@@ -342,36 +495,8 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
         return table as unknown as T[];
       }
 
-      const conds = whereClause.split(/\s+AND\s+/i);
-      let paramIdx = 0;
-      const parsedConds: { col: string; notEq: boolean; val: unknown }[] = [];
-
-      for (const cond of conds) {
-        const notEq = cond.includes("!=");
-        const parts = cond.split(notEq ? "!=" : "=").map((s) => s.trim());
-        const col = parts[0];
-        const valStr = parts[1];
-
-        let val: unknown;
-        if (valStr === "?") {
-          val = params[paramIdx++];
-        } else {
-          val = valStr ? valStr.replace(/^'|'$/g, "") : "";
-        }
-        parsedConds.push({ col, notEq, val });
-      }
-
-      const filtered = table.filter((row) => {
-        for (const c of parsedConds) {
-          if (c.notEq) {
-            if (row[c.col] === c.val) return false;
-          } else {
-            if (row[c.col] !== c.val) return false;
-          }
-        }
-        return true;
-      });
-
+      const { matchRow } = parseWhereConditions(whereClause, params, 0);
+      const filtered = table.filter(matchRow);
       return filtered as unknown as T[];
     }
 

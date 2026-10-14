@@ -711,4 +711,86 @@ describe("Spoken Command Parser (voiceParser)", () => {
       expect(result.content).toBe("renovar pasaporte");
     });
   });
+
+  describe("Reminder & Notification offsets extraction (#69)", () => {
+    it("extracts 1 hour before reminder and keeps content clean", () => {
+      const transcript =
+        "tarea para mañana a las 18:00 llamar al cliente con aviso 1 hora antes";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryId).toBe("cat-2");
+      expect(result.reminderEnabled).toBe(true);
+      expect(result.reminderOffsetsMinutes).toEqual([60]);
+      expect(result.reminderOffsetMinutes).toBe(60);
+      expect(result.content).toBe("llamar al cliente");
+    });
+
+    it("extracts multi-offset reminders: 1 day and 1 hour before", () => {
+      const transcript =
+        "tarea para mañana a las 19:00 entregar informe con aviso 1 día antes y 1 hora antes";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.reminderEnabled).toBe(true);
+      expect(result.reminderOffsetsMinutes).toEqual([1440, 60]);
+      expect(result.content).toBe("entregar informe");
+    });
+
+    it("extracts multi-offset reminders: 3 hours and 1 hour before", () => {
+      const transcript =
+        "tarea para mañana a las 10:00 examen con notificación 3 horas antes y 1 hora antes";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.reminderEnabled).toBe(true);
+      expect(result.reminderOffsetsMinutes).toEqual([180, 60]);
+      expect(result.content).toBe("examen");
+    });
+
+    it("extracts 3 offsets: 1 day, 3 hours and 1 hour before", () => {
+      const transcript =
+        "nota para mañana a las 12:00 conferencia con aviso 1 día antes, 3 horas antes y 1 hora antes";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.reminderEnabled).toBe(true);
+      expect(result.reminderOffsetsMinutes).toEqual([1440, 180, 60]);
+      expect(result.content).toBe("conferencia");
+    });
+
+    it("detects explicit 'sin aviso' and disables reminder", () => {
+      const transcript = "tarea reunión semanal sin aviso";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.reminderEnabled).toBe(false);
+      expect(result.content).toBe("reunión semanal");
+    });
+  });
 });

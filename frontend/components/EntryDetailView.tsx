@@ -124,6 +124,9 @@ export function EntryDetailView({
         updatePayload.reminder_offset_minutes = result.changes.reminder_offset_minutes;
         setReminderOffsetMinutes(result.changes.reminder_offset_minutes);
       }
+      if (result.changes.reminder_offsets_minutes !== undefined) {
+        updatePayload.reminder_offsets_minutes = result.changes.reminder_offsets_minutes;
+      }
       if (result.changes.reminder_recurrence !== undefined) {
         updatePayload.reminder_recurrence = result.changes.reminder_recurrence;
         setReminderRecurrence(result.changes.reminder_recurrence);

@@ -96,6 +96,40 @@ describe("voiceEditParser (#68)", () => {
     expect(res.actions.length).toBe(3);
   });
 
+  it("extracts reminder 1 day before when saying 'poner aviso 1 día antes'", () => {
+    const res = parseVoiceEditCommand("poner aviso 1 día antes", baseEntry, refDate);
+    expect(res.hasChanges).toBe(true);
+    expect(res.changes.reminder_enabled).toBe(true);
+    expect(res.changes.reminder_offsets_minutes).toEqual([1440]);
+    expect(res.changes.reminder_offset_minutes).toBe(1440);
+    expect(res.actions).toContain("Aviso: 1 día antes");
+  });
+
+  it("extracts reminder 3 hours before when saying 'aviso 3 horas antes'", () => {
+    const res = parseVoiceEditCommand("poner aviso 3 horas antes", baseEntry, refDate);
+    expect(res.hasChanges).toBe(true);
+    expect(res.changes.reminder_enabled).toBe(true);
+    expect(res.changes.reminder_offsets_minutes).toEqual([180]);
+    expect(res.changes.reminder_offset_minutes).toBe(180);
+    expect(res.actions).toContain("Aviso: 3 horas antes");
+  });
+
+  it("extracts multiple reminder offsets when saying 'avísame 1 día antes y 1 hora antes'", () => {
+    const res = parseVoiceEditCommand("avísame 1 día antes y 1 hora antes", baseEntry, refDate);
+    expect(res.hasChanges).toBe(true);
+    expect(res.changes.reminder_enabled).toBe(true);
+    expect(res.changes.reminder_offsets_minutes).toEqual([1440, 60]);
+    expect(res.actions).toContain("Aviso: 1 día antes, 1 hora antes");
+  });
+
+  it("extracts three offsets when saying 'notificar 1 día antes, 3 horas antes y 1 hora antes'", () => {
+    const res = parseVoiceEditCommand("notificar 1 día antes, 3 horas antes y 1 hora antes", baseEntry, refDate);
+    expect(res.hasChanges).toBe(true);
+    expect(res.changes.reminder_enabled).toBe(true);
+    expect(res.changes.reminder_offsets_minutes).toEqual([1440, 180, 60]);
+    expect(res.actions).toContain("Aviso: 1 día antes, 3 horas antes, 1 hora antes");
+  });
+
   it("returns hasChanges false when no edit command is recognized", () => {
     const res = parseVoiceEditCommand("hola buenos días cómo estás", baseEntry, refDate);
     expect(res.hasChanges).toBe(false);

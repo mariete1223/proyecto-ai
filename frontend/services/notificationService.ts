@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import { DatabaseAdapter } from "../db/database";
 import { listLocalEntries } from "../db/entries";
-import { Entry, normalizeUtcIso, ReminderRecurrence } from "../types/domain";
+import { Entry, formatOffsetLabel, normalizeUtcIso, ReminderRecurrence } from "../types/domain";
 
 export type { ReminderRecurrence };
 
@@ -31,7 +31,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 class NotificationService {
-  private activeTimers: Map<string, number> = new Map();
+  private activeTimers: Map<string, number[]> = new Map();
   private isInitialized = false;
   private swRegistration: any = null;
   private lastApiBaseUrl: string | null = null;
@@ -300,9 +300,11 @@ class NotificationService {
   }
 
   public cancelNotification(entryId: string): void {
-    const timerId = this.activeTimers.get(entryId);
-    if (timerId !== undefined) {
-      clearTimeout(timerId);
+    const timerIds = this.activeTimers.get(entryId);
+    if (timerIds !== undefined) {
+      for (const tid of timerIds) {
+        clearTimeout(tid);
+      }
       this.activeTimers.delete(entryId);
     }
   }
@@ -314,71 +316,85 @@ class NotificationService {
       return;
     }
 
-    let targetDate: Date | null = null;
-    const offsetMins = entry.reminder_offset_minutes || 0;
+    const offsets: number[] =
+      entry.reminder_offsets_minutes && entry.reminder_offsets_minutes.length > 0
+        ? entry.reminder_offsets_minutes
+        : entry.reminder_offset_minutes !== null && entry.reminder_offset_minutes !== undefined
+          ? [entry.reminder_offset_minutes]
+          : [0];
 
-    if (offsetMins > 0) {
-      // Si hay antelación configurada, se calcula restando el offset a la hora del evento
-      const baseIso = entry.occurred_at || entry.reminder_time;
-      if (baseIso) {
-        const norm = normalizeUtcIso(baseIso) || baseIso;
-        const baseDate = new Date(norm);
-        if (!isNaN(baseDate.getTime())) {
-          targetDate = new Date(baseDate.getTime() - offsetMins * 60 * 1000);
+    const scheduledTimers: number[] = [];
+
+    for (const offsetMins of offsets) {
+      let targetDate: Date | null = null;
+
+      if (offsetMins > 0) {
+        // Si hay antelación configurada, se calcula restando el offset a la hora del evento
+        const baseIso = entry.occurred_at || entry.reminder_time;
+        if (baseIso) {
+          const norm = normalizeUtcIso(baseIso) || baseIso;
+          const baseDate = new Date(norm);
+          if (!isNaN(baseDate.getTime())) {
+            targetDate = new Date(baseDate.getTime() - offsetMins * 60 * 1000);
+          }
+        }
+      } else {
+        // Sin offset: hora exacta programada en reminder_time o a la hora del evento
+        const targetIso = entry.reminder_time || entry.occurred_at;
+        if (targetIso) {
+          const norm = normalizeUtcIso(targetIso) || targetIso;
+          const parsed = new Date(norm);
+          if (!isNaN(parsed.getTime())) {
+            targetDate = parsed;
+          }
         }
       }
-    } else {
-      // Sin offset: hora exacta programada en reminder_time o a la hora del evento
-      const targetIso = entry.reminder_time || entry.occurred_at;
-      if (targetIso) {
-        const norm = normalizeUtcIso(targetIso) || targetIso;
-        const parsed = new Date(norm);
-        if (!isNaN(parsed.getTime())) {
-          targetDate = parsed;
-        }
+
+      if (!targetDate || isNaN(targetDate.getTime())) {
+        continue;
       }
-    }
 
-    if (!targetDate || isNaN(targetDate.getTime())) {
-      return;
-    }
+      const now = new Date();
+      const diffMs = targetDate.getTime() - now.getTime();
 
-    const now = new Date();
-    const diffMs = targetDate.getTime() - now.getTime();
+      const reminderKey = `${entry.id}-${offsetMins}-${targetDate.toISOString()}`;
+      if (this.notifiedEntryIds.has(reminderKey)) {
+        continue;
+      }
 
-    const reminderKey = `${entry.id}-${targetDate.toISOString()}`;
-    if (this.notifiedEntryIds.has(reminderKey)) {
-      return;
-    }
-
-    if (diffMs > 0) {
-      // Programar para el futuro
-      const timerId = window.setTimeout(() => {
-        if (this.notifiedEntryIds.has(reminderKey)) {
-          this.activeTimers.delete(entry.id);
-          return;
-        }
-        this.notifiedEntryIds.add(reminderKey);
-
+      if (diffMs > 0) {
+        // Programar para el futuro
         const notifTitle = entry.title?.trim() || "Recordatorio de Agenda AI";
-        const notifBody = entry.content.trim().substring(0, 120);
-        this.sendNotification(`🔔 ${notifTitle}`, notifBody);
+        const offsetLabel = formatOffsetLabel(offsetMins);
+        const prefix = offsetMins > 0 ? `[Aviso: ${offsetLabel}] ` : "";
+        const notifBody = `${prefix}${entry.content.trim().substring(0, 120)}`;
 
-        // Si es recurrente, re-programar para el próximo ciclo
+        const timerId = window.setTimeout(() => {
+          if (this.notifiedEntryIds.has(reminderKey)) {
+            return;
+          }
+          this.notifiedEntryIds.add(reminderKey);
+
+          this.sendNotification(`🔔 ${notifTitle}`, notifBody);
+
+          // Si es recurrente, re-programar para el próximo ciclo
+          if (entry.reminder_recurrence && entry.reminder_recurrence !== "NONE") {
+            this.scheduleNextRecurrence(entry, targetDate!);
+          }
+        }, diffMs);
+
+        scheduledTimers.push(timerId);
+      } else {
+        // Si la hora ya venció (en el pasado o recién transcurrida), NO reproducir notificación local
+        // para evitar duplicar alertas que ya fueron entregadas en segundo plano vía Web Push.
         if (entry.reminder_recurrence && entry.reminder_recurrence !== "NONE") {
-          this.scheduleNextRecurrence(entry, targetDate!);
-        } else {
-          this.activeTimers.delete(entry.id);
+          this.scheduleNextRecurrence(entry, targetDate);
         }
-      }, diffMs);
-
-      this.activeTimers.set(entry.id, timerId);
-    } else {
-      // Si la hora ya venció (en el pasado o recién transcurrida), NO reproducir notificación local
-      // para evitar duplicar alertas que ya fueron entregadas en segundo plano vía Web Push.
-      if (entry.reminder_recurrence && entry.reminder_recurrence !== "NONE") {
-        this.scheduleNextRecurrence(entry, targetDate);
       }
+    }
+
+    if (scheduledTimers.length > 0) {
+      this.activeTimers.set(entry.id, scheduledTimers);
     }
   }
 
@@ -437,7 +453,7 @@ class NotificationService {
 
       const entries = await listLocalEntries(db, userId);
       // Cancelar todos y volver a sincronizar
-      this.activeTimers.forEach((t) => clearTimeout(t));
+      this.activeTimers.forEach((timers) => timers.forEach((t) => clearTimeout(t)));
       this.activeTimers.clear();
 
       for (const entry of entries) {

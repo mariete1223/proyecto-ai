@@ -1,24 +1,46 @@
-import { Entry, TaskRecurrence, TaskStatus } from "../types/domain";
+import {
+  Entry,
+  ReminderRecurrence,
+  TaskPriority,
+  TaskRecurrence,
+  TaskStatus,
+} from "../types/domain";
 import { getCategoryById } from "./categories";
-import { DatabaseAdapter } from "./database";
+import { DatabaseAdapter, generateUuid } from "./database";
 
 export interface CreateEntryData {
   id?: string;
   category_id: string;
+  title?: string | null;
   occurred_at?: string | null;
   content: string;
   task_status?: TaskStatus | null;
   task_recurrence?: TaskRecurrence | null;
+  task_priority?: TaskPriority | null;
   capture_session_id?: string | null;
+  reminder_enabled?: boolean | null;
+  reminder_time?: string | null;
+  reminder_end_time?: string | null;
+  reminder_recurrence?: ReminderRecurrence | null;
+  reminder_offset_minutes?: number | null;
+  reminder_offsets_minutes?: number[] | null;
   tag_ids?: string[];
 }
 
 export interface UpdateEntryData {
   category_id?: string;
+  title?: string | null;
   occurred_at?: string | null;
   content?: string;
   task_status?: TaskStatus | null;
   task_recurrence?: TaskRecurrence | null;
+  task_priority?: TaskPriority | null;
+  reminder_enabled?: boolean | null;
+  reminder_time?: string | null;
+  reminder_end_time?: string | null;
+  reminder_recurrence?: ReminderRecurrence | null;
+  reminder_offset_minutes?: number | null;
+  reminder_offsets_minutes?: number[] | null;
   tag_ids?: string[];
 }
 
@@ -27,6 +49,29 @@ export interface ListEntryFilters {
   end_at?: string;
   category_ids?: string[];
   tag_ids?: string[];
+}
+
+function parseRowReminderOffsets(raw: unknown): number[] | null {
+  if (!raw) return null;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function mapEntryRow(row: any, tagIds: string[]): Entry {
+  return {
+    ...row,
+    reminder_enabled: Boolean(row.reminder_enabled),
+    reminder_offsets_minutes: parseRowReminderOffsets(row.reminder_offsets_minutes),
+    tag_ids: tagIds,
+  };
 }
 
 export async function createLocalEntry(
@@ -46,6 +91,7 @@ export async function createLocalEntry(
 
   let taskStatus = data.task_status ?? null;
   let taskRecurrence = data.task_recurrence ?? null;
+  let taskPriority = data.task_priority ?? null;
 
   if (category.kind === "TASK") {
     if (taskStatus === null && taskRecurrence === null) {
@@ -56,28 +102,42 @@ export async function createLocalEntry(
         "Task status and task recurrence must both be provided or omitted.",
       );
     }
+    if (!taskPriority) {
+      taskPriority = "MEDIUM";
+    }
   } else {
-    if (taskStatus !== null || taskRecurrence !== null) {
+    if (taskStatus !== null || taskRecurrence !== null || taskPriority !== null) {
       throw new Error(
         "Task fields can only be set for categories of kind TASK.",
       );
     }
   }
 
-  const id = data.id ?? Math.random().toString(36).substring(2, 15);
+  const id = data.id ?? generateUuid();
   const now = new Date().toISOString();
+  const title = data.title ? data.title.trim() : null;
   const occurredAt = data.occurred_at ?? null;
   const tagIds = Array.from(new Set(data.tag_ids ?? []));
+  const reminderOffsetsMinutes = data.reminder_offsets_minutes ?? null;
+  const reminderOffsetsStr = reminderOffsetsMinutes ? JSON.stringify(reminderOffsetsMinutes) : null;
 
   const entry: Entry = {
     id,
     user_id: userId,
     category_id: data.category_id,
+    title,
     occurred_at: occurredAt,
     content,
     task_status: taskStatus,
     task_recurrence: taskRecurrence,
+    task_priority: taskPriority,
     capture_session_id: data.capture_session_id ?? null,
+    reminder_enabled: data.reminder_enabled ?? null,
+    reminder_time: data.reminder_time ?? null,
+    reminder_end_time: data.reminder_end_time ?? null,
+    reminder_recurrence: data.reminder_recurrence ?? null,
+    reminder_offset_minutes: data.reminder_offset_minutes ?? null,
+    reminder_offsets_minutes: reminderOffsetsMinutes,
     created_at: now,
     updated_at: now,
     version: 1,
@@ -86,16 +146,24 @@ export async function createLocalEntry(
   };
 
   await db.runAsync(
-    `INSERT INTO entries (id, user_id, category_id, occurred_at, content, task_status, task_recurrence, capture_session_id, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    `INSERT INTO entries (id, user_id, category_id, title, occurred_at, content, task_status, task_recurrence, task_priority, capture_session_id, reminder_enabled, reminder_time, reminder_end_time, reminder_recurrence, reminder_offset_minutes, reminder_offsets_minutes, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       entry.id,
       entry.user_id,
       entry.category_id,
+      entry.title ?? null,
       entry.occurred_at,
       entry.content,
       entry.task_status,
       entry.task_recurrence,
+      entry.task_priority,
       entry.capture_session_id,
+      entry.reminder_enabled ? 1 : 0,
+      entry.reminder_time ?? null,
+      entry.reminder_end_time ?? null,
+      entry.reminder_recurrence ?? null,
+      entry.reminder_offset_minutes ?? null,
+      reminderOffsetsStr,
       entry.created_at,
       entry.updated_at,
       entry.version,
@@ -104,7 +172,7 @@ export async function createLocalEntry(
   );
 
   for (const tagId of tagIds) {
-    const etId = Math.random().toString(36).substring(2, 15);
+    const etId = generateUuid();
     await db.runAsync(
       `INSERT INTO entry_tags (id, user_id, entry_id, tag_id, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
       [etId, userId, entry.id, tagId, now, now, 1, "PENDING_PUSH"],
@@ -133,10 +201,7 @@ export async function getEntryById(
   );
   const tagIds = etRows.map((r) => r.tag_id);
 
-  return {
-    ...row,
-    tag_ids: tagIds,
-  };
+  return mapEntryRow(row, tagIds);
 }
 
 export async function listLocalEntries(
@@ -149,7 +214,34 @@ export async function listLocalEntries(
     [userId],
   );
 
-  let filtered = allRows;
+  const seenKeys = new Set<string>();
+  const uniqueRows: typeof allRows = [];
+  const duplicateIdsToRemove: string[] = [];
+
+  for (const row of allRows) {
+    const key = `${row.category_id}:::${row.content.trim()}:::${row.occurred_at ?? ""}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueRows.push(row);
+    } else {
+      duplicateIdsToRemove.push(row.id);
+    }
+  }
+
+  if (duplicateIdsToRemove.length > 0) {
+    for (const dupId of duplicateIdsToRemove) {
+      await db.runAsync(`DELETE FROM entries WHERE id = ? AND user_id = ?;`, [
+        dupId,
+        userId,
+      ]);
+      await db.runAsync(
+        `DELETE FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
+        [dupId, userId],
+      );
+    }
+  }
+
+  let filtered = uniqueRows;
 
   if (filters.start_at) {
     filtered = filtered.filter(
@@ -181,10 +273,7 @@ export async function listLocalEntries(
       if (!match) continue;
     }
 
-    result.push({
-      ...row,
-      tag_ids: tagIds,
-    });
+    result.push(mapEntryRow(row, tagIds));
   }
 
   return result;
@@ -218,10 +307,7 @@ export async function listPendingDatelessTasks(
       `SELECT tag_id FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
       [row.id, userId],
     );
-    result.push({
-      ...row,
-      tag_ids: etRows.map((r) => r.tag_id),
-    });
+    result.push(mapEntryRow(row, etRows.map((r) => r.tag_id)));
   }
 
   return result;
@@ -243,10 +329,7 @@ export async function listDatelessTasks(
   );
 
   const datelessTasks = allEntries.filter(
-    (e) =>
-      taskCatIds.has(e.category_id) &&
-      e.occurred_at === null &&
-      e.task_status !== null,
+    (e) => taskCatIds.has(e.category_id) && e.task_status !== null,
   );
 
   const result: Entry[] = [];
@@ -255,10 +338,7 @@ export async function listDatelessTasks(
       `SELECT tag_id FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
       [row.id, userId],
     );
-    result.push({
-      ...row,
-      tag_ids: etRows.map((r) => r.tag_id),
-    });
+    result.push(mapEntryRow(row, etRows.map((r) => r.tag_id)));
   }
 
   return result;
@@ -287,6 +367,10 @@ export async function updateLocalEntry(
     data.task_recurrence !== undefined
       ? data.task_recurrence
       : existing.task_recurrence;
+  let taskPriority =
+    data.task_priority !== undefined
+      ? data.task_priority
+      : (existing.task_priority ?? null);
 
   if (category.kind === "TASK") {
     if (taskStatus === null && taskRecurrence === null) {
@@ -295,9 +379,13 @@ export async function updateLocalEntry(
     } else if (taskStatus === null || taskRecurrence === null) {
       throw new Error("Task status and recurrence must be paired.");
     }
+    if (!taskPriority) {
+      taskPriority = "MEDIUM";
+    }
   } else {
     taskStatus = null;
     taskRecurrence = null;
+    taskPriority = null;
   }
 
   const content =
@@ -306,19 +394,61 @@ export async function updateLocalEntry(
     throw new Error("Entry content cannot be empty.");
   }
 
+  const title =
+    data.title !== undefined
+      ? data.title
+        ? data.title.trim()
+        : null
+      : existing.title ?? null;
   const occurredAt =
     data.occurred_at !== undefined ? data.occurred_at : existing.occurred_at;
   const now = new Date().toISOString();
   const newVersion = existing.version + 1;
 
+  const reminderEnabled =
+    data.reminder_enabled !== undefined
+      ? data.reminder_enabled
+      : (existing.reminder_enabled ?? null);
+  const reminderTime =
+    data.reminder_time !== undefined
+      ? data.reminder_time
+      : (existing.reminder_time ?? null);
+  const reminderEndTime =
+    data.reminder_end_time !== undefined
+      ? data.reminder_end_time
+      : (existing.reminder_end_time ?? null);
+  const reminderRecurrence =
+    data.reminder_recurrence !== undefined
+      ? data.reminder_recurrence
+      : (existing.reminder_recurrence ?? null);
+  const reminderOffsetMinutes =
+    data.reminder_offset_minutes !== undefined
+      ? data.reminder_offset_minutes
+      : (existing.reminder_offset_minutes ?? null);
+  const reminderOffsetsMinutes =
+    data.reminder_offsets_minutes !== undefined
+      ? data.reminder_offsets_minutes
+      : (existing.reminder_offsets_minutes ?? null);
+  const reminderOffsetsStr = reminderOffsetsMinutes
+    ? JSON.stringify(reminderOffsetsMinutes)
+    : null;
+
   await db.runAsync(
-    `UPDATE entries SET category_id = ?, occurred_at = ?, content = ?, task_status = ?, task_recurrence = ?, updated_at = ?, version = ?, sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ?;`,
+    `UPDATE entries SET category_id = ?, title = ?, occurred_at = ?, content = ?, task_status = ?, task_recurrence = ?, task_priority = ?, reminder_enabled = ?, reminder_time = ?, reminder_end_time = ?, reminder_recurrence = ?, reminder_offset_minutes = ?, reminder_offsets_minutes = ?, updated_at = ?, version = ?, sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ?;`,
     [
       categoryId,
+      title,
       occurredAt,
       content,
       taskStatus,
       taskRecurrence,
+      taskPriority,
+      reminderEnabled ? 1 : 0,
+      reminderTime,
+      reminderEndTime,
+      reminderRecurrence,
+      reminderOffsetMinutes,
+      reminderOffsetsStr,
       now,
       newVersion,
       entryId,
@@ -334,7 +464,7 @@ export async function updateLocalEntry(
     );
     updatedTagIds = Array.from(new Set(data.tag_ids));
     for (const tagId of updatedTagIds) {
-      const etId = Math.random().toString(36).substring(2, 15);
+      const etId = generateUuid();
       await db.runAsync(
         `INSERT INTO entry_tags (id, user_id, entry_id, tag_id, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
         [etId, userId, entryId, tagId, now, now, 1, "PENDING_PUSH"],
@@ -345,10 +475,18 @@ export async function updateLocalEntry(
   return {
     ...existing,
     category_id: categoryId,
+    title,
     occurred_at: occurredAt,
     content,
     task_status: taskStatus,
     task_recurrence: taskRecurrence,
+    task_priority: taskPriority,
+    reminder_enabled: reminderEnabled,
+    reminder_time: reminderTime,
+    reminder_end_time: reminderEndTime,
+    reminder_recurrence: reminderRecurrence,
+    reminder_offset_minutes: reminderOffsetMinutes,
+    reminder_offsets_minutes: reminderOffsetsMinutes,
     updated_at: now,
     version: newVersion,
     sync_status: "PENDING_PUSH",
@@ -379,7 +517,7 @@ export async function deleteLocalEntry(
     userId,
   ]);
 
-  const tbId = Math.random().toString(36).substring(2, 15);
+  const tbId = generateUuid();
   await db.runAsync(
     `INSERT INTO deletion_tombstones (id, user_id, entity_type, entity_id, deleted_at, deleted_version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?);`,
     [tbId, userId, "ENTRY", entryId, now, deletedVersion, "PENDING_PUSH"],

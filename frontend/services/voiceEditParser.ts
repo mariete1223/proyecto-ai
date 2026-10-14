@@ -6,6 +6,7 @@ export interface VoiceEditChanges {
   reminder_enabled?: boolean;
   reminder_time?: string;
   reminder_offset_minutes?: number;
+  reminder_offsets_minutes?: number[];
   reminder_recurrence?: ReminderRecurrence;
   content?: string;
 }
@@ -67,39 +68,71 @@ export function parseVoiceEditCommand(
     changes.reminder_enabled = false;
     actions.push("Aviso desactivado");
   } else {
-    // 3. Detección de Activación y Configuración de Recordatorios
-    // 3.a) Antelación en minutos: "poner aviso 15 minutos antes", "recordatorio 30 min antes"
-    const minMatch = lower.match(
-      /(?:poner|activar|configurar)?\s*(?:un\s+)?(?:aviso|recordatorio|notificaci[oó]n)\s+(?:de\s+)?(\d+)\s*(?:minutos?|min)\s*antes/i,
-    );
-    if (minMatch && minMatch[1]) {
-      const mins = parseInt(minMatch[1], 10);
-      changes.reminder_enabled = true;
-      changes.reminder_offset_minutes = mins;
-      actions.push(`Aviso: ${mins} min antes`);
+    // 3. Detección de Activación y Configuración de Recordatorios (múltiples antelaciones)
+    const detectedOffsets: number[] = [];
+    const detectedLabels: string[] = [];
+
+    // 3.a) 1 día antes / un día antes (1440 min)
+    if (/(?:1|un|uno)\s*d[ií]as?\s*antes/i.test(lower)) {
+      if (!detectedOffsets.includes(1440)) {
+        detectedOffsets.push(1440);
+        detectedLabels.push("1 día antes");
+      }
     }
 
-    // 3.b) Antelación en horas: "poner aviso 1 hora antes", "aviso una hora antes"
-    const hourOffsetMatch = lower.match(
-      /(?:poner|activar|configurar)?\s*(?:un\s+)?(?:aviso|recordatorio|notificaci[oó]n)\s+(?:de\s+)?(?:1|una)\s*hora\s*antes/i,
-    );
-    if (hourOffsetMatch) {
-      changes.reminder_enabled = true;
-      changes.reminder_offset_minutes = 60;
-      actions.push("Aviso: 1 hora antes");
+    // 3.b) 3 horas antes / tres horas antes (180 min)
+    if (/(?:3|tres)\s*horas?\s*antes/i.test(lower)) {
+      if (!detectedOffsets.includes(180)) {
+        detectedOffsets.push(180);
+        detectedLabels.push("3 horas antes");
+      }
     }
 
-    // 3.c) A la hora exacta: "poner aviso a la hora exacta", "aviso a la hora"
-    const exactMatch = lower.match(
-      /(?:poner|activar|configurar)\s+(?:un\s+)?(?:aviso|recordatorio|notificaci[oó]n)\s+(?:a\s+la\s+hora(?:\s+exacta)?)/i,
-    );
-    if (exactMatch) {
-      changes.reminder_enabled = true;
-      changes.reminder_offset_minutes = 0;
-      actions.push("Aviso: a la hora exacta");
+    // 3.c) 2 horas antes / dos horas antes (120 min)
+    if (/(?:2|dos)\s*horas?\s*antes/i.test(lower)) {
+      if (!detectedOffsets.includes(120)) {
+        detectedOffsets.push(120);
+        detectedLabels.push("2 horas antes");
+      }
     }
 
-    // 3.d) Recurrencia por voz: "aviso cada X horas", "repetir cada X horas"
+    // 3.d) 1 hora antes / una hora antes (60 min)
+    if (/(?:1|una|un)\s*horas?\s*antes/i.test(lower)) {
+      if (!detectedOffsets.includes(60)) {
+        detectedOffsets.push(60);
+        detectedLabels.push("1 hora antes");
+      }
+    }
+
+    // 3.e) Minutos antes (ej. 15 minutos antes, 30 min antes)
+    const minMatches = lower.matchAll(/(\d+)\s*(?:minutos?|min)\s*antes/gi);
+    for (const m of minMatches) {
+      const mins = parseInt(m[1], 10);
+      if (!isNaN(mins) && !detectedOffsets.includes(mins)) {
+        detectedOffsets.push(mins);
+        detectedLabels.push(`${mins} min antes`);
+      }
+    }
+
+    // 3.f) A la hora exacta
+    if (
+      /(?:a\s+la\s+hora(?:\s+exacta)?)/i.test(lower) &&
+      !/(?:1|una|dos|tres|\d+)\s*horas?\s*antes/i.test(lower)
+    ) {
+      if (!detectedOffsets.includes(0)) {
+        detectedOffsets.push(0);
+        detectedLabels.push("a la hora exacta");
+      }
+    }
+
+    if (detectedOffsets.length > 0) {
+      changes.reminder_enabled = true;
+      changes.reminder_offsets_minutes = detectedOffsets;
+      changes.reminder_offset_minutes = detectedOffsets[0];
+      actions.push(`Aviso: ${detectedLabels.join(", ")}`);
+    }
+
+    // 3.g) Recurrencia por voz: "aviso cada X horas", "repetir cada X horas"
     const recHourlyMatch = lower.match(
       /(?:aviso|recordatorio|repetir)?\s*(?:peri[oó]dico\s+)?cada\s+(\d+)\s*horas?/i,
     );

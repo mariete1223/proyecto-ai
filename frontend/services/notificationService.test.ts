@@ -153,5 +153,37 @@ describe("NotificationService", () => {
     // Should NOT schedule a new timer because pastTime + 4h > endTime
     expect(setTimeoutSpy.mock.calls.length).toBe(initialCalls);
   });
+
+  it("schedules independent timers for multiple offsets (1 day, 3h, 1h before)", () => {
+    const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+    const now = Date.now();
+    // Event is 48h (2880 mins) in the future
+    const eventTime = new Date(now + 48 * 60 * 60 * 1000).toISOString();
+
+    const entry: Entry = {
+      id: "multi-offset-entry-1",
+      user_id: "user-1",
+      category_id: "cat-1",
+      content: "Boda con múltiples avisos",
+      reminder_enabled: true,
+      occurred_at: eventTime,
+      reminder_offsets_minutes: [1440, 180, 60],
+      reminder_recurrence: "NONE",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      version: 1,
+    };
+
+    const initialCalls = setTimeoutSpy.mock.calls.length;
+    notificationService.scheduleForEntry(entry);
+
+    // 3 distinct timers should be scheduled (1440, 180, 60 mins before event)
+    expect(setTimeoutSpy.mock.calls.length).toBe(initialCalls + 3);
+
+    // Cancelling should clear all without errors
+    expect(() => {
+      notificationService.cancelNotification(entry.id);
+    }).not.toThrow();
+  });
 });
 

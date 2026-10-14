@@ -21,6 +21,9 @@ export interface ParsedSpokenCommand {
   tagIds: string[];
   tagNames: string[];
   taskPriority?: TaskPriority | null;
+  reminderEnabled?: boolean;
+  reminderOffsetMinutes?: number;
+  reminderOffsetsMinutes?: number[];
   errors: string[];
   isSuccess: boolean;
   tokens?: RecognizedToken[];
@@ -656,6 +659,91 @@ export function parseSpokenCommand(
     });
   }
 
+  // 5b. Reminder & Notification extraction
+  let reminderEnabled: boolean | undefined = undefined;
+  let reminderOffsetMinutes: number | undefined = undefined;
+  let reminderOffsetsMinutes: number[] | undefined = undefined;
+
+  const reminderRegex =
+    /(?:\s|^|[,.:;])(?:(?:con|de|y)?\s*(?:avisos?|recordatorios?|notificaci[oó]n|notificaciones|notificar(?:me)?)(?:\s*:)?\s+([^.;\n]+?)|(?:sin\s+(?:aviso|recordatorio|notificaci[oó]n)))(?=(?:\s+(?:con\s+prioridad|prioridad|etiqueta|etiquetas|tags?|contenido|que\s+dice|dice|título|titulo)\b|[.;]|$))/i;
+
+  const remMatch = workingText.match(reminderRegex);
+  if (remMatch) {
+    const fullRemMatch = remMatch[0].trim();
+    const remDetails = remMatch[1] ? remMatch[1].toLowerCase().trim() : "";
+
+    if (/sin\s+(?:aviso|recordatorio|notificaci[oó]n)/i.test(fullRemMatch)) {
+      reminderEnabled = false;
+      reminderOffsetsMinutes = [];
+      tokens.push({
+        text: fullRemMatch,
+        type: "KEYWORD",
+        label: "Aviso: Desactivado",
+      });
+    } else if (remDetails) {
+      const detectedOffsets: number[] = [];
+      const detectedLabels: string[] = [];
+
+      if (/(?:1|un|uno)\s*d[ií]as?\s*antes/i.test(remDetails)) {
+        if (!detectedOffsets.includes(1440)) {
+          detectedOffsets.push(1440);
+          detectedLabels.push("1 día antes");
+        }
+      }
+      if (/(?:3|tres)\s*horas?\s*antes/i.test(remDetails)) {
+        if (!detectedOffsets.includes(180)) {
+          detectedOffsets.push(180);
+          detectedLabels.push("3 horas antes");
+        }
+      }
+      if (/(?:2|dos)\s*horas?\s*antes/i.test(remDetails)) {
+        if (!detectedOffsets.includes(120)) {
+          detectedOffsets.push(120);
+          detectedLabels.push("2 horas antes");
+        }
+      }
+      if (/(?:1|una|un)\s*horas?\s*antes/i.test(remDetails)) {
+        if (!detectedOffsets.includes(60)) {
+          detectedOffsets.push(60);
+          detectedLabels.push("1 hora antes");
+        }
+      }
+      const minMatches = remDetails.matchAll(/(\d+)\s*(?:minutos?|min)\s*antes/gi);
+      for (const m of minMatches) {
+        const mins = parseInt(m[1], 10);
+        if (!isNaN(mins) && !detectedOffsets.includes(mins)) {
+          detectedOffsets.push(mins);
+          detectedLabels.push(`${mins} min antes`);
+        }
+      }
+      if (/(?:a\s+la\s+hora(?:\s+exacta)?)/i.test(remDetails)) {
+        if (!detectedOffsets.includes(0)) {
+          detectedOffsets.push(0);
+          detectedLabels.push("a la hora exacta");
+        }
+      }
+
+      if (detectedOffsets.length > 0) {
+        reminderEnabled = true;
+        reminderOffsetsMinutes = detectedOffsets;
+        reminderOffsetMinutes = detectedOffsets[0];
+        tokens.push({
+          text: fullRemMatch,
+          type: "KEYWORD",
+          label: `Aviso: ${detectedLabels.join(", ")}`,
+        });
+      }
+    }
+
+    const matchIdx = remMatch.index ?? 0;
+    const matchLen = remMatch[0].length;
+    workingText = (
+      workingText.substring(0, matchIdx) +
+      " " +
+      workingText.substring(matchIdx + matchLen)
+    ).trim();
+  }
+
   // 6. Content extraction
   const contentKeywordMatch = workingText.match(
     /^(?:contenido|que dice|dice)\s+/i,
@@ -696,6 +784,9 @@ export function parseSpokenCommand(
     tagIds,
     tagNames,
     taskPriority,
+    reminderEnabled,
+    reminderOffsetMinutes,
+    reminderOffsetsMinutes,
     errors,
     isSuccess: errors.length === 0 && categoryId !== null && content.length > 0,
     tokens,
