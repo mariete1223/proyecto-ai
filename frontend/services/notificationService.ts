@@ -1,9 +1,9 @@
 import { Platform } from "react-native";
 import { DatabaseAdapter } from "../db/database";
 import { listLocalEntries } from "../db/entries";
-import { Entry, normalizeUtcIso } from "../types/domain";
+import { Entry, normalizeUtcIso, ReminderRecurrence } from "../types/domain";
 
-export type ReminderRecurrence = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+export type { ReminderRecurrence };
 
 export interface NotificationScheduleOptions {
   entryId: string;
@@ -386,12 +386,29 @@ class NotificationService {
     const offsetMs = (entry.reminder_offset_minutes || 0) * 60 * 1000;
     const baseDate = new Date(lastTargetDate.getTime() + offsetMs);
 
-    if (entry.reminder_recurrence === "DAILY") {
+    const rec = entry.reminder_recurrence || "NONE";
+    const hourMatch = rec.match(/^EVERY_(\d+)_HOURS?$/);
+    if (hourMatch) {
+      const hours = parseInt(hourMatch[1], 10);
+      baseDate.setTime(baseDate.getTime() + hours * 3600 * 1000);
+    } else if (rec === "DAILY") {
       baseDate.setDate(baseDate.getDate() + 1);
-    } else if (entry.reminder_recurrence === "WEEKLY") {
+    } else if (rec === "WEEKLY") {
       baseDate.setDate(baseDate.getDate() + 7);
-    } else if (entry.reminder_recurrence === "MONTHLY") {
+    } else if (rec === "MONTHLY") {
       baseDate.setMonth(baseDate.getMonth() + 1);
+    } else {
+      this.activeTimers.delete(entry.id);
+      return;
+    }
+
+    // Cutoff if beyond reminder_end_time
+    if (entry.reminder_end_time) {
+      const endD = new Date(entry.reminder_end_time);
+      if (!isNaN(endD.getTime()) && baseDate.getTime() > endD.getTime()) {
+        this.activeTimers.delete(entry.id);
+        return;
+      }
     }
 
     const updatedEntry: Entry = {

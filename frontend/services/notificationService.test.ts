@@ -93,5 +93,65 @@ describe("NotificationService", () => {
 
     notificationService.cancelNotification(entry.id);
   });
+
+  it("advances reminder by X hours when recurrence is EVERY_X_HOURS", () => {
+    const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+    const now = Date.now();
+    const pastTime = new Date(now - 1000).toISOString();
+    const entry: Entry = {
+      id: "hourly-rec-entry",
+      user_id: "user-1",
+      category_id: "cat-1",
+      content: "Recordatorio periódico cada 4 horas",
+      reminder_enabled: true,
+      occurred_at: pastTime,
+      reminder_time: pastTime,
+      reminder_offset_minutes: 0,
+      reminder_recurrence: "EVERY_4_HOURS",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      version: 1,
+    };
+
+    notificationService.scheduleForEntry(entry);
+
+    expect(setTimeoutSpy).toHaveBeenCalled();
+    const lastCall = setTimeoutSpy.mock.calls[setTimeoutSpy.mock.calls.length - 1];
+    const delayArg = lastCall[1];
+    // Next recurrence should be in ~4 hours (14,400,000 ms)
+    expect(delayArg).toBeGreaterThan(14390000);
+    expect(delayArg).toBeLessThan(14410000);
+
+    notificationService.cancelNotification(entry.id);
+  });
+
+  it("stops recurrence if next cycle exceeds reminder_end_time", () => {
+    const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+    const now = Date.now();
+    const pastTime = new Date(now - 1000).toISOString();
+    // End time was in the past or immediately after pastTime (e.g. +1 hour), but cycle is 4 hours
+    const endTime = new Date(now + 60 * 60 * 1000).toISOString();
+
+    const entry: Entry = {
+      id: "hourly-cutoff-entry",
+      user_id: "user-1",
+      category_id: "cat-1",
+      content: "Recordatorio con fecha fin",
+      reminder_enabled: true,
+      occurred_at: pastTime,
+      reminder_time: pastTime,
+      reminder_end_time: endTime,
+      reminder_offset_minutes: 0,
+      reminder_recurrence: "EVERY_4_HOURS",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      version: 1,
+    };
+
+    const initialCalls = setTimeoutSpy.mock.calls.length;
+    notificationService.scheduleForEntry(entry);
+    // Should NOT schedule a new timer because pastTime + 4h > endTime
+    expect(setTimeoutSpy.mock.calls.length).toBe(initialCalls);
+  });
 });
 

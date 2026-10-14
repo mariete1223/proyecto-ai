@@ -1008,6 +1008,8 @@ export function CalendarMonthView({
                       <View style={styles.quickReminderRecurrenceRow}>
                         {[
                           { id: "NONE", label: "Una vez" },
+                          { id: "EVERY_2_HOURS", label: "Cada 2h" },
+                          { id: "EVERY_4_HOURS", label: "Cada 4h" },
                           { id: "DAILY", label: "Diario" },
                           { id: "WEEKLY", label: "Semanal" },
                         ].map((rec) => (

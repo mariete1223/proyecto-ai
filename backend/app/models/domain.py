@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum,
@@ -20,31 +22,95 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 from app.models.base import Base
 from app.models.enums import (
     CategoryKind,
     CorrectionField,
     SaveMode,
+    TaskPriority,
     TaskRecurrence,
     TaskStatus,
     TombstoneEntity,
 )
 
-UUID_TYPE = PGUUID(as_uuid=True)
+
+class GUID(TypeDecorator):
+    """Platform-independent GUID type.
+    Uses PostgreSQL's UUID type, otherwise uses String(36).
+    """
+
+    impl = String(36)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect: Any) -> Any:
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(PGUUID(as_uuid=True))
+        return dialect.type_descriptor(String(36))
+
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return str(value)
+        if isinstance(value, UUID):
+            return str(value)
+        return str(UUID(str(value)))
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return value
+        if not isinstance(value, UUID):
+            return UUID(str(value))
+        return value
+
+
+UUID_TYPE = GUID()
 TIMESTAMP = DateTime(timezone=True)
 
 
+class JSONType(TypeDecorator):
+    """Portable JSON type: uses JSONB on PostgreSQL, TEXT on SQLite/others."""
+
+    impl = Text
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect: Any) -> Any:
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(JSONB())
+        return dialect.type_descriptor(Text())
+
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return value
+        return json.dumps(value)
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return value
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+
+JSON_TYPE = JSONType()
+
+
 def enum_type(enum: type[Any], name: str) -> Enum:
-    return Enum(enum, name=name, native_enum=True, validate_strings=True)
+    return Enum(enum, name=name, native_enum=False, validate_strings=True)
 
 
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint("char_length(btrim(email)) >= 1", name="email_not_blank"),
+        CheckConstraint("char_length(trim(email)) >= 1", name="email_not_blank"),
         CheckConstraint(
-            "char_length(btrim(email_normalized)) >= 1",
+            "char_length(trim(email_normalized)) >= 1",
             name="email_normalized_not_blank",
         ),
         CheckConstraint("updated_at >= created_at", name="timestamps_ordered"),
@@ -67,26 +133,26 @@ class Category(Base):
         UniqueConstraint("user_id", "name_normalized"),
         UniqueConstraint("user_id", "voice_command_normalized"),
         CheckConstraint(
-            "char_length(btrim(name)) BETWEEN 1 AND 100", name="name_length"
+            "char_length(trim(name)) BETWEEN 1 AND 100", name="name_length"
         ),
         CheckConstraint(
-            "char_length(btrim(name_normalized)) >= 1", name="name_normalized_not_blank"
+            "char_length(trim(name_normalized)) >= 1", name="name_normalized_not_blank"
         ),
         CheckConstraint(
-            "char_length(btrim(voice_command)) BETWEEN 1 AND 100",
+            "char_length(trim(voice_command)) BETWEEN 1 AND 100",
             name="voice_command_length",
         ),
         CheckConstraint(
-            "char_length(btrim(voice_command_normalized)) >= 1",
+            "char_length(trim(voice_command_normalized)) >= 1",
             name="voice_command_normalized_not_blank",
         ),
         CheckConstraint(
-            "char_length(btrim(description)) BETWEEN 1 AND 1000",
+            "char_length(trim(description)) BETWEEN 1 AND 1000",
             name="description_length",
         ),
-        CheckConstraint("color ~ '^#[0-9A-F]{6}$'", name="color_format"),
+        CheckConstraint("length(color) = 7 AND color LIKE '#%'", name="color_format"),
         CheckConstraint(
-            "char_length(btrim(icon)) BETWEEN 1 AND 100", name="icon_length"
+            "char_length(trim(icon)) BETWEEN 1 AND 100", name="icon_length"
         ),
         CheckConstraint("updated_at >= created_at", name="timestamps_ordered"),
         CheckConstraint("version >= 1", name="version_positive"),
@@ -121,10 +187,10 @@ class Tag(Base):
         UniqueConstraint("user_id", "id"),
         UniqueConstraint("user_id", "name_normalized"),
         CheckConstraint(
-            "char_length(btrim(name)) BETWEEN 1 AND 100", name="name_length"
+            "char_length(trim(name)) BETWEEN 1 AND 100", name="name_length"
         ),
         CheckConstraint(
-            "char_length(btrim(name_normalized)) >= 1", name="name_normalized_not_blank"
+            "char_length(trim(name_normalized)) >= 1", name="name_normalized_not_blank"
         ),
         CheckConstraint("updated_at >= created_at", name="timestamps_ordered"),
         CheckConstraint("version >= 1", name="version_positive"),
@@ -133,6 +199,7 @@ class Tag(Base):
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
     name: Mapped[str] = mapped_column(String(100))
     name_normalized: Mapped[str] = mapped_column(Text)
+    color: Mapped[str] = mapped_column(String(7), default="#64748B")
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     version: Mapped[int] = mapped_column(Integer)
@@ -149,11 +216,15 @@ class Entry(Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint(
-            "char_length(btrim(content)) BETWEEN 1 AND 10000", name="content_length"
+            "char_length(trim(content)) BETWEEN 1 AND 10000", name="content_length"
         ),
         CheckConstraint(
             "(task_status IS NULL) = (task_recurrence IS NULL)",
             name="task_fields_paired",
+        ),
+        CheckConstraint(
+            "(task_status IS NULL AND task_priority IS NULL) OR (task_status IS NOT NULL)",
+            name="task_priority_only_for_tasks",
         ),
         CheckConstraint("updated_at >= created_at", name="timestamps_ordered"),
         CheckConstraint("version >= 1", name="version_positive"),
@@ -161,15 +232,24 @@ class Entry(Base):
     id: Mapped[UUID] = mapped_column(UUID_TYPE, primary_key=True)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
     category_id: Mapped[UUID] = mapped_column(UUID_TYPE)
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     occurred_at: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)
     content: Mapped[str] = mapped_column(String(10000))
     task_status: Mapped[TaskStatus | None] = mapped_column(
         enum_type(TaskStatus, "task_status"), nullable=True
     )
+    task_priority: Mapped[TaskPriority | None] = mapped_column(
+        enum_type(TaskPriority, "task_priority"), nullable=True
+    )
     task_recurrence: Mapped[TaskRecurrence | None] = mapped_column(
         enum_type(TaskRecurrence, "task_recurrence"), nullable=True
     )
     capture_session_id: Mapped[UUID | None] = mapped_column(UUID_TYPE, nullable=True)
+    reminder_enabled: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
+    reminder_time: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)
+    reminder_end_time: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)
+    reminder_recurrence: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    reminder_offset_minutes: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     version: Mapped[int] = mapped_column(Integer)
@@ -234,8 +314,8 @@ class CaptureCorrection(Base):
     field: Mapped[CorrectionField] = mapped_column(
         enum_type(CorrectionField, "correction_field")
     )
-    interpreted_value: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
-    accepted_value: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    interpreted_value: Mapped[Any | None] = mapped_column(JSON_TYPE, nullable=True)
+    accepted_value: Mapped[Any | None] = mapped_column(JSON_TYPE, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     version: Mapped[int] = mapped_column(Integer)
@@ -255,3 +335,19 @@ class DeletionTombstone(Base):
     entity_id: Mapped[UUID] = mapped_column(UUID_TYPE)
     deleted_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     deleted_version: Mapped[int] = mapped_column(Integer)
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "endpoint", name="uq_push_user_endpoint"),
+    )
+    id: Mapped[UUID] = mapped_column(UUID_TYPE, primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    endpoint: Mapped[str] = mapped_column(Text)
+    p256dh: Mapped[str] = mapped_column(Text)
+    auth: Mapped[str] = mapped_column(Text)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP)
+

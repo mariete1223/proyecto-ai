@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -101,7 +102,11 @@ def check_and_send_due_reminders(db: Session) -> int:
             # Advance recurrence or disable
             rec = entry.reminder_recurrence or "NONE"
             delta: timedelta | None = None
-            if rec == "DAILY":
+            hour_match = re.match(r"^EVERY_(\d+)_HOURS?$", rec)
+            if hour_match:
+                hours = int(hour_match.group(1))
+                delta = timedelta(hours=hours)
+            elif rec == "DAILY":
                 delta = timedelta(days=1)
             elif rec == "WEEKLY":
                 delta = timedelta(days=7)
@@ -109,12 +114,24 @@ def check_and_send_due_reminders(db: Session) -> int:
                 delta = timedelta(days=30)
 
             if delta is not None:
-                if entry.occurred_at is not None:
-                    entry.occurred_at = entry.occurred_at + delta
-                if entry.reminder_time is not None:
-                    entry.reminder_time = entry.reminder_time + delta
+                next_trigger = (entry.reminder_time or trigger_dt) + delta
+                # If reminder_end_time is set, check if next_trigger exceeds it
+                if entry.reminder_end_time is not None:
+                    end_dt = entry.reminder_end_time
+                    if end_dt.tzinfo is None:
+                        end_dt = end_dt.replace(tzinfo=UTC)
+                    else:
+                        end_dt = end_dt.astimezone(UTC)
+                    if next_trigger > end_dt:
+                        entry.reminder_enabled = False
+                    else:
+                        if entry.occurred_at is not None:
+                            entry.occurred_at = entry.occurred_at + delta
+                        entry.reminder_time = next_trigger
                 else:
-                    entry.reminder_time = trigger_dt + delta
+                    if entry.occurred_at is not None:
+                        entry.occurred_at = entry.occurred_at + delta
+                    entry.reminder_time = next_trigger
             else:
                 entry.reminder_enabled = False
 

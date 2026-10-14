@@ -389,3 +389,96 @@ def test_check_and_send_due_reminders_with_offset(
         assert future_entry.reminder_enabled is True
 
 
+def test_check_and_send_due_reminders_hourly_recurrence(
+    test_db_session: Session,
+    test_user: User,
+    default_category: Category,
+) -> None:
+    now = datetime.now(UTC)
+    entry = Entry(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        category_id=default_category.id,
+        content="Pastilla cada 4 horas",
+        title="Medicación",
+        occurred_at=now,
+        reminder_enabled=True,
+        reminder_time=now,
+        reminder_recurrence="EVERY_4_HOURS",
+        created_at=now,
+        updated_at=now,
+        version=1,
+    )
+    test_db_session.add(entry)
+
+    sub = PushSubscription(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        endpoint="https://web.push.apple.com/hourly-rec-test",
+        p256dh="key_p256",
+        auth="auth_key",
+        created_at=now,
+        updated_at=now,
+    )
+    test_db_session.add(sub)
+    test_db_session.commit()
+
+    with patch("app.services.push_worker.send_web_push_detail", return_value=(True, False)):
+        sent = check_and_send_due_reminders(test_db_session)
+        assert sent == 1
+
+    test_db_session.refresh(entry)
+    assert entry.reminder_enabled is True
+    # SQLite TIMESTAMP may return naive datetime; compare normalized to UTC
+    entry_rt = entry.reminder_time if entry.reminder_time.tzinfo else entry.reminder_time.replace(tzinfo=UTC)
+    assert entry_rt == now + timedelta(hours=4)
+
+
+def test_check_and_send_due_reminders_hourly_cutoff_at_end_time(
+    test_db_session: Session,
+    test_user: User,
+    default_category: Category,
+) -> None:
+    now = datetime.now(UTC)
+    # End time is only 2 hours from now, but cycle is 4 hours
+    end_time = now + timedelta(hours=2)
+
+    entry = Entry(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        category_id=default_category.id,
+        content="Aviso con fecha fin superada",
+        title="Tratamiento",
+        occurred_at=now,
+        reminder_enabled=True,
+        reminder_time=now,
+        reminder_end_time=end_time,
+        reminder_recurrence="EVERY_4_HOURS",
+        created_at=now,
+        updated_at=now,
+        version=1,
+    )
+    test_db_session.add(entry)
+
+    sub = PushSubscription(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        endpoint="https://web.push.apple.com/hourly-cutoff-test",
+        p256dh="key_p256",
+        auth="auth_key",
+        created_at=now,
+        updated_at=now,
+    )
+    test_db_session.add(sub)
+    test_db_session.commit()
+
+    with patch("app.services.push_worker.send_web_push_detail", return_value=(True, False)):
+        sent = check_and_send_due_reminders(test_db_session)
+        assert sent == 1
+
+    test_db_session.refresh(entry)
+    # Should be disabled because next cycle (now + 4h) exceeds reminder_end_time (now + 2h)
+    assert entry.reminder_enabled is False
+
+
+

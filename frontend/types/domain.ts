@@ -39,7 +39,18 @@ export interface Tag {
   sync_status: SyncStatus;
 }
 
-export type ReminderRecurrence = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+export type ReminderRecurrence =
+  | "NONE"
+  | "DAILY"
+  | "WEEKLY"
+  | "MONTHLY"
+  | "EVERY_1_HOUR"
+  | "EVERY_2_HOURS"
+  | "EVERY_4_HOURS"
+  | "EVERY_6_HOURS"
+  | "EVERY_8_HOURS"
+  | "EVERY_12_HOURS"
+  | string;
 
 export interface Entry {
   id: string;
@@ -193,7 +204,10 @@ export function formatReminderSummary(entry: {
     ? ` hasta ${formatDateTime(entry.reminder_end_time)}`
     : "";
 
-  if (rec === "DAILY") {
+  const hourMatch = rec ? rec.match(/^EVERY_(\d+)_HOURS?$/) : null;
+  if (hourMatch) {
+    return `${timeDesc} (Cada ${hourMatch[1]}h${endDesc})`;
+  } else if (rec === "DAILY") {
     return `${timeDesc} (Diario${endDesc})`;
   } else if (rec === "WEEKLY") {
     return `${timeDesc} (Semanal${endDesc})`;
