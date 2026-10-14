@@ -512,6 +512,14 @@ export function CalendarMonthView({
                 setEditingReminderEntryId(null);
               }}
             >
+              {hasReminders && (
+                <Text
+                  style={styles.dayReminderBell}
+                  testID={`day-has-reminder-${cell.dateStr}`}
+                >
+                  🔔
+                </Text>
+              )}
               <View style={styles.dayCellHeaderRow}>
                 <Text
                   style={[
@@ -522,14 +530,6 @@ export function CalendarMonthView({
                 >
                   {cell.dayNumber}
                 </Text>
-                {hasReminders && (
-                  <Text
-                    style={styles.dayReminderBell}
-                    testID={`day-has-reminder-${cell.dateStr}`}
-                  >
-                    🔔
-                  </Text>
-                )}
                 {isToday && (
                   <View style={styles.todayPill}>
                     <Text style={styles.todayPillText}>HOY</Text>
@@ -1302,6 +1302,8 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     padding: 4,
     alignItems: "center",
+    position: "relative",
+    overflow: "hidden",
   },
   dayNumber: {
     fontSize: 12,
@@ -1659,7 +1661,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
+    gap: 3,
+    maxWidth: "100%",
   },
   dayNumberSelected: {
     color: "#38BDF8",
@@ -1670,7 +1673,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   dayReminderBell: {
-    fontSize: 10,
+    position: "absolute",
+    top: 2,
+    right: 2,
+    fontSize: 9,
+    lineHeight: 11,
+    zIndex: 2,
   },
   todayPill: {
     backgroundColor: "#10B981",
