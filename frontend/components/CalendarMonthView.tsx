@@ -22,6 +22,7 @@ import {
   Entry,
   ReminderRecurrence,
   Tag,
+  TaskStatus,
   formatDateTime,
   formatReminderSummary,
   getEntryDisplayTitle,
@@ -120,7 +121,7 @@ export function CalendarMonthView({
   };
 
   const handleToggleTaskStatus = async (entry: Entry) => {
-    const nextStatus = entry.task_status === "COMPLETED" ? "PENDING" : "COMPLETED";
+    const nextStatus: TaskStatus = entry.task_status === "DONE" ? "PENDING" : "DONE";
     try {
       await updateLocalEntry(db, userId, entry.id, {
         task_status: nextStatus,
@@ -139,7 +140,7 @@ export function CalendarMonthView({
           : null,
       );
       showToast(
-        nextStatus === "COMPLETED"
+        nextStatus === "DONE"
           ? "✅ Tarea completada"
           : "⏳ Tarea marcada como pendiente",
       );
@@ -787,7 +788,7 @@ export function CalendarMonthView({
             selectedDayEntries.items.map((ent) => {
               const cat = categoryMap.get(ent.category_id);
               const isTask = cat?.kind === "TASK" || ent.task_status !== null;
-              const isCompleted = ent.task_status === "COMPLETED";
+              const isCompleted = ent.task_status === "DONE";
               const timeNorm =
                 normalizeUtcIso(ent.occurred_at) || ent.occurred_at;
               const timeStr = timeNorm

@@ -2,10 +2,10 @@ import { notificationService } from "./notificationService";
 import { Entry } from "../types/domain";
 
 describe("NotificationService", () => {
-  const originalFetch = global.fetch;
+  const originalFetch = (globalThis as any).fetch;
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    (globalThis as any).fetch = originalFetch;
     jest.restoreAllMocks();
   });
 
@@ -23,7 +23,7 @@ describe("NotificationService", () => {
   });
 
   it("does not schedule notification if reminder_enabled is false", () => {
-    const entry: Entry = {
+    const entry = {
       id: "entry-1",
       user_id: "user-1",
       category_id: "cat-1",
@@ -32,7 +32,7 @@ describe("NotificationService", () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       version: 1,
-    };
+    } as Entry;
 
     expect(() => {
       notificationService.scheduleForEntry(entry);
@@ -46,7 +46,7 @@ describe("NotificationService", () => {
 
   it("does not fire duplicate local notification when reminder time has elapsed (in the past)", () => {
     const sendSpy = jest.spyOn(notificationService, "sendNotification");
-    const pastEntry: Entry = {
+    const pastEntry = {
       id: "past-entry-1",
       user_id: "user-1",
       category_id: "cat-1",
@@ -56,7 +56,7 @@ describe("NotificationService", () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       version: 1,
-    };
+    } as Entry;
 
     notificationService.scheduleForEntry(pastEntry);
     expect(sendSpy).not.toHaveBeenCalled();
@@ -68,7 +68,7 @@ describe("NotificationService", () => {
     // Event is 2 hours (120 mins) in future, offset is 60 mins -> diffMs should be ~60 mins (3600000ms), NOT 120 mins
     const eventTime = new Date(now + 120 * 60 * 1000).toISOString();
 
-    const entry: Entry = {
+    const entry = {
       id: "offset-entry-1",
       user_id: "user-1",
       category_id: "cat-1",
@@ -81,7 +81,7 @@ describe("NotificationService", () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       version: 1,
-    };
+    } as Entry;
 
     notificationService.scheduleForEntry(entry);
 
@@ -98,7 +98,7 @@ describe("NotificationService", () => {
     const setTimeoutSpy = jest.spyOn(window, "setTimeout");
     const now = Date.now();
     const pastTime = new Date(now - 1000).toISOString();
-    const entry: Entry = {
+    const entry = {
       id: "hourly-rec-entry",
       user_id: "user-1",
       category_id: "cat-1",
@@ -111,7 +111,7 @@ describe("NotificationService", () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       version: 1,
-    };
+    } as Entry;
 
     notificationService.scheduleForEntry(entry);
 
@@ -132,7 +132,7 @@ describe("NotificationService", () => {
     // End time was in the past or immediately after pastTime (e.g. +1 hour), but cycle is 4 hours
     const endTime = new Date(now + 60 * 60 * 1000).toISOString();
 
-    const entry: Entry = {
+    const entry = {
       id: "hourly-cutoff-entry",
       user_id: "user-1",
       category_id: "cat-1",
@@ -146,7 +146,7 @@ describe("NotificationService", () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       version: 1,
-    };
+    } as Entry;
 
     const initialCalls = setTimeoutSpy.mock.calls.length;
     notificationService.scheduleForEntry(entry);
@@ -160,7 +160,7 @@ describe("NotificationService", () => {
     // Event is 48h (2880 mins) in the future
     const eventTime = new Date(now + 48 * 60 * 60 * 1000).toISOString();
 
-    const entry: Entry = {
+    const entry = {
       id: "multi-offset-entry-1",
       user_id: "user-1",
       category_id: "cat-1",
@@ -172,7 +172,7 @@ describe("NotificationService", () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       version: 1,
-    };
+    } as Entry;
 
     const initialCalls = setTimeoutSpy.mock.calls.length;
     notificationService.scheduleForEntry(entry);

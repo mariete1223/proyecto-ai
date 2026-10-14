@@ -21,7 +21,10 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
       ? window.atob.bind(window)
       : typeof atob !== "undefined"
         ? atob
-        : (b: string) => Buffer.from(b, "base64").toString("binary");
+        : (b: string) => {
+            const maybeBuffer = (globalThis as any).Buffer;
+            return maybeBuffer ? maybeBuffer.from(b, "base64").toString("binary") : "";
+          };
   const rawData = atobFn(base64);
   const outputArray = new Uint8Array(rawData.length);
   for (let i = 0; i < rawData.length; ++i) {
