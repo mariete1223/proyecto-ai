@@ -161,8 +161,8 @@ class Category(Base):
             "user_id",
             "kind",
             unique=True,
-            postgresql_where=text("kind <> 'STANDARD'"),
-            sqlite_where=text("kind <> 'STANDARD'"),
+            postgresql_where=text("kind IN ('EVENT', 'CAPTURE')"),
+            sqlite_where=text("kind IN ('EVENT', 'CAPTURE')"),
         ),
     )
 

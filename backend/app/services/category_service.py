@@ -66,6 +66,14 @@ INITIAL_CATEGORIES: list[dict[str, Any]] = [
         "color": "#FDD835",
         "icon": "book-open",
     },
+    {
+        "kind": CategoryKind.TASK,
+        "name": "Alerta",
+        "voice_command": "alerta",
+        "description": "Categoría predeterminada para alertas y avisos puntuales",
+        "color": "#EF4444",
+        "icon": "bell",
+    },
 ]
 
 
@@ -99,7 +107,7 @@ def create_category(db: Session, user_id: uuid.UUID, data: CategoryCreate) -> Ca
             "A category with this voice command already exists."
         )
 
-    if data.kind != CategoryKind.STANDARD:
+    if data.kind in (CategoryKind.EVENT, CategoryKind.CAPTURE):
         stmt_kind = select(Category).where(
             Category.user_id == user_id, Category.kind == data.kind
         )
@@ -107,6 +115,13 @@ def create_category(db: Session, user_id: uuid.UUID, data: CategoryCreate) -> Ca
             raise CategoryAlreadyExistsError(
                 f"A special category of kind '{data.kind.value}' already exists."
             )
+
+    color_upper = data.color.strip().upper()
+    stmt_color = select(Category).where(
+        Category.user_id == user_id, Category.color == color_upper
+    )
+    if db.execute(stmt_color).scalar_one_or_none() is not None:
+        raise CategoryAlreadyExistsError("A category with this color already exists.")
 
     now = datetime.now(UTC)
     category = Category(
@@ -137,14 +152,9 @@ def seed_initial_categories(db: Session, user_id: uuid.UUID) -> list[Category]:
         name = item["name"]
         name_norm = normalize_text_key(name)
 
-        if kind != CategoryKind.STANDARD:
-            stmt_check = select(Category).where(
-                Category.user_id == user_id, Category.kind == kind
-            )
-        else:
-            stmt_check = select(Category).where(
-                Category.user_id == user_id, Category.name_normalized == name_norm
-            )
+        stmt_check = select(Category).where(
+            Category.user_id == user_id, Category.name_normalized == name_norm
+        )
 
         if db.execute(stmt_check).scalar_one_or_none() is not None:
             continue
@@ -175,14 +185,21 @@ def get_category_by_id(
     return category
 
 
+CANONICAL_CATEGORY_ORDER: dict[str, int] = {
+    "notas": 1,
+    "tareas": 2,
+    "eventos": 3,
+    "proyectos": 4,
+    "alerta": 5,
+}
+
+
 def list_categories(db: Session, user_id: uuid.UUID) -> list[Category]:
-    """List all categories owned by a user."""
-    stmt = (
-        select(Category)
-        .where(Category.user_id == user_id)
-        .order_by(Category.created_at)
-    )
-    return list(db.execute(stmt).scalars().all())
+    """List all categories owned by a user in alphabetical order."""
+    stmt = select(Category).where(Category.user_id == user_id)
+    cats = list(db.execute(stmt).scalars().all())
+    cats.sort(key=lambda c: unicodedata.normalize("NFKD", c.name).casefold())
+    return cats
 
 
 def update_category(
@@ -228,7 +245,18 @@ def update_category(
     if data.description is not None:
         category.description = data.description.strip()
     if data.color is not None:
-        category.color = data.color
+        color_upper = data.color.strip().upper()
+        if color_upper != category.color.upper():
+            stmt_color = select(Category).where(
+                Category.user_id == user_id,
+                Category.color == color_upper,
+                Category.id != category_id,
+            )
+            if db.execute(stmt_color).scalar_one_or_none() is not None:
+                raise CategoryAlreadyExistsError(
+                    "A category with this color already exists."
+                )
+            category.color = color_upper
     if data.icon is not None:
         category.icon = data.icon.strip()
 

@@ -5,7 +5,7 @@ import {
   TaskRecurrence,
   TaskStatus,
 } from "../types/domain";
-import { getCategoryById } from "./categories";
+import { CANONICAL_CATEGORIES, getCategoryById } from "./categories";
 import { DatabaseAdapter, generateUuid } from "./database";
 
 export interface CreateEntryData {
@@ -118,7 +118,30 @@ export async function createLocalEntry(
   const title = data.title ? data.title.trim() : null;
   const occurredAt = data.occurred_at ?? null;
   const tagIds = Array.from(new Set(data.tag_ids ?? []));
-  const reminderOffsetsMinutes = data.reminder_offsets_minutes ?? null;
+  const isAlertCategory =
+    category.id === CANONICAL_CATEGORIES.ALERTA.id ||
+    category.name_normalized === "alerta" ||
+    category.voice_command_normalized === "alerta";
+
+  let reminderEnabled = data.reminder_enabled;
+  let reminderOffsetMinutes = data.reminder_offset_minutes;
+  let reminderOffsetsMinutes = data.reminder_offsets_minutes ?? null;
+
+  if (isAlertCategory && occurredAt) {
+    if (reminderEnabled === undefined || reminderEnabled === null) {
+      reminderEnabled = true;
+    }
+    if (reminderOffsetMinutes === undefined || reminderOffsetMinutes === null) {
+      reminderOffsetMinutes =
+        reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
+          ? reminderOffsetsMinutes[0]
+          : 0;
+    }
+    if (reminderOffsetsMinutes === null && reminderEnabled) {
+      reminderOffsetsMinutes = [reminderOffsetMinutes ?? 0];
+    }
+  }
+
   const reminderOffsetsStr = reminderOffsetsMinutes ? JSON.stringify(reminderOffsetsMinutes) : null;
 
   const entry: Entry = {
@@ -132,11 +155,11 @@ export async function createLocalEntry(
     task_recurrence: taskRecurrence,
     task_priority: taskPriority,
     capture_session_id: data.capture_session_id ?? null,
-    reminder_enabled: data.reminder_enabled ?? null,
+    reminder_enabled: reminderEnabled ?? null,
     reminder_time: data.reminder_time ?? null,
     reminder_end_time: data.reminder_end_time ?? null,
     reminder_recurrence: data.reminder_recurrence ?? null,
-    reminder_offset_minutes: data.reminder_offset_minutes ?? null,
+    reminder_offset_minutes: reminderOffsetMinutes ?? null,
     reminder_offsets_minutes: reminderOffsetsMinutes,
     created_at: now,
     updated_at: now,

@@ -8,6 +8,7 @@ import {
   ParsedSpokenCommand,
   parseSpokenCommand,
 } from "../services/voiceParser";
+import { notificationService } from "../services/notificationService";
 import { Entry } from "../types/domain";
 
 export interface FastForwardCaptureProps {
@@ -56,12 +57,21 @@ export function FastForwardCapture({
 
       const entry = await createLocalEntry(db, userId, {
         category_id: parsed.categoryId,
+        title: parsed.title ?? null,
         content: parsed.content,
         occurred_at: parsed.occurredAt,
         task_status: isTask ? "PENDING" : null,
         task_recurrence: isTask ? "ONCE" : null,
+        task_priority: isTask ? (parsed.taskPriority ?? "MEDIUM") : null,
+        reminder_enabled: parsed.reminderEnabled ?? null,
+        reminder_offset_minutes: parsed.reminderOffsetMinutes ?? null,
+        reminder_offsets_minutes: parsed.reminderOffsetsMinutes ?? null,
         tag_ids: parsed.tagIds,
       });
+
+      if (entry.reminder_enabled) {
+        notificationService.scheduleForEntry(entry);
+      }
 
       setCreatedEntry(entry);
       if (onEntryCreated) {

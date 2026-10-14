@@ -1,6 +1,7 @@
 import {
   createLocalCategory,
   deleteLocalCategory,
+  ensureCanonicalCategories,
   getCategoryById,
   listCategories,
   updateLocalCategory,
@@ -84,5 +85,111 @@ describe("Local Categories Storage Layer", () => {
     await deleteLocalCategory(db, userId, cat.id);
     const fetched = await getCategoryById(db, userId, cat.id);
     expect(fetched).toBeNull();
+  });
+
+  it("seeds canonical categories for a fresh user including Alerta", async () => {
+    await ensureCanonicalCategories(db, "fresh-user");
+    const categories = await listCategories(db, "fresh-user");
+    expect(categories.length).toBe(5);
+    const names = categories.map((c) => c.name);
+    expect(names).toContain("Notas");
+    expect(names).toContain("Tareas");
+    expect(names).toContain("Eventos");
+    expect(names).toContain("Proyectos");
+    expect(names).toContain("Alerta");
+
+    const alerta = categories.find((c) => c.name === "Alerta");
+    expect(alerta).toBeDefined();
+    expect(alerta?.kind).toBe("TASK");
+    expect(alerta?.voice_command).toBe("alerta");
+    expect(alerta?.color).toBe("#EF4444");
+    expect(alerta?.icon).toBe("bell");
+  });
+
+  it("migrates existing users to add canonical Alerta category if missing and not deleted", async () => {
+    // Simular un usuario previo que solo tiene Notas, Tareas, Eventos
+    await createLocalCategory(db, "migrated-user", {
+      name: "Notas",
+      voice_command: "nota",
+      kind: "STANDARD",
+    });
+    await createLocalCategory(db, "migrated-user", {
+      name: "Tareas",
+      voice_command: "tarea",
+      kind: "TASK",
+    });
+
+    let cats = await listCategories(db, "migrated-user");
+    expect(cats.length).toBe(2);
+
+    await ensureCanonicalCategories(db, "migrated-user");
+
+    cats = await listCategories(db, "migrated-user");
+    const names = cats.map((c) => c.name);
+    expect(names).toContain("Alerta");
+  });
+
+  it("does not recreate Proyectos or Alerta after they are deleted", async () => {
+    await ensureCanonicalCategories(db, userId);
+    let categories = await listCategories(db, userId);
+    expect(categories.length).toBe(5);
+
+    const proyectos = categories.find((c) => c.name === "Proyectos");
+    const alerta = categories.find((c) => c.name === "Alerta");
+    expect(proyectos).toBeDefined();
+    expect(alerta).toBeDefined();
+
+    // Borrar Proyectos y Alerta
+    await deleteLocalCategory(db, userId, proyectos!.id);
+    await deleteLocalCategory(db, userId, alerta!.id);
+
+    // Verificar que se registraron los tombstones
+    const tombstones = await db.getAllAsync<{ entity_id: string }>(
+      `SELECT entity_id FROM deletion_tombstones WHERE user_id = ? AND entity_type = 'CATEGORY';`,
+      [userId],
+    );
+    const tombstoneIds = tombstones.map((t) => t.entity_id);
+    expect(tombstoneIds).toContain(proyectos!.id);
+    expect(tombstoneIds).toContain(alerta!.id);
+
+    // Volver a llamar a ensureCanonicalCategories (como ocurre en refrescos / arranques)
+    await ensureCanonicalCategories(db, userId);
+
+    categories = await listCategories(db, userId);
+    expect(categories.find((c) => c.name === "Proyectos")).toBeUndefined();
+    expect(categories.find((c) => c.name === "Alerta")).toBeUndefined();
+    expect(categories.length).toBe(3);
+  });
+
+  it("prevents creating or updating categories with duplicate colors for same user", async () => {
+    const cat1 = await createLocalCategory(db, userId, {
+      name: "Cat 1",
+      voice_command: "cat1",
+      color: "#FF0000",
+    });
+
+    await expect(
+      createLocalCategory(db, userId, {
+        name: "Cat 2",
+        voice_command: "cat2",
+        color: "#ff0000",
+      }),
+    ).rejects.toThrow("El color ya está en uso por otra categoría.");
+
+    await updateLocalCategory(db, userId, cat1.id, {
+      color: "#FF0000",
+    });
+
+    const cat2 = await createLocalCategory(db, userId, {
+      name: "Cat 2",
+      voice_command: "cat2",
+      color: "#00FF00",
+    });
+
+    await expect(
+      updateLocalCategory(db, userId, cat2.id, {
+        color: "#FF0000",
+      }),
+    ).rejects.toThrow("El color ya está en uso por otra categoría.");
   });
 });

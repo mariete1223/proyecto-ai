@@ -127,4 +127,79 @@ describe("Local Entries and Tasks Storage Layer", () => {
     const tombstones = db.getTableNames().includes("deletion_tombstones");
     expect(tombstones).toBe(true);
   });
+
+  describe("Task Priority in Entries", () => {
+    it("creates a task with explicit priority and defaults to MEDIUM when omitted", async () => {
+      const highTask = await createLocalEntry(db, userId, {
+        category_id: taskCatId,
+        content: "High priority task",
+        task_priority: "HIGH",
+      });
+      expect(highTask.task_priority).toBe("HIGH");
+
+      const defaultTask = await createLocalEntry(db, userId, {
+        category_id: taskCatId,
+        content: "Default priority task",
+      });
+      expect(defaultTask.task_priority).toBe("MEDIUM");
+
+      const fetchedHigh = await getEntryById(db, userId, highTask.id);
+      expect(fetchedHigh?.task_priority).toBe("HIGH");
+    });
+
+    it("prevents setting task_priority on non-task category", async () => {
+      await expect(
+        createLocalEntry(db, userId, {
+          category_id: stdCatId,
+          content: "Invalid task priority on standard note",
+          task_priority: "HIGH",
+        }),
+      ).rejects.toThrow("Task fields can only be set for categories of kind TASK.");
+    });
+
+    it("updates task_priority successfully", async () => {
+      const task = await createLocalEntry(db, userId, {
+        category_id: taskCatId,
+        content: "Task to change priority",
+        task_priority: "LOW",
+      });
+      expect(task.task_priority).toBe("LOW");
+
+      const updated = await updateLocalEntry(db, userId, task.id, {
+        task_priority: "HIGH",
+      });
+      expect(updated.task_priority).toBe("HIGH");
+
+      const fetched = await getEntryById(db, userId, task.id);
+      expect(fetched?.task_priority).toBe("HIGH");
+    });
+
+    it("automatically enables reminder for Alerta category when occurred_at is set", async () => {
+      const alertaCat = await createLocalCategory(db, userId, {
+        name: "Alerta",
+        voice_command: "alerta",
+        kind: "TASK",
+      });
+
+      const entry = await createLocalEntry(db, userId, {
+        category_id: alertaCat.id,
+        content: "Tomar antibiótico",
+        occurred_at: "2026-10-15T08:00:00.000Z",
+      });
+
+      expect(entry.reminder_enabled).toBe(true);
+      expect(entry.reminder_offset_minutes).toBe(0);
+      expect(entry.reminder_offsets_minutes).toEqual([0]);
+
+      // Si el usuario especificó explícitamente desactivarlo, se respeta false
+      const disabledEntry = await createLocalEntry(db, userId, {
+        category_id: alertaCat.id,
+        content: "Alerta sin notificacion",
+        occurred_at: "2026-10-15T09:00:00.000Z",
+        reminder_enabled: false,
+      });
+
+      expect(disabledEntry.reminder_enabled).toBe(false);
+    });
+  });
 });

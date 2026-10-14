@@ -136,18 +136,18 @@ def test_create_category_duplicate_voice_command_raises_error(
 def test_create_duplicate_special_kind_raises_error(db_session: Session) -> None:
     user = create_user(db_session, "user@example.com", "Password123!")
     data1 = CategoryCreate(
-        kind=CategoryKind.TASK,
-        name="Tarea 1",
-        voice_command="tarea 1",
+        kind=CategoryKind.EVENT,
+        name="Evento 1",
+        voice_command="evento 1",
         color="#112233",
-        icon="check",
+        icon="calendar",
     )
     data2 = CategoryCreate(
-        kind=CategoryKind.TASK,
-        name="Tarea 2",
-        voice_command="tarea 2",
+        kind=CategoryKind.EVENT,
+        name="Evento 2",
+        voice_command="evento 2",
         color="#445566",
-        icon="check-double",
+        icon="calendar-check",
     )
 
     create_category(db_session, user.id, data1)
@@ -155,7 +155,7 @@ def test_create_duplicate_special_kind_raises_error(db_session: Session) -> None
     with pytest.raises(CategoryAlreadyExistsError) as exc_info:
         create_category(db_session, user.id, data2)
 
-    assert "kind 'TASK' already exists" in str(exc_info.value)
+    assert "kind 'EVENT' already exists" in str(exc_info.value)
 
 
 def test_list_and_get_category(db_session: Session) -> None:
@@ -214,10 +214,21 @@ def test_seed_initial_categories_is_idempotent(db_session: Session) -> None:
     user = create_user(db_session, "seed_user@example.com", "Password123!")
 
     first_seed = seed_initial_categories(db_session, user.id)
-    assert len(first_seed) == 5
+    assert len(first_seed) == 6
 
     all_categories = list_categories(db_session, user.id)
-    assert len(all_categories) == 5
+    assert len(all_categories) == 6
+
+    names = {c.name for c in all_categories}
+    assert "Alerta" in names
+    assert "Tarea" in names
+    assert "Evento" in names
+    assert "Captura" in names
+
+    alerta_cat = next(c for c in all_categories if c.name == "Alerta")
+    assert alerta_cat.kind == CategoryKind.TASK
+    assert alerta_cat.voice_command == "alerta"
+    assert alerta_cat.color == "#EF4444"
 
     kinds = {c.kind for c in all_categories}
     assert CategoryKind.TASK in kinds
@@ -228,4 +239,43 @@ def test_seed_initial_categories_is_idempotent(db_session: Session) -> None:
     assert len(second_seed) == 0
 
     all_after_second = list_categories(db_session, user.id)
-    assert len(all_after_second) == 5
+    assert len(all_after_second) == 6
+
+
+def test_create_category_duplicate_color_raises_error(db_session: Session) -> None:
+    user = create_user(db_session, "color_user@example.com", "Password123!")
+    cat1 = CategoryCreate(
+        name="Cat 1", voice_command="cat 1", color="#FF0000", icon="icon1"
+    )
+    cat2 = CategoryCreate(
+        name="Cat 2", voice_command="cat 2", color="#ff0000", icon="icon2"
+    )
+
+    create_category(db_session, user.id, cat1)
+    with pytest.raises(CategoryAlreadyExistsError) as exc_info:
+        create_category(db_session, user.id, cat2)
+
+    assert "color already exists" in str(exc_info.value)
+
+
+def test_update_category_duplicate_color_raises_error(db_session: Session) -> None:
+    user = create_user(db_session, "color_update_user@example.com", "Password123!")
+    create_category(
+        db_session,
+        user.id,
+        CategoryCreate(name="Cat 1", voice_command="cat 1", color="#111111", icon="i1"),
+    )
+    cat2 = create_category(
+        db_session,
+        user.id,
+        CategoryCreate(name="Cat 2", voice_command="cat 2", color="#222222", icon="i2"),
+    )
+
+    # Updating with own color should succeed
+    update_category(db_session, user.id, cat2.id, CategoryUpdate(color="#222222"))
+
+    # Updating to cat1's color should raise error
+    with pytest.raises(CategoryAlreadyExistsError) as exc_info:
+        update_category(db_session, user.id, cat2.id, CategoryUpdate(color="#111111"))
+
+    assert "color already exists" in str(exc_info.value)

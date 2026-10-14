@@ -4,7 +4,17 @@ import { listCategories } from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
 import { createLocalEntry } from "../db/entries";
 import { listTags } from "../db/tags";
-import { Category, Tag, TaskRecurrence, TaskStatus } from "../types/domain";
+import {
+  Category,
+  ReminderRecurrence,
+  Tag,
+  TaskPriority,
+  TaskRecurrence,
+  TaskStatus,
+} from "../types/domain";
+import { DateTimePicker } from "./DateTimePicker";
+import { ReminderConfigSection } from "./ReminderConfigSection";
+import { notificationService } from "../services/notificationService";
 
 export interface EntryFormProps {
   db: DatabaseAdapter;
@@ -16,15 +26,33 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [title, setTitle] = useState<string>("");
   const [content, setContent] = useState<string>("");
   const [occurredAt, setOccurredAt] = useState<string>("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [taskStatus, setTaskStatus] = useState<TaskStatus>("PENDING");
   const [taskRecurrence, setTaskRecurrence] = useState<TaskRecurrence>("ONCE");
+  const [taskPriority, setTaskPriority] = useState<TaskPriority>("MEDIUM");
+
+  // Recordatorios y notificaciones
+  const [reminderEnabled, setReminderEnabled] = useState<boolean>(false);
+  const [reminderTime, setReminderTime] = useState<string>("");
+  const [reminderEndTime, setReminderEndTime] = useState<string>("");
+  const [reminderOffsetMinutes, setReminderOffsetMinutes] = useState<number>(0);
+  const [reminderRecurrence, setReminderRecurrence] = useState<ReminderRecurrence>("NONE");
 
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.scrollTo === "function"
+    ) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -80,16 +108,34 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
     try {
       const entry = await createLocalEntry(db, userId, {
         category_id: selectedCategoryId,
+        title: title.trim() ? title.trim() : null,
         content,
         occurred_at: occurredAt.trim() ? occurredAt.trim() : null,
         task_status: isTaskCategory ? taskStatus : null,
         task_recurrence: isTaskCategory ? taskRecurrence : null,
+        task_priority: isTaskCategory ? taskPriority : null,
+        reminder_enabled: reminderEnabled,
+        reminder_time: reminderTime.trim() ? reminderTime.trim() : null,
+        reminder_end_time: reminderEndTime.trim() ? reminderEndTime.trim() : null,
+        reminder_recurrence: reminderRecurrence,
+        reminder_offset_minutes: reminderOffsetMinutes,
         tag_ids: selectedTagIds,
       });
 
+      // Programar la notificación en el servicio
+      if (reminderEnabled) {
+        notificationService.scheduleForEntry(entry);
+      }
+
       setSuccessMessage("¡Entrada guardada correctamente!");
+      setTitle("");
       setContent("");
       setOccurredAt("");
+      setReminderEnabled(false);
+      setReminderTime("");
+      setReminderEndTime("");
+      setReminderOffsetMinutes(0);
+      setReminderRecurrence("NONE");
       setSelectedTagIds([]);
       if (onSuccess) {
         onSuccess(entry.id);
@@ -131,7 +177,17 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
                 styles.chip,
                 selectedCategoryId === cat.id && styles.chipActive,
               ]}
-              onPress={() => setSelectedCategoryId(cat.id)}
+              onPress={() => {
+                setSelectedCategoryId(cat.id);
+                if (
+                  cat.name_normalized === "alerta" ||
+                  cat.voice_command_normalized === "alerta" ||
+                  cat.name.toLowerCase() === "alerta"
+                ) {
+                  setReminderEnabled(true);
+                  setReminderOffsetMinutes(0);
+                }
+              }}
             >
               <Text
                 style={[
@@ -202,8 +258,49 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
               </Pressable>
             ))}
           </View>
+
+          <Text style={styles.label}>Prioridad</Text>
+          <View style={styles.row}>
+            {(
+              [
+                { id: "HIGH", label: "🔴 Alta", testId: "priority-HIGH" },
+                { id: "MEDIUM", label: "🟡 Media", testId: "priority-MEDIUM" },
+                { id: "LOW", label: "🔵 Baja", testId: "priority-LOW" },
+              ] as const
+            ).map((p) => (
+              <Pressable
+                key={p.id}
+                testID={p.testId}
+                style={[
+                  styles.smallChip,
+                  taskPriority === p.id && styles.smallChipActive,
+                ]}
+                onPress={() => setTaskPriority(p.id)}
+              >
+                <Text
+                  style={[
+                    styles.smallChipText,
+                    taskPriority === p.id && styles.smallChipTextActive,
+                  ]}
+                >
+                  {p.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       )}
+
+      {/* Title */}
+      <Text style={styles.label}>Título (Opcional)</Text>
+      <TextInput
+        testID="input-title"
+        style={styles.input}
+        placeholder="Ej. Renovar demanda de empleo en el SERV"
+        placeholderTextColor="#64748B"
+        value={title}
+        onChangeText={setTitle}
+      />
 
       {/* Content */}
       <Text style={styles.label}>Contenido</Text>
@@ -218,83 +315,27 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
       />
 
       {/* Occurred At Date Selection */}
-      <Text style={styles.label}>Fecha y Hora de la Entrada</Text>
-      <View style={styles.datePresetsRow} testID="date-presets">
-        <Pressable
-          style={styles.presetChip}
-          onPress={() => setOccurredAt(new Date().toISOString())}
-          testID="preset-now"
-        >
-          <Text style={styles.presetChipText}>⚡ Ahora</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.presetChip}
-          onPress={() => {
-            const d = new Date();
-            d.setHours(18, 0, 0, 0);
-            setOccurredAt(d.toISOString());
-          }}
-          testID="preset-today-18"
-        >
-          <Text style={styles.presetChipText}>📅 Hoy 18:00</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.presetChip}
-          onPress={() => {
-            const d = new Date();
-            d.setDate(d.getDate() + 1);
-            d.setHours(9, 0, 0, 0);
-            setOccurredAt(d.toISOString());
-          }}
-          testID="preset-tomorrow-9"
-        >
-          <Text style={styles.presetChipText}>🌅 Mañana 09:00</Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.presetChip, !occurredAt && styles.presetChipActive]}
-          onPress={() => setOccurredAt("")}
-          testID="preset-none"
-        >
-          <Text style={styles.presetChipText}>❌ Sin Fecha</Text>
-        </Pressable>
-      </View>
-
-      <TextInput
+      <DateTimePicker
         testID="input-date"
-        style={styles.input}
-        placeholder="Seleccionar o escribir fecha (YYYY-MM-DDTHH:MM)"
-        placeholderTextColor="#94A3B8"
-        // @ts-expect-error - web specific type
-        type="datetime-local"
-        value={
-          occurredAt
-            ? occurredAt.length > 16
-              ? occurredAt.substring(0, 16)
-              : occurredAt
-            : ""
-        }
-        onChangeText={(val) => {
-          if (!val) {
-            setOccurredAt("");
-          } else {
-            try {
-              const d = new Date(val);
-              setOccurredAt(isNaN(d.getTime()) ? val : d.toISOString());
-            } catch {
-              setOccurredAt(val);
-            }
-          }
-        }}
+        value={occurredAt}
+        onChange={setOccurredAt}
+        label="Fecha y Hora de la Entrada"
       />
 
-      {occurredAt ? (
-        <Text style={styles.datePreviewText}>
-          {`Selected: ${new Date(occurredAt).toLocaleString()}`}
-        </Text>
-      ) : null}
+      {/* Recordatorios y Notificaciones */}
+      <ReminderConfigSection
+        enabled={reminderEnabled}
+        onEnabledChange={setReminderEnabled}
+        reminderTime={reminderTime}
+        onReminderTimeChange={setReminderTime}
+        reminderEndTime={reminderEndTime}
+        onReminderEndTimeChange={setReminderEndTime}
+        offsetMinutes={reminderOffsetMinutes}
+        onOffsetMinutesChange={setReminderOffsetMinutes}
+        recurrence={reminderRecurrence}
+        onRecurrenceChange={setReminderRecurrence}
+        occurredAt={occurredAt}
+      />
 
       {/* Tags Selection */}
       <Text style={styles.label}>Etiquetas (Opcional)</Text>

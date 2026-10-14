@@ -35,6 +35,22 @@ describe("Spoken Command Parser (voiceParser)", () => {
       version: 1,
       sync_status: "SYNCED",
     },
+    {
+      id: "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
+      user_id: "user-1",
+      kind: "TASK",
+      name: "Alerta",
+      name_normalized: "alerta",
+      voice_command: "alerta",
+      voice_command_normalized: "alerta",
+      description: "Categoría para alertas",
+      color: "#EF4444",
+      icon: "bell",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      version: 1,
+      sync_status: "SYNCED",
+    },
   ];
 
   const sampleTags: Tag[] = [
@@ -791,6 +807,58 @@ describe("Spoken Command Parser (voiceParser)", () => {
       expect(result.isSuccess).toBe(true);
       expect(result.reminderEnabled).toBe(false);
       expect(result.content).toBe("reunión semanal");
+    });
+
+    it("interprets voice command starting with 'alerta' and activates notification automatically for scheduled time", () => {
+      const transcript = "alerta comprar medicamentos a las 6 de la tarde";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.categoryId).toBe("c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9");
+      expect(result.reminderEnabled).toBe(true);
+      expect(result.reminderOffsetMinutes).toBe(0);
+      expect(result.reminderOffsetsMinutes).toEqual([0]);
+      expect(result.content).toBe("comprar medicamentos");
+      expect(result.occurredAt).toBeDefined();
+    });
+
+    it("interprets 'alerta' with custom notification offset", () => {
+      const transcript =
+        "alerta para mañana a las 10:00 entrega de proyecto con aviso 1 hora antes";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.reminderEnabled).toBe(true);
+      expect(result.reminderOffsetMinutes).toBe(60);
+      expect(result.reminderOffsetsMinutes).toEqual([60]);
+      expect(result.content).toBe("entrega de proyecto");
+    });
+
+    it("interprets 'alerta' with explicit 'sin aviso' preserving user intent", () => {
+      const transcript = "alerta para mañana a las 10:00 reunión sin aviso";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.reminderEnabled).toBe(false);
+      expect(result.content).toBe("reunión");
     });
   });
 });
