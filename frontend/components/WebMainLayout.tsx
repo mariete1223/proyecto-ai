@@ -27,6 +27,7 @@ export interface WebMainLayoutProps {
   currentUserEmail?: string | null;
   onOpenAuth?: () => void;
   onLogout?: () => void;
+  onOpenOnboarding?: () => void;
   children?: React.ReactNode;
 }
 
@@ -39,6 +40,7 @@ export function WebMainLayout({
   currentUserEmail,
   onOpenAuth,
   onLogout,
+  onOpenOnboarding,
   children,
 }: WebMainLayoutProps) {
   const { width } = useWindowDimensions();
@@ -151,6 +153,21 @@ export function WebMainLayout({
                     ? "Backend Desconectado ⚠️"
                     : "Comprobando..."}
             </Text>
+          </Pressable>
+
+          {/* Guía Tutorial Button */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.authBadge,
+              { borderColor: "rgba(56, 189, 248, 0.4)", backgroundColor: "rgba(56, 189, 248, 0.12)" },
+              pressed && { opacity: 0.7 },
+            ]}
+            onPress={onOpenOnboarding}
+            testID="btn-open-onboarding"
+            accessibilityRole="button"
+            accessibilityLabel="Abrir tutorial de bienvenida"
+          >
+            <Text style={[styles.authBadgeText, { color: "#38BDF8" }]}>💡 Guía</Text>
           </Pressable>
 
           {/* User Account / Auth Button */}

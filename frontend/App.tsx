@@ -45,6 +45,7 @@ import { performSync } from "./services/syncEngine";
 import { notificationService } from "./services/notificationService";
 import { AuthModal } from "./components/AuthModal";
 import { AuthScreen } from "./components/AuthScreen";
+import { OnboardingModal, isOnboardingCompleted } from "./components/OnboardingModal";
 import { AuthSession, authStorage } from "./services/authService";
 import appConfig from "./app.json";
 
@@ -104,6 +105,7 @@ export default function App() {
     authStorage.loadSession(),
   );
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const userId = authSession ? authSession.userId : "user-demo-123";
   const userToken = authSession ? authSession.token : "demo-token";
   const [isInitialized, setIsInitialized] = useState(false);
@@ -391,6 +393,9 @@ export default function App() {
       if (isMounted) {
         await loadDatabaseState(true);
         setIsInitialized(true);
+        if (!isOnboardingCompleted(userId)) {
+          setShowOnboardingModal(true);
+        }
       }
     }
 
@@ -698,9 +703,19 @@ export default function App() {
             setAuthSession(session);
             setShowAuthModal(false);
             loadDatabaseState(true);
+            if (!isOnboardingCompleted(session.userId)) {
+              setShowOnboardingModal(true);
+            }
           }}
           onClose={() => setShowAuthModal(false)}
           onContinueOffline={() => setShowAuthModal(false)}
+        />
+
+        {/* Modal de Onboarding y Bienvenida */}
+        <OnboardingModal
+          visible={showOnboardingModal}
+          onClose={() => setShowOnboardingModal(false)}
+          userId={userId}
         />
       </View>
     );
@@ -721,6 +736,7 @@ export default function App() {
         isSyncing={isSyncing}
         currentUserEmail={authSession ? authSession.email : null}
         onOpenAuth={() => setShowAuthModal(true)}
+        onOpenOnboarding={() => setShowOnboardingModal(true)}
         onLogout={() => {
           authStorage.clearSession();
           setAuthSession(null);
@@ -752,6 +768,7 @@ export default function App() {
       isSyncing={isSyncing}
       currentUserEmail={authSession ? authSession.email : null}
       onOpenAuth={() => setShowAuthModal(true)}
+      onOpenOnboarding={() => setShowOnboardingModal(true)}
       onLogout={() => {
         authStorage.clearSession();
         setAuthSession(null);

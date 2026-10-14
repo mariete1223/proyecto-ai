@@ -33,6 +33,7 @@ export interface MobileMainLayoutProps {
   currentUserEmail?: string | null;
   onOpenAuth?: () => void;
   onLogout?: () => void;
+  onOpenOnboarding?: () => void;
   children: React.ReactNode;
 }
 
@@ -46,6 +47,7 @@ export function MobileMainLayout({
   currentUserEmail,
   onOpenAuth,
   onLogout,
+  onOpenOnboarding,
   children,
 }: MobileMainLayoutProps) {
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(
@@ -118,6 +120,19 @@ export function MobileMainLayout({
                     ? "Offline ⚠️"
                     : "..."}
             </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.authChip,
+              { borderColor: "rgba(56, 189, 248, 0.4)", backgroundColor: "rgba(56, 189, 248, 0.12)" },
+            ]}
+            onPress={onOpenOnboarding}
+            testID="btn-open-onboarding"
+            accessibilityRole="button"
+            accessibilityLabel="Abrir tutorial de bienvenida"
+          >
+            <Text style={[styles.authChipText, { color: "#38BDF8" }]}>💡 Guía</Text>
           </Pressable>
 
           <Pressable
@@ -238,6 +253,12 @@ export function MobileMainLayout({
   );
 }
 
+const isIosDevice =
+  Platform.OS === "web"
+    ? typeof navigator !== "undefined" &&
+      /iPhone|iPad|iPod/i.test(navigator?.userAgent || "")
+    : Platform.OS === "ios";
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -247,8 +268,12 @@ const styles = StyleSheet.create({
   },
   topHeader: {
     paddingTop:
-      Platform.OS === "web" ? 12 : (RNStatusBar.currentHeight || 44) + 6,
-    paddingBottom: 10,
+      Platform.OS === "web"
+        ? isIosDevice
+          ? 52
+          : 28
+        : (RNStatusBar.currentHeight || 44) + 6,
+    paddingBottom: 12,
     paddingHorizontal: 16,
     backgroundColor: "#1e293b",
     flexDirection: "row",
@@ -324,7 +349,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 12,
     paddingTop: 12,
-    paddingBottom: 76, // Space for fixed bottom tab bar
+    paddingBottom: isIosDevice ? 98 : 78, // Space for fixed bottom tab bar + home swipe bar
     width: "100%",
   },
   bottomTabBar: {
@@ -332,14 +357,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 64,
+    height: isIosDevice ? 84 : 66,
     backgroundColor: "#1e293b",
     borderTopWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingBottom: Platform.OS === "ios" ? 10 : 0,
+    paddingBottom: isIosDevice ? 22 : 6,
     elevation: 8,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: -3 },
