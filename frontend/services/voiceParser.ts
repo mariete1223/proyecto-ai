@@ -542,7 +542,6 @@ export function parseSpokenCommand(
     }
   }
 
-
   if (targetDate) {
     occurredAt = targetDate.toISOString();
     tokens.push({
@@ -708,7 +707,9 @@ export function parseSpokenCommand(
           detectedLabels.push("1 hora antes");
         }
       }
-      const minMatches = remDetails.matchAll(/(\d+)\s*(?:minutos?|min)\s*antes/gi);
+      const minMatches = remDetails.matchAll(
+        /(\d+)\s*(?:minutos?|min)\s*antes/gi,
+      );
       for (const m of minMatches) {
         const mins = parseInt(m[1], 10);
         if (!isNaN(mins) && !detectedOffsets.includes(mins)) {

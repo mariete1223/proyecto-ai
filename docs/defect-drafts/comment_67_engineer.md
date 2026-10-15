@@ -1,0 +1,22 @@
+### Engineer Implementation Summary (#67)
+
+- **Domain & Types**:
+  - `frontend/types/domain.ts`: Extended `ReminderRecurrence` to include hourly recurrence (`EVERY_1_HOUR`, `EVERY_2_HOURS`, `EVERY_4_HOURS`, `EVERY_6_HOURS`, `EVERY_8_HOURS`, `EVERY_12_HOURS`, or any `EVERY_X_HOURS`).
+  - `formatReminderSummary`: Added recognition of hourly intervals (`(Cada Xh hasta <fecha>)`).
+- **UI Components**:
+  - `frontend/components/ReminderConfigSection.tsx`:
+    - Added recurrence options for standard hourly intervals: "Cada 2 horas", "Cada 4 horas", "Cada 6 horas", "Cada 8 horas", "Cada 12 horas".
+    - Added customizable interval chip ("⚙️ Cada X horas...", `testID="chip-recurrence-interval-hours"`) with numeric text input (`testID="input-recurrence-custom-hours"`).
+    - Enabled start date and end date pickers (`input-reminder-start-date` and `input-reminder-end-date`).
+    - Added live description and confirmed planning summary detailing frequency, start time, and expiration end date.
+  - `frontend/components/CalendarMonthView.tsx`: Added quick reminder presets for "Cada 2h" and "Cada 4h".
+- **Notification Services**:
+  - `frontend/services/notificationService.ts`: In `scheduleNextRecurrence`, added parsing of `EVERY_(\d+)_HOURS` to calculate the next trigger time in hours and stop scheduling if `baseDate > reminder_end_time`.
+  - `backend/app/services/push_worker.py`: Updated `check_and_send_due_reminders` to parse hourly recurrences (`EVERY_(\d+)_HOURS`), calculate the delta in hours, and mark `reminder_enabled = False` if the next trigger exceeds `reminder_end_time`.
+  - `backend/app/models/domain.py`: Expanded `reminder_recurrence` column to `String(50)`.
+- **Testing**:
+  - `frontend/components/ReminderConfigSection.test.tsx` (4/4 passing tests).
+  - `frontend/services/notificationService.test.ts` (8/8 passing tests).
+  - `backend/tests/test_push_api.py` (9/9 passing tests including hourly recurrence advance and end time cutoff).
+  - Total test run: 34 frontend suites (203 tests) and 121 backend tests passing with zero regressions.
+- **Commit**: `2dd0e49`

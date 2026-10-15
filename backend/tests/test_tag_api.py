@@ -82,6 +82,16 @@ def test_create_tag_api(
     data = response.json()
     assert data["name"] == "Urgente"
     assert data["version"] == 1
+    assert "color" in data
+    assert data["color"].startswith("#")
+
+    # Creating tag with duplicate color fails with 409
+    dup_resp = client.post(
+        "/api/v1/tags",
+        headers=auth_headers,
+        json={"name": "Otra", "color": data["color"]},
+    )
+    assert dup_resp.status_code == 409
 
 
 def test_list_tags_api(

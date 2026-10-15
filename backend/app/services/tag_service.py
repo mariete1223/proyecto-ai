@@ -31,6 +31,26 @@ def normalize_tag_name(name: str) -> str:
     return cleaned.strip()
 
 
+DEFAULT_TAG_PRESET_COLORS = [
+    "#38BDF8",  # Sky Blue
+    "#3B82F6",  # Royal Blue
+    "#6366F1",  # Indigo
+    "#8B5CF6",  # Purple
+    "#A855F7",  # Violet
+    "#D946EF",  # Fuchsia
+    "#EC4899",  # Pink
+    "#F43F5E",  # Rose
+    "#EF4444",  # Red
+    "#F97316",  # Orange
+    "#F59E0B",  # Amber
+    "#EAB308",  # Yellow / Gold
+    "#84CC16",  # Lime
+    "#10B981",  # Emerald
+    "#14B8A6",  # Teal
+    "#06B6D4",  # Cyan
+]
+
+
 def create_tag(db: Session, user_id: uuid.UUID, data: TagCreate) -> Tag:
     """Create a new tag for a user."""
     norm_name = normalize_tag_name(data.name)
@@ -41,12 +61,31 @@ def create_tag(db: Session, user_id: uuid.UUID, data: TagCreate) -> Tag:
     if db.execute(stmt).scalar_one_or_none() is not None:
         raise TagAlreadyExistsError("A tag with this name already exists.")
 
+    if data.color:
+        color_upper = data.color.strip().upper()
+        col_stmt = select(Tag).where(Tag.user_id == user_id, Tag.color == color_upper)
+        if db.execute(col_stmt).scalar_one_or_none() is not None:
+            raise TagAlreadyExistsError("Color already in use by another tag.")
+        tag_color = color_upper
+    else:
+        existing_colors = {
+            t.color.upper()
+            for t in db.execute(select(Tag).where(Tag.user_id == user_id))
+            .scalars()
+            .all()
+        }
+        tag_color = next(
+            (c for c in DEFAULT_TAG_PRESET_COLORS if c not in existing_colors),
+            f"#{uuid.uuid4().hex[:6].upper()}",
+        )
+
     now = datetime.now(UTC)
     tag = Tag(
         id=uuid.uuid4(),
         user_id=user_id,
         name=data.name.strip(),
         name_normalized=norm_name,
+        color=tag_color,
         created_at=now,
         updated_at=now,
         version=1,
@@ -76,19 +115,32 @@ def update_tag(
 ) -> Tag:
     """Update a user's tag."""
     tag = get_tag_by_id(db, user_id, tag_id)
-    norm_name = normalize_tag_name(data.name)
-    if not norm_name:
-        raise InvalidTagDataError("Tag name cannot be empty.")
+    if data.name is not None:
+        norm_name = normalize_tag_name(data.name)
+        if not norm_name:
+            raise InvalidTagDataError("Tag name cannot be empty.")
 
-    if norm_name != tag.name_normalized:
-        stmt = select(Tag).where(
-            Tag.user_id == user_id, Tag.name_normalized == norm_name, Tag.id != tag_id
-        )
-        if db.execute(stmt).scalar_one_or_none() is not None:
-            raise TagAlreadyExistsError("A tag with this name already exists.")
+        if norm_name != tag.name_normalized:
+            stmt = select(Tag).where(
+                Tag.user_id == user_id,
+                Tag.name_normalized == norm_name,
+                Tag.id != tag_id,
+            )
+            if db.execute(stmt).scalar_one_or_none() is not None:
+                raise TagAlreadyExistsError("A tag with this name already exists.")
 
-        tag.name = data.name.strip()
-        tag.name_normalized = norm_name
+            tag.name = data.name.strip()
+            tag.name_normalized = norm_name
+
+    if data.color is not None:
+        color_upper = data.color.strip().upper()
+        if color_upper != tag.color:
+            col_stmt = select(Tag).where(
+                Tag.user_id == user_id, Tag.color == color_upper, Tag.id != tag_id
+            )
+            if db.execute(col_stmt).scalar_one_or_none() is not None:
+                raise TagAlreadyExistsError("Color already in use by another tag.")
+            tag.color = color_upper
 
     tag.updated_at = datetime.now(UTC)
     tag.version += 1

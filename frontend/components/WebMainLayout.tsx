@@ -159,7 +159,10 @@ export function WebMainLayout({
           <Pressable
             style={({ pressed }) => [
               styles.authBadge,
-              { borderColor: "rgba(56, 189, 248, 0.4)", backgroundColor: "rgba(56, 189, 248, 0.12)" },
+              {
+                borderColor: "rgba(56, 189, 248, 0.4)",
+                backgroundColor: "rgba(56, 189, 248, 0.12)",
+              },
               pressed && { opacity: 0.7 },
             ]}
             onPress={onOpenOnboarding}
@@ -167,7 +170,9 @@ export function WebMainLayout({
             accessibilityRole="button"
             accessibilityLabel="Abrir tutorial de bienvenida"
           >
-            <Text style={[styles.authBadgeText, { color: "#38BDF8" }]}>💡 Guía</Text>
+            <Text style={[styles.authBadgeText, { color: "#38BDF8" }]}>
+              💡 Guía
+            </Text>
           </Pressable>
 
           {/* User Account / Auth Button */}
@@ -180,7 +185,9 @@ export function WebMainLayout({
             testID="btn-user-auth"
           >
             <Text style={styles.authBadgeText}>
-              {currentUserEmail ? `👤 ${currentUserEmail} (Salir)` : "👤 Iniciar Sesión"}
+              {currentUserEmail
+                ? `👤 ${currentUserEmail} (Salir)`
+                : "👤 Iniciar Sesión"}
             </Text>
           </Pressable>
         </View>
@@ -332,7 +339,8 @@ const styles = StyleSheet.create({
   headerInner: {
     width: "100%",
     maxWidth: 1280,
-    paddingTop: Platform.OS === "web" ? 14 : (StatusBar.currentHeight || 44) + 8,
+    paddingTop:
+      Platform.OS === "web" ? 14 : (StatusBar.currentHeight || 44) + 8,
     paddingBottom: 14,
     paddingHorizontal: Platform.OS === "web" ? 28 : 16,
     flexDirection: "row",

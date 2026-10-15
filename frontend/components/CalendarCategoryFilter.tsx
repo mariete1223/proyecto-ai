@@ -20,7 +20,9 @@ export function CalendarCategoryFilter({
   onFilterChange,
   onTagFilterChange,
 }: CalendarCategoryFilterProps) {
-  const [activeTab, setActiveTab] = useState<"CATEGORIES" | "TAGS">("CATEGORIES");
+  const [activeTab, setActiveTab] = useState<"CATEGORIES" | "TAGS">(
+    "CATEGORIES",
+  );
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedCatIds, setSelectedCatIds] = useState<string[]>([]);
@@ -189,7 +191,10 @@ export function CalendarCategoryFilter({
                 onPress={() => toggleCategory(cat.id)}
               >
                 <Text
-                  style={[styles.chipText, isSelected && styles.chipTextSelected]}
+                  style={[
+                    styles.chipText,
+                    isSelected && styles.chipTextSelected,
+                  ]}
                 >
                   {cat.name}
                 </Text>

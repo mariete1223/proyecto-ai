@@ -91,6 +91,129 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(onCreatedMock).toHaveBeenCalledTimes(1);
   });
 
+  it("documents the task-only priority commands in the voice guide", async () => {
+    const { getByTestId, getByText } = await render(
+      <VoiceCaptureFlow db={db} userId={userId} />,
+    );
+
+    expect(getByTestId("help-priority-command")).toBeTruthy();
+    expect(getByText(/Solo para tareas/)).toBeTruthy();
+    expect(getByText('"prioridad alta"')).toBeTruthy();
+    expect(getByText('"prioridad media"')).toBeTruthy();
+    expect(getByText('"prioridad baja"')).toBeTruthy();
+  });
+
+  it.each([
+    ["alta", "Alta", "HIGH"],
+    ["media", "Media", "MEDIUM"],
+    ["baja", "Baja", "LOW"],
+    ["urgente", "Alta", "HIGH"],
+    ["normal", "Media", "MEDIUM"],
+  ] as const)(
+    "interprets prioridad %s and persists it in FAST_FORWARD mode",
+    async (spokenPriority, displayedPriority, storedPriority) => {
+      const { getByTestId, findByText } = await render(
+        <VoiceCaptureFlow db={db} userId={userId} saveMode="FAST_FORWARD" />,
+      );
+
+      await findByText('"tarea"');
+      await act(async () => {
+        fireEvent.changeText(
+          getByTestId("input-transcript"),
+          `tarea prioridad ${spokenPriority} enviar informe`,
+        );
+      });
+      await act(async () => {
+        fireEvent.press(getByTestId("btn-parse-transcript"));
+      });
+
+      expect(await findByText(`Prioridad: ${displayedPriority}`)).toBeTruthy();
+      const entries = await listLocalEntries(db, userId);
+      expect(entries).toHaveLength(1);
+      expect(entries[0].content).toBe("enviar informe");
+      expect(entries[0].task_priority).toBe(storedPriority);
+    },
+  );
+
+  it("preserves the spoken priority when reviewing and saving in PREVIEW_BEFORE_SAVE mode", async () => {
+    const { getByTestId, findByText } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    await findByText('"tarea"');
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-transcript"),
+        "tarea prioridad baja ordenar estantería",
+      );
+    });
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-parse-transcript"));
+    });
+
+    expect(await findByText("Prioridad: Baja")).toBeTruthy();
+    expect(getByTestId("voice-prio-low")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-save-corrected-entry"));
+    });
+
+    const entries = await listLocalEntries(db, userId);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].content).toBe("ordenar estantería");
+    expect(entries[0].task_priority).toBe("LOW");
+  });
+
+  it("defaults a dictated task without priority to MEDIUM", async () => {
+    const { getByTestId, findByTestId, findByText } = await render(
+      <VoiceCaptureFlow db={db} userId={userId} saveMode="FAST_FORWARD" />,
+    );
+
+    await findByText('"tarea"');
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-transcript"),
+        "tarea llamar al proveedor",
+      );
+    });
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-parse-transcript"));
+    });
+
+    expect(await findByTestId("voice-capture-success")).toBeTruthy();
+    const entries = await listLocalEntries(db, userId);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].task_priority).toBe("MEDIUM");
+  });
+
+  it("keeps priority wording as content for non-task categories", async () => {
+    const { getByTestId, findByTestId, findByText, queryByText } = await render(
+      <VoiceCaptureFlow db={db} userId={userId} saveMode="FAST_FORWARD" />,
+    );
+
+    await findByText('"tarea"');
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-transcript"),
+        "nota prioridad alta revisar arquitectura",
+      );
+    });
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-parse-transcript"));
+    });
+
+    expect(await findByTestId("voice-capture-success")).toBeTruthy();
+    expect(queryByText("Prioridad: Alta")).toBeNull();
+    const entries = await listLocalEntries(db, userId);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].content).toBe("prioridad alta revisar arquitectura");
+    expect(entries[0].task_priority).toBeNull();
+  });
+
   it("handles unknown category by displaying error and allowing manual correction", async () => {
     const { getByTestId, getByText, findByTestId } = await render(
       <VoiceCaptureFlow db={db} userId={userId} saveMode="FAST_FORWARD" />,
@@ -160,5 +283,25 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     expect(getByTestId("input-transcript").props.value).toBe("");
+  });
+
+  it("renders a single tag chip and correct count even if duplicate normalized tags exist", async () => {
+    const now = new Date().toISOString();
+    await db.runAsync(
+      `INSERT INTO tags (id, user_id, name, name_normalized, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+      ["tag-dup", userId, "#Urgente", "urgente", now, now, 1, "SYNCED"],
+    );
+
+    const { findByText, getAllByText } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    expect(await findByText("🏷️ Etiquetas (1)")).toBeTruthy();
+    const chips = getAllByText("#Urgente");
+    expect(chips.length).toBe(1);
   });
 });

@@ -13,11 +13,7 @@ import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
 
 export type MobileTab =
-  | "VOICE_CAPTURE"
-  | "CALENDAR"
-  | "PENDING_TASKS"
-  | "EXPLORER"
-  | "LLM_IMPORT";
+  "VOICE_CAPTURE" | "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "LLM_IMPORT";
 
 export interface MobileMainLayoutProps {
   apiConfig: WebApiConfig;
@@ -125,14 +121,19 @@ export function MobileMainLayout({
           <Pressable
             style={[
               styles.authChip,
-              { borderColor: "rgba(56, 189, 248, 0.4)", backgroundColor: "rgba(56, 189, 248, 0.12)" },
+              {
+                borderColor: "rgba(56, 189, 248, 0.4)",
+                backgroundColor: "rgba(56, 189, 248, 0.12)",
+              },
             ]}
             onPress={onOpenOnboarding}
             testID="btn-open-onboarding"
             accessibilityRole="button"
             accessibilityLabel="Abrir tutorial de bienvenida"
           >
-            <Text style={[styles.authChipText, { color: "#38BDF8" }]}>💡 Guía</Text>
+            <Text style={[styles.authChipText, { color: "#38BDF8" }]}>
+              💡 Guía
+            </Text>
           </Pressable>
 
           <Pressable

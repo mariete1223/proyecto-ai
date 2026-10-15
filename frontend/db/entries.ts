@@ -69,7 +69,9 @@ function mapEntryRow(row: any, tagIds: string[]): Entry {
   return {
     ...row,
     reminder_enabled: Boolean(row.reminder_enabled),
-    reminder_offsets_minutes: parseRowReminderOffsets(row.reminder_offsets_minutes),
+    reminder_offsets_minutes: parseRowReminderOffsets(
+      row.reminder_offsets_minutes,
+    ),
     tag_ids: tagIds,
   };
 }
@@ -106,7 +108,11 @@ export async function createLocalEntry(
       taskPriority = "MEDIUM";
     }
   } else {
-    if (taskStatus !== null || taskRecurrence !== null || taskPriority !== null) {
+    if (
+      taskStatus !== null ||
+      taskRecurrence !== null ||
+      taskPriority !== null
+    ) {
       throw new Error(
         "Task fields can only be set for categories of kind TASK.",
       );
@@ -132,7 +138,10 @@ export async function createLocalEntry(
       if (reminderEnabled === undefined || reminderEnabled === null) {
         reminderEnabled = true;
       }
-      if (reminderOffsetMinutes === undefined || reminderOffsetMinutes === null) {
+      if (
+        reminderOffsetMinutes === undefined ||
+        reminderOffsetMinutes === null
+      ) {
         reminderOffsetMinutes =
           reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
             ? reminderOffsetsMinutes[0]
@@ -146,7 +155,10 @@ export async function createLocalEntry(
       if (reminderEnabled === undefined || reminderEnabled === null) {
         reminderEnabled = true;
       }
-      if (reminderOffsetMinutes === undefined || reminderOffsetMinutes === null) {
+      if (
+        reminderOffsetMinutes === undefined ||
+        reminderOffsetMinutes === null
+      ) {
         reminderOffsetMinutes =
           reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
             ? reminderOffsetsMinutes[0]
@@ -158,7 +170,9 @@ export async function createLocalEntry(
     }
   }
 
-  const reminderOffsetsStr = reminderOffsetsMinutes ? JSON.stringify(reminderOffsetsMinutes) : null;
+  const reminderOffsetsStr = reminderOffsetsMinutes
+    ? JSON.stringify(reminderOffsetsMinutes)
+    : null;
 
   const entry: Entry = {
     id,
@@ -346,7 +360,12 @@ export async function listPendingDatelessTasks(
       `SELECT tag_id FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
       [row.id, userId],
     );
-    result.push(mapEntryRow(row, etRows.map((r) => r.tag_id)));
+    result.push(
+      mapEntryRow(
+        row,
+        etRows.map((r) => r.tag_id),
+      ),
+    );
   }
 
   return result;
@@ -377,7 +396,12 @@ export async function listDatelessTasks(
       `SELECT tag_id FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
       [row.id, userId],
     );
-    result.push(mapEntryRow(row, etRows.map((r) => r.tag_id)));
+    result.push(
+      mapEntryRow(
+        row,
+        etRows.map((r) => r.tag_id),
+      ),
+    );
   }
 
   return result;
@@ -438,7 +462,7 @@ export async function updateLocalEntry(
       ? data.title
         ? data.title.trim()
         : null
-      : existing.title ?? null;
+      : (existing.title ?? null);
   const occurredAt =
     data.occurred_at !== undefined ? data.occurred_at : existing.occurred_at;
   const now = new Date().toISOString();

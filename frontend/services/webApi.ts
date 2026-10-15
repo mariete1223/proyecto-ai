@@ -16,9 +16,22 @@ export async function checkBackendHealth(
 ): Promise<boolean> {
   const fetchImpl = config.fetchFn ?? fetch;
   try {
-    const res = await fetchImpl(`${config.baseUrl}/health`, { method: "GET" });
+    const controller =
+      typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(), 7000)
+      : null;
+    const res = await fetchImpl(`${config.baseUrl}/health`, {
+      method: "GET",
+      signal: controller?.signal,
+    });
+    if (timeoutId) clearTimeout(timeoutId);
     return res.ok;
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[BackendHealth] Fallo al conectar con ${config.baseUrl}:`,
+      (err as Error)?.message || err,
+    );
     return false;
   }
 }

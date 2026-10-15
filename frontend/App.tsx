@@ -1,5 +1,11 @@
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -45,17 +51,25 @@ import { performSync } from "./services/syncEngine";
 import { notificationService } from "./services/notificationService";
 import { AuthModal } from "./components/AuthModal";
 import { AuthScreen } from "./components/AuthScreen";
-import { OnboardingModal, isOnboardingCompleted } from "./components/OnboardingModal";
+import {
+  OnboardingModal,
+  isOnboardingCompleted,
+} from "./components/OnboardingModal";
 import { AuthSession, authStorage } from "./services/authService";
 import appConfig from "./app.json";
 
-const ACTIVE_BACKEND_TUNNEL = "https://division-supporters-logical-graphical.trycloudflare.com";
+const ACTIVE_BACKEND_TUNNEL =
+  "https://division-supporters-logical-graphical.trycloudflare.com";
 
 const getBackendUrl = (): string => {
   const fromEnv = process.env.EXPO_PUBLIC_BACKEND_URL;
 
   // 1. En navegador web:
-  if (Platform.OS === "web" && typeof window !== "undefined" && window.location?.hostname) {
+  if (
+    Platform.OS === "web" &&
+    typeof window !== "undefined" &&
+    window.location?.hostname
+  ) {
     const host = window.location.hostname;
     // Si estamos en localhost o 127.0.0.1
     if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
@@ -79,12 +93,20 @@ const getBackendUrl = (): string => {
   }
 
   // 2. Si no es web o para apps nativas:
-  if (fromEnv && fromEnv.trim() && !fromEnv.includes("explorer-server-forgot-engineering")) {
+  if (
+    fromEnv &&
+    fromEnv.trim() &&
+    !fromEnv.includes("explorer-server-forgot-engineering")
+  ) {
     return fromEnv.trim();
   }
 
   const fromAppJson = (appConfig as any)?.expo?.extra?.backendUrl;
-  if (fromAppJson && fromAppJson.trim() && !fromAppJson.includes("explorer-server-forgot-engineering")) {
+  if (
+    fromAppJson &&
+    fromAppJson.trim() &&
+    !fromAppJson.includes("explorer-server-forgot-engineering")
+  ) {
     return fromAppJson.trim();
   }
 
@@ -100,7 +122,9 @@ const defaultApiConfig = {
 };
 
 export default function App() {
-  const [db] = useState(() => new MemoryDatabaseAdapter("proyecto_ai_local_db"));
+  const [db] = useState(
+    () => new MemoryDatabaseAdapter("proyecto_ai_local_db"),
+  );
   const [authSession, setAuthSession] = useState<AuthSession | null>(() =>
     authStorage.loadSession(),
   );
@@ -117,7 +141,12 @@ export default function App() {
       /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
 
   const [activeTab, setActiveTab] = useState<
-    "VOICE_CAPTURE" | "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT"
+    | "VOICE_CAPTURE"
+    | "CALENDAR"
+    | "PENDING_TASKS"
+    | "EXPLORER"
+    | "CONFLICTS"
+    | "LLM_IMPORT"
   >(() => {
     if (Platform.OS !== "web") return "VOICE_CAPTURE";
     if (typeof window !== "undefined") {
@@ -162,7 +191,9 @@ export default function App() {
     if (authSession?.token) {
       notificationService.setAuth(getBackendUrl(), authSession.token);
       if (notificationService.getPermissionStatus() === "granted") {
-        notificationService.subscribeToWebPush(getBackendUrl(), authSession.token).catch(() => {});
+        notificationService
+          .subscribeToWebPush(getBackendUrl(), authSession.token)
+          .catch(() => {});
       }
     }
   }, [authSession]);
@@ -178,7 +209,10 @@ export default function App() {
   const CANONICAL_ALERTA_ID = CANONICAL_CATEGORIES.ALERTA.id;
 
   // Deduplicar entradas repetidas y restaurar la categoría adecuada a cada una
-  const deduplicateAndHealEntries = async (database: DatabaseAdapter, uId: string) => {
+  const deduplicateAndHealEntries = async (
+    database: DatabaseAdapter,
+    uId: string,
+  ) => {
     const all = await listLocalEntries(database, uId);
     const seenContent = new Map<string, string>();
     const toDeleteIds: string[] = [];
@@ -194,8 +228,12 @@ export default function App() {
         entry.id === "00000000-0000-0000-0000-000000000013" ||
         trimmed.toLowerCase().includes("rediseño con tema glassmorphism") ||
         trimmed.toLowerCase().includes("rediseno con tema glassmorphism") ||
-        trimmed.toLowerCase().includes("reunión de revisión de arquitectura del proyecto ai") ||
-        trimmed.toLowerCase().includes("reunion de revision de arquitectura del proyecto ai") ||
+        trimmed
+          .toLowerCase()
+          .includes("reunión de revisión de arquitectura del proyecto ai") ||
+        trimmed
+          .toLowerCase()
+          .includes("reunion de revision de arquitectura del proyecto ai") ||
         trimmed.toLowerCase().includes("servidor backend y fastapi")
       ) {
         toDeleteIds.push(entry.id);
@@ -211,8 +249,14 @@ export default function App() {
     }
 
     for (const delId of toDeleteIds) {
-      await database.runAsync(`DELETE FROM entries WHERE id = ? AND user_id = ?;`, [delId, uId]);
-      await database.runAsync(`DELETE FROM entry_tags WHERE entry_id = ? AND user_id = ?;`, [delId, uId]);
+      await database.runAsync(
+        `DELETE FROM entries WHERE id = ? AND user_id = ?;`,
+        [delId, uId],
+      );
+      await database.runAsync(
+        `DELETE FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
+        [delId, uId],
+      );
     }
 
     // 3. Reparar tareas existentes sin fecha asignándoles su created_at para que aparezcan en el calendario
@@ -231,82 +275,85 @@ export default function App() {
     }
   };
 
-  const loadDatabaseState = useCallback(async (forceReload: boolean = false) => {
-    // Si hay un formulario abierto y no se fuerza recarga, solo sincronizar en background sin tocar el estado de React.
-    if (isFormOpenRef.current && !forceReload) {
-      try {
-        await performSync(db, {
-          apiBaseUrl: getBackendUrl(),
-          token: userToken,
-          userId,
-        });
-      } catch (_) {
-        // silencioso
-      }
-      return;
-    }
-
-    setIsSyncing(true);
-    try {
-      // 1. Deduplicar en local antes del sync
-      await deduplicateAndHealEntries(db, userId);
-
-      // 2. Sincronizar con el backend
-      try {
-        const syncRes = await performSync(db, {
-          apiBaseUrl: getBackendUrl(),
-          token: userToken,
-          userId,
-        });
-        if (!syncRes.success && syncRes.error) {
-          console.warn("[Sync] Engine returned warning:", syncRes.error);
+  const loadDatabaseState = useCallback(
+    async (forceReload: boolean = false) => {
+      // Si hay un formulario abierto y no se fuerza recarga, solo sincronizar en background sin tocar el estado de React.
+      if (isFormOpenRef.current && !forceReload) {
+        try {
+          await performSync(db, {
+            apiBaseUrl: getBackendUrl(),
+            token: userToken,
+            userId,
+          });
+        } catch (_) {
+          // silencioso
         }
-      } catch (syncErr) {
-        console.warn("[Sync] Perform sync error:", syncErr);
+        return;
       }
 
-      // 3. Post-sync: deduplicar entradas recibidas
-      await deduplicateAndHealEntries(db, userId);
+      setIsSyncing(true);
+      try {
+        // 1. Deduplicar en local antes del sync
+        await deduplicateAndHealEntries(db, userId);
 
-      const cats = await listCategories(db, userId);
-      const tgs = await listTags(db, userId);
-      const allEntries = await listLocalEntries(db, userId);
-      const datelessPending = await listPendingDatelessTasks(db, userId);
+        // 2. Sincronizar con el backend
+        try {
+          const syncRes = await performSync(db, {
+            apiBaseUrl: getBackendUrl(),
+            token: userToken,
+            userId,
+          });
+          if (!syncRes.success && syncRes.error) {
+            console.warn("[Sync] Engine returned warning:", syncRes.error);
+          }
+        } catch (syncErr) {
+          console.warn("[Sync] Perform sync error:", syncErr);
+        }
 
-      // Doble check: puede que el usuario abriera el formulario MIENTRAS el sync corría
-      if (isFormOpenRef.current && !forceReload) return;
+        // 3. Post-sync: deduplicar entradas recibidas
+        await deduplicateAndHealEntries(db, userId);
 
-      // Solo actualizar el estado si los datos realmente cambiaron
-      setCategories((prev) => {
-        const next = JSON.stringify(cats);
-        return JSON.stringify(prev) === next ? prev : cats;
-      });
-      setTags((prev) => {
-        const next = JSON.stringify(tgs);
-        return JSON.stringify(prev) === next ? prev : tgs;
-      });
-      setEntries((prev) => {
-        const next = JSON.stringify(allEntries);
-        return JSON.stringify(prev) === next ? prev : allEntries;
-      });
-      setPendingTasksCount((prev) =>
-        prev === datelessPending.length ? prev : datelessPending.length,
-      );
-      setLastSyncTime(Date.now());
+        const cats = await listCategories(db, userId);
+        const tgs = await listTags(db, userId);
+        const allEntries = await listLocalEntries(db, userId);
+        const datelessPending = await listPendingDatelessTasks(db, userId);
 
-      // Sincronizar todos los recordatorios activos en el servicio de notificaciones y suscripción push en servidor
-      notificationService.syncAllReminders(
-        db,
-        userId,
-        getBackendUrl(),
-        authSession ? authSession.token : undefined,
-      );
-    } catch (err) {
-      console.error("Error al cargar la base de datos:", err);
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [db, userId, userToken]);
+        // Doble check: puede que el usuario abriera el formulario MIENTRAS el sync corría
+        if (isFormOpenRef.current && !forceReload) return;
+
+        // Solo actualizar el estado si los datos realmente cambiaron
+        setCategories((prev) => {
+          const next = JSON.stringify(cats);
+          return JSON.stringify(prev) === next ? prev : cats;
+        });
+        setTags((prev) => {
+          const next = JSON.stringify(tgs);
+          return JSON.stringify(prev) === next ? prev : tgs;
+        });
+        setEntries((prev) => {
+          const next = JSON.stringify(allEntries);
+          return JSON.stringify(prev) === next ? prev : allEntries;
+        });
+        setPendingTasksCount((prev) =>
+          prev === datelessPending.length ? prev : datelessPending.length,
+        );
+        setLastSyncTime(Date.now());
+
+        // Sincronizar todos los recordatorios activos en el servicio de notificaciones y suscripción push en servidor
+        notificationService.syncAllReminders(
+          db,
+          userId,
+          getBackendUrl(),
+          authSession ? authSession.token : undefined,
+        );
+      } catch (err) {
+        console.error("Error al cargar la base de datos:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    },
+    [db, userId, userToken],
+  );
 
   // Sincronización silenciosa en background para cambios locales granulares.
   // No altera isSyncing visualmente ni dispara lastSyncTime a menos que lleguen cambios remotos nuevos del servidor.
@@ -325,7 +372,9 @@ export default function App() {
         listPendingDatelessTasks(db, userId),
       ]);
 
-      setEntries((prev) => (prev.length === allEntries.length ? prev : allEntries));
+      setEntries((prev) =>
+        prev.length === allEntries.length ? prev : allEntries,
+      );
       setCategories((prev) => (prev.length === cats.length ? prev : cats));
       setPendingTasksCount((prev) =>
         prev === datelessPending.length ? prev : datelessPending.length,
@@ -356,27 +405,37 @@ export default function App() {
         // Column may already exist
       }
       try {
-        await db.execAsync("ALTER TABLE entries ADD COLUMN task_priority TEXT;");
+        await db.execAsync(
+          "ALTER TABLE entries ADD COLUMN task_priority TEXT;",
+        );
       } catch {
         // Column may already exist
       }
       try {
-        await db.execAsync("ALTER TABLE entries ADD COLUMN reminder_enabled INTEGER DEFAULT 0;");
+        await db.execAsync(
+          "ALTER TABLE entries ADD COLUMN reminder_enabled INTEGER DEFAULT 0;",
+        );
       } catch {
         // Column may already exist
       }
       try {
-        await db.execAsync("ALTER TABLE entries ADD COLUMN reminder_time TEXT;");
+        await db.execAsync(
+          "ALTER TABLE entries ADD COLUMN reminder_time TEXT;",
+        );
       } catch {
         // Column may already exist
       }
       try {
-        await db.execAsync("ALTER TABLE entries ADD COLUMN reminder_recurrence TEXT;");
+        await db.execAsync(
+          "ALTER TABLE entries ADD COLUMN reminder_recurrence TEXT;",
+        );
       } catch {
         // Column may already exist
       }
       try {
-        await db.execAsync("ALTER TABLE entries ADD COLUMN reminder_offset_minutes INTEGER DEFAULT 0;");
+        await db.execAsync(
+          "ALTER TABLE entries ADD COLUMN reminder_offset_minutes INTEGER DEFAULT 0;",
+        );
       } catch {
         // Column may already exist
       }
@@ -409,7 +468,8 @@ export default function App() {
 
   // Mantener el ref sincronizado con el estado de modales
   useEffect(() => {
-    isFormOpenRef.current = showVoiceCaptureModal || showEntryFormModal || !!selectedEntryId;
+    isFormOpenRef.current =
+      showVoiceCaptureModal || showEntryFormModal || !!selectedEntryId;
   }, [showVoiceCaptureModal, showEntryFormModal, selectedEntryId]);
 
   useEffect(() => {
@@ -422,11 +482,14 @@ export default function App() {
 
     // En móvil: AppState para detectar cuando vuelve al primer plano (sin polling repetitivo)
     const { AppState } = require("react-native");
-    const subscription = AppState.addEventListener("change", (state: string) => {
-      if (state === "active") {
-        loadDatabaseState();
-      }
-    });
+    const subscription = AppState.addEventListener(
+      "change",
+      (state: string) => {
+        if (state === "active") {
+          loadDatabaseState();
+        }
+      },
+    );
 
     return () => {
       subscription?.remove();
@@ -630,14 +693,10 @@ export default function App() {
               db={db}
               userId={userId}
               selectedCategoryIds={
-                selectedCategoryIds.length > 0
-                  ? selectedCategoryIds
-                  : undefined
+                selectedCategoryIds.length > 0 ? selectedCategoryIds : undefined
               }
               selectedTagIds={
-                selectedTagIds.length > 0
-                  ? selectedTagIds
-                  : undefined
+                selectedTagIds.length > 0 ? selectedTagIds : undefined
               }
               refreshSignal={lastSyncTime}
               onSelectEntry={(entryId) => setSelectedEntryId(entryId)}
@@ -726,7 +785,9 @@ export default function App() {
     return (
       <MobileMainLayout
         apiConfig={defaultApiConfig}
-        activeTab={(activeTab === "CONFLICTS" ? "EXPLORER" : activeTab) as MobileTab}
+        activeTab={
+          (activeTab === "CONFLICTS" ? "EXPLORER" : activeTab) as MobileTab
+        }
         onTabChange={(t) => handleTabChange(t as any)}
         stats={{
           totalEntries: entries.length,

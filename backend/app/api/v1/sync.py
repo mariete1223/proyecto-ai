@@ -24,6 +24,7 @@ def push_client_changes(
     db: Annotated[Session, Depends(get_db)],
 ) -> SyncPushResponse:
     results = process_sync_push(db, current_user.id, data.client_changes)
+    db.commit()
     return SyncPushResponse(results=results)
 
 

@@ -19,7 +19,10 @@ export interface AuthScreenProps {
   onSuccess: (session: AuthSession) => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ baseUrl, onSuccess }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({
+  baseUrl,
+  onSuccess,
+}) => {
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 480;
   const isTablet = width >= 480 && width < 900;
@@ -52,11 +55,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ baseUrl, onSuccess }) =>
       if (res.success && res.session) {
         onSuccess(res.session);
       } else {
-        setErrorMessage(res.error || "No se pudo iniciar sesión. Verifica tus credenciales.");
+        setErrorMessage(
+          res.error || "No se pudo iniciar sesión. Verifica tus credenciales.",
+        );
       }
     } catch (err: unknown) {
       setErrorMessage(
-        err instanceof Error ? err.message : "Error inesperado al conectar con el servidor.",
+        err instanceof Error
+          ? err.message
+          : "Error inesperado al conectar con el servidor.",
       );
     } finally {
       setIsLoading(false);
@@ -108,10 +115,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ baseUrl, onSuccess }) =>
               </Text>
             </View>
             <Text
-              style={[
-                styles.brandTitle,
-                { fontSize: isSmallScreen ? 22 : 28 },
-              ]}
+              style={[styles.brandTitle, { fontSize: isSmallScreen ? 22 : 28 }]}
             >
               Proyecto AI
             </Text>
@@ -124,33 +128,51 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ baseUrl, onSuccess }) =>
               Personal Knowledge Hub
             </Text>
             <View style={styles.privacyPill}>
-              <Text style={styles.privacyPillText}>🔒 Entorno Privado & Aislado</Text>
+              <Text style={styles.privacyPillText}>
+                🔒 Entorno Privado & Aislado
+              </Text>
             </View>
           </View>
 
           {/* Mode Switcher */}
           <View style={styles.tabsRow}>
             <Pressable
-              style={[styles.tabButton, mode === "login" && styles.tabButtonActive]}
+              style={[
+                styles.tabButton,
+                mode === "login" && styles.tabButtonActive,
+              ]}
               onPress={() => {
                 setMode("login");
                 setErrorMessage(null);
               }}
               testID="tab-auth-login"
             >
-              <Text style={[styles.tabText, mode === "login" && styles.tabTextActive]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  mode === "login" && styles.tabTextActive,
+                ]}
+              >
                 Iniciar Sesión
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.tabButton, mode === "register" && styles.tabButtonActive]}
+              style={[
+                styles.tabButton,
+                mode === "register" && styles.tabButtonActive,
+              ]}
               onPress={() => {
                 setMode("register");
                 setErrorMessage(null);
               }}
               testID="tab-auth-register"
             >
-              <Text style={[styles.tabText, mode === "register" && styles.tabTextActive]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  mode === "register" && styles.tabTextActive,
+                ]}
+              >
                 Registrarse
               </Text>
             </Pressable>
@@ -220,7 +242,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ baseUrl, onSuccess }) =>
           {/* Footer Note */}
           <View style={styles.footerNote}>
             <Text style={styles.footerNoteText}>
-              Cada usuario dispone de cifrado y aislamiento completo. Nadie más puede ver lo que guardas.
+              Cada usuario dispone de cifrado y aislamiento completo. Nadie más
+              puede ver lo que guardas.
             </Text>
           </View>
         </View>

@@ -117,4 +117,29 @@ describe("CategoryManager Component", () => {
     const categoriesInDb = await listCategories(db, userId);
     expect(categoriesInDb[0].name).toBe("Trabajo Urgente");
   });
+
+  it("shows an error when trying to save a category with a duplicate color", async () => {
+    const { getByTestId, getByText, findByTestId } = await render(
+      <CategoryManager db={db} userId={userId} />,
+    );
+
+    await waitFor(() => {
+      expect(getByText("Trabajo")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-cat-name"), "Salud");
+      fireEvent.changeText(getByTestId("input-cat-voice"), "salud");
+      fireEvent.changeText(getByTestId("input-cat-color"), "#38BDF8");
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-submit-cat"));
+    });
+
+    expect(await findByTestId("category-manager-error")).toBeTruthy();
+    expect(
+      getByText("El color ya está en uso por otra categoría."),
+    ).toBeTruthy();
+  });
 });

@@ -39,7 +39,8 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
   const [reminderTime, setReminderTime] = useState<string>("");
   const [reminderEndTime, setReminderEndTime] = useState<string>("");
   const [reminderOffsetMinutes, setReminderOffsetMinutes] = useState<number>(0);
-  const [reminderRecurrence, setReminderRecurrence] = useState<ReminderRecurrence>("NONE");
+  const [reminderRecurrence, setReminderRecurrence] =
+    useState<ReminderRecurrence>("NONE");
 
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -116,10 +117,14 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
         task_priority: isTaskCategory ? taskPriority : null,
         reminder_enabled: reminderEnabled,
         reminder_time: reminderTime.trim() ? reminderTime.trim() : null,
-        reminder_end_time: reminderEndTime.trim() ? reminderEndTime.trim() : null,
+        reminder_end_time: reminderEndTime.trim()
+          ? reminderEndTime.trim()
+          : null,
         reminder_recurrence: reminderRecurrence,
         reminder_offset_minutes: reminderOffsetMinutes,
-        reminder_offsets_minutes: reminderEnabled ? [reminderOffsetMinutes] : null,
+        reminder_offsets_minutes: reminderEnabled
+          ? [reminderOffsetMinutes]
+          : null,
         tag_ids: selectedTagIds,
       });
 

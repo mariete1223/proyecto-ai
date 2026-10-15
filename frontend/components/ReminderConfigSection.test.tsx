@@ -9,7 +9,9 @@ describe("ReminderConfigSection Component (#67)", () => {
   const baseReminderEndTime = "2026-10-22T20:00:00.000Z";
 
   beforeEach(() => {
-    jest.spyOn(notificationService, "getPermissionStatus").mockReturnValue("granted");
+    jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("granted");
   });
 
   afterEach(() => {

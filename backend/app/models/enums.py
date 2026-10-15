@@ -14,6 +14,12 @@ class TaskStatus(StrEnum):
     DONE = "DONE"
 
 
+class TaskPriority(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
 class TaskRecurrence(StrEnum):
     ONCE = "ONCE"
     RECURRING = "RECURRING"

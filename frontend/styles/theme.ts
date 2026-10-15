@@ -2,10 +2,10 @@ import { Platform } from "react-native";
 
 export const theme = {
   colors: {
-    bgApp: "#0f172a", // Dark slate background for desktop header & container contrast
-    bgCard: "rgba(255, 255, 255, 0.9)",
-    bgCardGlass: "rgba(255, 255, 255, 0.75)",
-    bgSurface: "#f8fafc",
+    bgApp: "#0f172a", // Deep midnight slate
+    bgCard: "#1e293b", // Dark slate card
+    bgCardGlass: "rgba(30, 41, 59, 0.85)", // Sleek dark glassmorphic surface
+    bgSurface: "#1e293b",
     primary: "#3b82f6",
     primaryHover: "#2563eb",
     primaryGradientStart: "#3b82f6",
@@ -15,34 +15,35 @@ export const theme = {
     warning: "#f59e0b",
     danger: "#ef4444",
     purple: "#8b5cf6",
-    textPrimary: "#1e293b",
-    textSecondary: "#64748b",
-    textLight: "#94a3b8",
+    accent: "#8b5cf6",
+    textPrimary: "#f8fafc", // Crisp white
+    textSecondary: "#94a3b8", // Muted slate blue
+    textLight: "#cbd5e1",
     textWhite: "#ffffff",
-    borderLight: "rgba(226, 232, 240, 0.8)",
-    borderGlow: "rgba(59, 130, 246, 0.3)",
+    borderLight: "rgba(255, 255, 255, 0.12)",
+    borderGlow: "rgba(56, 189, 248, 0.35)",
   },
   shadows: {
     glass: {
-      shadowColor: "#0f172a",
+      shadowColor: "#000000",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.08,
+      shadowOpacity: 0.3,
       shadowRadius: 16,
-      elevation: 4,
+      elevation: 6,
     },
     card: {
-      shadowColor: "#1e293b",
+      shadowColor: "#000000",
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.06,
+      shadowOpacity: 0.2,
       shadowRadius: 10,
-      elevation: 3,
+      elevation: 4,
     },
     glow: {
-      shadowColor: "#3b82f6",
+      shadowColor: "#38bdf8",
       shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.25,
+      shadowOpacity: 0.35,
       shadowRadius: 12,
-      elevation: 6,
+      elevation: 8,
     },
   },
   borderRadius: {

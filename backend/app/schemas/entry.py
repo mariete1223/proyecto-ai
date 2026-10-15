@@ -1,19 +1,19 @@
-from __future__ import annotations
-
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
-from app.models.enums import TaskRecurrence, TaskStatus
+from app.models.enums import TaskPriority, TaskRecurrence, TaskStatus
 
 
 class EntryCreate(BaseModel):
     category_id: UUID
+    title: str | None = None
     occurred_at: datetime | None = None
     content: str = Field(min_length=1, max_length=10000)
     task_status: TaskStatus | None = None
+    task_priority: TaskPriority | None = None
     task_recurrence: TaskRecurrence | None = None
     tag_ids: list[UUID] = Field(default_factory=list)
 
@@ -27,9 +27,11 @@ class EntryCreate(BaseModel):
 
 class EntryUpdate(BaseModel):
     category_id: UUID | None = None
+    title: str | None = None
     occurred_at: datetime | None = None
     content: str | None = Field(default=None, min_length=1, max_length=10000)
     task_status: TaskStatus | None = None
+    task_priority: TaskPriority | None = None
     task_recurrence: TaskRecurrence | None = None
     tag_ids: list[UUID] | None = None
 
@@ -51,15 +53,27 @@ class EntryResponse(BaseModel):
     id: UUID
     user_id: UUID
     category_id: UUID
+    title: str | None = None
     occurred_at: datetime | None
     content: str
     task_status: TaskStatus | None = None
+    task_priority: TaskPriority | None = None
     task_recurrence: TaskRecurrence | None = None
     capture_session_id: UUID | None = None
     tag_ids: list[UUID] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
     version: int
+
+    @field_serializer("occurred_at", "created_at", "updated_at", mode="plain")
+    def serialize_dt(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        else:
+            dt = dt.astimezone(UTC)
+        return dt.isoformat().replace("+00:00", "Z")
 
 
 class PaginatedEntriesResponse(BaseModel):

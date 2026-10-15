@@ -152,4 +152,31 @@ describe("TagManager Component", () => {
     const tagsInDb = await listTags(db, userId);
     expect(tagsInDb.length).toBe(0);
   });
+
+  it("shows error when trying to save tag with duplicate color", async () => {
+    const { getByTestId, getByText, findByTestId } = await render(
+      <TagManager db={db} userId={userId} />,
+    );
+
+    await waitFor(() => {
+      expect(getByText("#Prioritario")).toBeTruthy();
+    });
+
+    const tags = await listTags(db, userId);
+    const existingColor = tags[0].color || "#38BDF8";
+
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-tag-name"), "NuevaConMismoColor");
+      fireEvent.changeText(getByTestId("input-tag-color"), existingColor);
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-submit-tag"));
+    });
+
+    expect(await findByTestId("tag-manager-error")).toBeTruthy();
+    expect(
+      getByText("El color ya está en uso por otra etiqueta."),
+    ).toBeTruthy();
+  });
 });

@@ -327,7 +327,15 @@ export async function deleteLocalCategory(
   const now = new Date().toISOString();
   await db.runAsync(
     `INSERT INTO deletion_tombstones (id, user_id, entity_type, entity_id, deleted_at, deleted_version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?);`,
-    [generateUuid(), userId, "CATEGORY", categoryId, now, existing.version + 1, "PENDING_PUSH"],
+    [
+      generateUuid(),
+      userId,
+      "CATEGORY",
+      categoryId,
+      now,
+      existing.version + 1,
+      "PENDING_PUSH",
+    ],
   );
 
   await db.runAsync(`DELETE FROM categories WHERE id = ? AND user_id = ?;`, [
@@ -390,9 +398,7 @@ export async function ensureCanonicalCategories(
     `SELECT entity_id FROM deletion_tombstones WHERE user_id = ? AND entity_type = 'CATEGORY';`,
     [uId],
   );
-  const deletedIds = new Set(
-    deletedCategoryTombstones.map((r) => r.entity_id),
-  );
+  const deletedIds = new Set(deletedCategoryTombstones.map((r) => r.entity_id));
 
   // Remapear categorías si tenían un UUID aleatorio viejo
   const canonicalMap: Record<string, string> = {
@@ -469,4 +475,3 @@ export async function ensureCanonicalCategories(
     }
   }
 }
-

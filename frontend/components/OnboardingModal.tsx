@@ -63,7 +63,9 @@ export function getOnboardingStorageKey(userId?: string): string {
 export function isOnboardingCompleted(userId?: string): boolean {
   if (typeof window !== "undefined" && window.localStorage) {
     try {
-      return window.localStorage.getItem(getOnboardingStorageKey(userId)) === "true";
+      return (
+        window.localStorage.getItem(getOnboardingStorageKey(userId)) === "true"
+      );
     } catch {
       return false;
     }
@@ -147,7 +149,10 @@ export function OnboardingModal({
             <View
               style={[
                 styles.badge,
-                { borderColor: step.badgeColor, backgroundColor: `${step.badgeColor}18` },
+                {
+                  borderColor: step.badgeColor,
+                  backgroundColor: `${step.badgeColor}18`,
+                },
               ]}
             >
               <Text style={[styles.badgeText, { color: step.badgeColor }]}>

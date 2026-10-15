@@ -1,7 +1,12 @@
 import { Platform } from "react-native";
 import { DatabaseAdapter } from "../db/database";
 import { listLocalEntries } from "../db/entries";
-import { Entry, formatOffsetLabel, normalizeUtcIso, ReminderRecurrence } from "../types/domain";
+import {
+  Entry,
+  formatOffsetLabel,
+  normalizeUtcIso,
+  ReminderRecurrence,
+} from "../types/domain";
 
 export type { ReminderRecurrence };
 
@@ -23,7 +28,9 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
         ? atob
         : (b: string) => {
             const maybeBuffer = (globalThis as any).Buffer;
-            return maybeBuffer ? maybeBuffer.from(b, "base64").toString("binary") : "";
+            return maybeBuffer
+              ? maybeBuffer.from(b, "base64").toString("binary")
+              : "";
           };
   const rawData = atobFn(base64);
   const outputArray = new Uint8Array(rawData.length);
@@ -51,13 +58,20 @@ class NotificationService {
   }
 
   public async initServiceWorker(): Promise<any> {
-    if (Platform.OS === "web" && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+    if (
+      Platform.OS === "web" &&
+      typeof navigator !== "undefined" &&
+      "serviceWorker" in navigator
+    ) {
       try {
         const reg = await navigator.serviceWorker.register("/sw.js");
         this.swRegistration = reg;
         return reg;
       } catch (err) {
-        console.warn("[NotificationService] No se pudo registrar Service Worker:", err);
+        console.warn(
+          "[NotificationService] No se pudo registrar Service Worker:",
+          err,
+        );
       }
     }
     return null;
@@ -70,12 +84,17 @@ class NotificationService {
     return false;
   }
 
-  public getPermissionStatus(): "granted" | "denied" | "default" | "unsupported" {
+  public getPermissionStatus():
+    "granted" | "denied" | "default" | "unsupported" {
     if (!this.isSupported()) return "unsupported";
-    return (Notification.permission as "granted" | "denied" | "default") || "default";
+    return (
+      (Notification.permission as "granted" | "denied" | "default") || "default"
+    );
   }
 
-  public async requestPermissions(): Promise<"granted" | "denied" | "default" | "unsupported"> {
+  public async requestPermissions(): Promise<
+    "granted" | "denied" | "default" | "unsupported"
+  > {
     if (!this.isSupported()) return "unsupported";
     try {
       if (typeof Notification.requestPermission === "function") {
@@ -96,12 +115,17 @@ class NotificationService {
             // ignore
           }
         }
-        const status = (perm as "granted" | "denied" | "default") || this.getPermissionStatus();
+        const status =
+          (perm as "granted" | "denied" | "default") ||
+          this.getPermissionStatus();
         if (status === "granted") {
           this.initServiceWorker()
             .then(() => {
               if (this.lastApiBaseUrl && this.lastToken) {
-                this.subscribeToWebPush(this.lastApiBaseUrl, this.lastToken).catch(() => {});
+                this.subscribeToWebPush(
+                  this.lastApiBaseUrl,
+                  this.lastToken,
+                ).catch(() => {});
               }
             })
             .catch(() => {});
@@ -114,7 +138,10 @@ class NotificationService {
     return this.getPermissionStatus();
   }
 
-  public async subscribeToWebPush(apiBaseUrl?: string, token?: string): Promise<boolean> {
+  public async subscribeToWebPush(
+    apiBaseUrl?: string,
+    token?: string,
+  ): Promise<boolean> {
     const targetBaseUrl = apiBaseUrl || this.lastApiBaseUrl;
     const targetToken = token || this.lastToken;
 
@@ -122,21 +149,32 @@ class NotificationService {
       return false;
     }
 
-    if (Platform.OS !== "web" || typeof window === "undefined" || !("serviceWorker" in navigator)) {
+    if (
+      Platform.OS !== "web" ||
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator)
+    ) {
       return false;
     }
 
     try {
       const reg = this.swRegistration || (await this.initServiceWorker());
       if (!reg || !reg.pushManager) {
-        console.warn("[NotificationService] pushManager no disponible en este navegador");
+        console.warn(
+          "[NotificationService] pushManager no disponible en este navegador",
+        );
         return false;
       }
 
       // 1. Obtener clave pública VAPID del backend
-      const vapidRes = await fetch(`${targetBaseUrl}/api/v1/push/vapid-public-key`);
+      const vapidRes = await fetch(
+        `${targetBaseUrl}/api/v1/push/vapid-public-key`,
+      );
       if (!vapidRes.ok) {
-        console.warn("[NotificationService] Error al obtener vapid-public-key:", vapidRes.status);
+        console.warn(
+          "[NotificationService] Error al obtener vapid-public-key:",
+          vapidRes.status,
+        );
         return false;
       }
       const { public_key: vapidPublicKey } = await vapidRes.json();
@@ -156,7 +194,9 @@ class NotificationService {
       }
 
       if (!subscription) {
-        console.warn("[NotificationService] No se pudo crear la suscripción push");
+        console.warn(
+          "[NotificationService] No se pudo crear la suscripción push",
+        );
         return false;
       }
 
@@ -166,7 +206,9 @@ class NotificationService {
       const keys = subJson.keys;
 
       if (!endpoint || !keys || !keys.p256dh || !keys.auth) {
-        console.warn("[NotificationService] Datos de suscripción push incompletos");
+        console.warn(
+          "[NotificationService] Datos de suscripción push incompletos",
+        );
         return false;
       }
 
@@ -182,19 +224,28 @@ class NotificationService {
             p256dh: keys.p256dh,
             auth: keys.auth,
           },
-          user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+          user_agent:
+            typeof navigator !== "undefined" ? navigator.userAgent : null,
         }),
       });
 
       if (!res.ok) {
-        console.warn("[NotificationService] Error registrando suscripción push en el backend:", res.status);
+        console.warn(
+          "[NotificationService] Error registrando suscripción push en el backend:",
+          res.status,
+        );
         return false;
       }
 
-      console.info("[NotificationService] Suscripción Web Push registrada con éxito");
+      console.info(
+        "[NotificationService] Suscripción Web Push registrada con éxito",
+      );
       return true;
     } catch (err) {
-      console.warn("[NotificationService] Excepción al registrar Web Push:", err);
+      console.warn(
+        "[NotificationService] Excepción al registrar Web Push:",
+        err,
+      );
       return false;
     }
   }
@@ -204,7 +255,10 @@ class NotificationService {
       if (typeof window === "undefined") return;
 
       // Haptic vibration for mobile devices
-      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+      if (
+        typeof navigator !== "undefined" &&
+        typeof navigator.vibrate === "function"
+      ) {
         try {
           navigator.vibrate([200, 100, 200]);
         } catch {
@@ -214,7 +268,8 @@ class NotificationService {
 
       const AudioCtx =
         window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
       if (!AudioCtx) return;
 
       const ctx = new AudioCtx();
@@ -239,7 +294,10 @@ class NotificationService {
 
         gainNode.gain.setValueAtTime(0.001, note.time);
         gainNode.gain.exponentialRampToValueAtTime(note.gain, note.time + 0.02);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, note.time + note.duration);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.0001,
+          note.time + note.duration,
+        );
 
         osc.connect(gainNode);
         gainNode.connect(ctx.destination);
@@ -254,11 +312,19 @@ class NotificationService {
         } catch {}
       }, 1200);
     } catch (e) {
-      console.warn("[NotificationService] Error al reproducir timbre sonoro:", e);
+      console.warn(
+        "[NotificationService] Error al reproducir timbre sonoro:",
+        e,
+      );
     }
   }
 
-  public sendNotification(title: string, body: string, icon?: string, playSound: boolean = true): boolean {
+  public sendNotification(
+    title: string,
+    body: string,
+    icon?: string,
+    playSound: boolean = true,
+  ): boolean {
     if (playSound) {
       this.playChimeSound();
     }
@@ -269,7 +335,10 @@ class NotificationService {
 
     try {
       // 1. Prefer Service Worker registration (critical for mobile PWA & Android/iOS)
-      if (this.swRegistration && typeof this.swRegistration.showNotification === "function") {
+      if (
+        this.swRegistration &&
+        typeof this.swRegistration.showNotification === "function"
+      ) {
         this.swRegistration.showNotification(title, {
           body,
           icon: icon || "/favicon.ico",
@@ -320,9 +389,11 @@ class NotificationService {
     }
 
     const offsets: number[] =
-      entry.reminder_offsets_minutes && entry.reminder_offsets_minutes.length > 0
+      entry.reminder_offsets_minutes &&
+      entry.reminder_offsets_minutes.length > 0
         ? entry.reminder_offsets_minutes
-        : entry.reminder_offset_minutes !== null && entry.reminder_offset_minutes !== undefined
+        : entry.reminder_offset_minutes !== null &&
+            entry.reminder_offset_minutes !== undefined
           ? [entry.reminder_offset_minutes]
           : [0];
 
@@ -381,7 +452,10 @@ class NotificationService {
           this.sendNotification(`🔔 ${notifTitle}`, notifBody);
 
           // Si es recurrente, re-programar para el próximo ciclo
-          if (entry.reminder_recurrence && entry.reminder_recurrence !== "NONE") {
+          if (
+            entry.reminder_recurrence &&
+            entry.reminder_recurrence !== "NONE"
+          ) {
             this.scheduleNextRecurrence(entry, targetDate!);
           }
         }, diffMs);
@@ -432,7 +506,9 @@ class NotificationService {
 
     const updatedEntry: Entry = {
       ...entry,
-      occurred_at: entry.occurred_at ? baseDate.toISOString() : entry.occurred_at,
+      occurred_at: entry.occurred_at
+        ? baseDate.toISOString()
+        : entry.occurred_at,
       reminder_time: baseDate.toISOString(),
     };
     this.scheduleForEntry(updatedEntry);
@@ -450,13 +526,21 @@ class NotificationService {
     try {
       await this.initServiceWorker();
 
-      if (this.getPermissionStatus() === "granted" && this.lastApiBaseUrl && this.lastToken) {
-        this.subscribeToWebPush(this.lastApiBaseUrl, this.lastToken).catch(() => {});
+      if (
+        this.getPermissionStatus() === "granted" &&
+        this.lastApiBaseUrl &&
+        this.lastToken
+      ) {
+        this.subscribeToWebPush(this.lastApiBaseUrl, this.lastToken).catch(
+          () => {},
+        );
       }
 
       const entries = await listLocalEntries(db, userId);
       // Cancelar todos y volver a sincronizar
-      this.activeTimers.forEach((timers) => timers.forEach((t) => clearTimeout(t)));
+      this.activeTimers.forEach((timers) =>
+        timers.forEach((t) => clearTimeout(t)),
+      );
       this.activeTimers.clear();
 
       for (const entry of entries) {
@@ -466,7 +550,10 @@ class NotificationService {
       }
       this.isInitialized = true;
     } catch (e) {
-      console.warn("[NotificationService] Fallo al sincronizar recordatorios:", e);
+      console.warn(
+        "[NotificationService] Fallo al sincronizar recordatorios:",
+        e,
+      );
     }
   }
 }

@@ -74,7 +74,8 @@ export function EntryDetailView({
   const [reminderTime, setReminderTime] = useState<string>("");
   const [reminderEndTime, setReminderEndTime] = useState<string>("");
   const [reminderOffsetMinutes, setReminderOffsetMinutes] = useState<number>(0);
-  const [reminderRecurrence, setReminderRecurrence] = useState<ReminderRecurrence>("NONE");
+  const [reminderRecurrence, setReminderRecurrence] =
+    useState<ReminderRecurrence>("NONE");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -83,8 +84,11 @@ export function EntryDetailView({
   // Edición por Comandos de Voz (#68)
   const [showVoiceEditModal, setShowVoiceEditModal] = useState<boolean>(false);
   const [voiceEditTranscript, setVoiceEditTranscript] = useState<string>("");
-  const [isListeningVoiceEdit, setIsListeningVoiceEdit] = useState<boolean>(false);
-  const [voiceEditFeedback, setVoiceEditFeedback] = useState<string | null>(null);
+  const [isListeningVoiceEdit, setIsListeningVoiceEdit] =
+    useState<boolean>(false);
+  const [voiceEditFeedback, setVoiceEditFeedback] = useState<string | null>(
+    null,
+  );
   const voiceServiceRef = useRef<VoiceRecognitionService | null>(null);
 
   const handleApplyVoiceEdit = async (commandText: string) => {
@@ -121,18 +125,25 @@ export function EntryDetailView({
         setReminderTime(result.changes.reminder_time);
       }
       if (result.changes.reminder_offset_minutes !== undefined) {
-        updatePayload.reminder_offset_minutes = result.changes.reminder_offset_minutes;
+        updatePayload.reminder_offset_minutes =
+          result.changes.reminder_offset_minutes;
         setReminderOffsetMinutes(result.changes.reminder_offset_minutes);
       }
       if (result.changes.reminder_offsets_minutes !== undefined) {
-        updatePayload.reminder_offsets_minutes = result.changes.reminder_offsets_minutes;
+        updatePayload.reminder_offsets_minutes =
+          result.changes.reminder_offsets_minutes;
       }
       if (result.changes.reminder_recurrence !== undefined) {
         updatePayload.reminder_recurrence = result.changes.reminder_recurrence;
         setReminderRecurrence(result.changes.reminder_recurrence);
       }
 
-      const updated = await updateLocalEntry(db, userId, entryId, updatePayload);
+      const updated = await updateLocalEntry(
+        db,
+        userId,
+        entryId,
+        updatePayload,
+      );
       if (updated.reminder_enabled) {
         notificationService.scheduleForEntry(updated);
       } else if (result.changes.reminder_enabled === false) {
@@ -208,7 +219,9 @@ export function EntryDetailView({
             setReminderTime(ent.reminder_time ?? "");
             setReminderEndTime(ent.reminder_end_time ?? "");
             setReminderOffsetMinutes(ent.reminder_offset_minutes ?? 0);
-            setReminderRecurrence((ent.reminder_recurrence as ReminderRecurrence) || "NONE");
+            setReminderRecurrence(
+              (ent.reminder_recurrence as ReminderRecurrence) || "NONE",
+            );
           } else {
             setErrorMessage("Entrada no encontrada.");
           }
@@ -257,7 +270,9 @@ export function EntryDetailView({
         task_priority: isTaskCategory ? taskPriority : null,
         reminder_enabled: reminderEnabled,
         reminder_time: reminderTime.trim() ? reminderTime.trim() : null,
-        reminder_end_time: reminderEndTime.trim() ? reminderEndTime.trim() : null,
+        reminder_end_time: reminderEndTime.trim()
+          ? reminderEndTime.trim()
+          : null,
         reminder_recurrence: reminderRecurrence,
         reminder_offset_minutes: reminderOffsetMinutes,
         tag_ids: selectedTagIds,
@@ -413,7 +428,8 @@ export function EntryDetailView({
                 style={[
                   styles.priorityPill,
                   entry.task_priority === "HIGH" && styles.priorityBadgeHigh,
-                  entry.task_priority === "MEDIUM" && styles.priorityBadgeMedium,
+                  entry.task_priority === "MEDIUM" &&
+                    styles.priorityBadgeMedium,
                   entry.task_priority === "LOW" && styles.priorityBadgeLow,
                 ]}
               >
@@ -457,7 +473,10 @@ export function EntryDetailView({
             <View style={styles.metaItemCard}>
               <Text style={styles.metaCardLabel}>📅 Fecha Asignada</Text>
               {entry.occurred_at ? (
-                <Text style={styles.metaTextAssigned} testID="entry-occurred-at">
+                <Text
+                  style={styles.metaTextAssigned}
+                  testID="entry-occurred-at"
+                >
                   {formatDateTime(entry.occurred_at)}
                 </Text>
               ) : (
@@ -475,7 +494,10 @@ export function EntryDetailView({
 
           {/* Reminder Box if Enabled */}
           {entry.reminder_enabled ? (
-            <View style={styles.reminderActiveBox} testID="entry-reminder-banner">
+            <View
+              style={styles.reminderActiveBox}
+              testID="entry-reminder-banner"
+            >
               <Text style={styles.reminderActiveText}>
                 🔔 Recordatorio activo: {formatReminderSummary(entry)}
               </Text>
@@ -508,12 +530,7 @@ export function EntryDetailView({
                           { backgroundColor: tagColor },
                         ]}
                       />
-                      <Text
-                        style={[
-                          styles.tagBadgeText,
-                          { color: tagColor },
-                        ]}
-                      >
+                      <Text style={[styles.tagBadgeText, { color: tagColor }]}>
                         {`#${t.name}`}
                       </Text>
                     </View>
@@ -526,7 +543,9 @@ export function EntryDetailView({
           {/* Voice Edit Help & Action Banner (#68) */}
           <View style={styles.voiceGuideCard} testID="voice-edit-guide-card">
             <View style={styles.voiceGuideHeader}>
-              <Text style={styles.voiceGuideTitle}>🎙️ Edición Inteligente por Voz</Text>
+              <Text style={styles.voiceGuideTitle}>
+                🎙️ Edición Inteligente por Voz
+              </Text>
               <Pressable
                 testID="btn-voice-edit-entry"
                 style={[
@@ -536,27 +555,39 @@ export function EntryDetailView({
                 onPress={() => setShowVoiceEditModal((prev) => !prev)}
               >
                 <Text style={styles.voiceGuideActionBtnText}>
-                  {showVoiceEditModal ? "✕ Cerrar Dictado" : "🎤 Dictar Cambios"}
+                  {showVoiceEditModal
+                    ? "✕ Cerrar Dictado"
+                    : "🎤 Dictar Cambios"}
                 </Text>
               </Pressable>
             </View>
             <Text style={styles.voiceGuideDesc}>
-              Modifica la hora, el título o el recordatorio de esta entrada con tu voz:
+              Modifica la hora, el título o el recordatorio de esta entrada con
+              tu voz:
             </Text>
             <View style={styles.voiceGuideExamples}>
               <Text style={styles.voiceGuideExampleItem}>
-                ⏰ <Text style={styles.voiceGuideExampleBold}>Cambiar hora:</Text> "cambiar la hora a las 18:30" o "poner a las 5 de la tarde"
+                ⏰{" "}
+                <Text style={styles.voiceGuideExampleBold}>Cambiar hora:</Text>{" "}
+                "cambiar la hora a las 18:30" o "poner a las 5 de la tarde"
               </Text>
               <Text style={styles.voiceGuideExampleItem}>
-                📌 <Text style={styles.voiceGuideExampleBold}>Poner título:</Text> "poner título Comprar víveres" o "título: Reunión Urgente"
+                📌{" "}
+                <Text style={styles.voiceGuideExampleBold}>Poner título:</Text>{" "}
+                "poner título Comprar víveres" o "título: Reunión Urgente"
               </Text>
               <Text style={styles.voiceGuideExampleItem}>
-                🔔 <Text style={styles.voiceGuideExampleBold}>Avisos:</Text> "poner aviso 15 minutos antes", "aviso cada 4 horas" o "quitar aviso"
+                🔔 <Text style={styles.voiceGuideExampleBold}>Avisos:</Text>{" "}
+                "poner aviso 15 minutos antes", "aviso cada 4 horas" o "quitar
+                aviso"
               </Text>
             </View>
 
             {showVoiceEditModal && (
-              <View style={styles.voiceEditModalPanel} testID="voice-edit-panel">
+              <View
+                style={styles.voiceEditModalPanel}
+                testID="voice-edit-panel"
+              >
                 <Text style={styles.voiceEditModalLabel}>
                   {isListeningVoiceEdit
                     ? "🔴 Escuchando... Di tus cambios:"
@@ -585,7 +616,9 @@ export function EntryDetailView({
                   </Pressable>
                 </View>
                 {voiceEditFeedback ? (
-                  <Text style={styles.voiceEditFeedbackText}>{voiceEditFeedback}</Text>
+                  <Text style={styles.voiceEditFeedbackText}>
+                    {voiceEditFeedback}
+                  </Text>
                 ) : null}
                 <View style={styles.voiceEditActionsRow}>
                   <Pressable
@@ -593,7 +626,9 @@ export function EntryDetailView({
                     onPress={() => handleApplyVoiceEdit(voiceEditTranscript)}
                     testID="btn-apply-voice-edit"
                   >
-                    <Text style={styles.voiceApplyBtnText}>⚡ Aplicar Cambio</Text>
+                    <Text style={styles.voiceApplyBtnText}>
+                      ⚡ Aplicar Cambio
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -745,9 +780,21 @@ export function EntryDetailView({
               <View style={styles.chipsContainer}>
                 {(
                   [
-                    { id: "HIGH", label: "🔴 Alta", testId: "edit-priority-HIGH" },
-                    { id: "MEDIUM", label: "🟡 Media", testId: "edit-priority-MEDIUM" },
-                    { id: "LOW", label: "🔵 Baja", testId: "edit-priority-LOW" },
+                    {
+                      id: "HIGH",
+                      label: "🔴 Alta",
+                      testId: "edit-priority-HIGH",
+                    },
+                    {
+                      id: "MEDIUM",
+                      label: "🟡 Media",
+                      testId: "edit-priority-MEDIUM",
+                    },
+                    {
+                      id: "LOW",
+                      label: "🔵 Baja",
+                      testId: "edit-priority-LOW",
+                    },
                   ] as const
                 ).map((p) => (
                   <Pressable

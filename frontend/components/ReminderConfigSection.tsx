@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { notificationService, ReminderRecurrence } from "../services/notificationService";
+import {
+  notificationService,
+  ReminderRecurrence,
+} from "../services/notificationService";
 import { theme } from "../styles/theme";
 import { formatDateTime } from "../types/domain";
 import { DateTimePicker } from "./DateTimePicker";
@@ -34,7 +37,8 @@ export function ReminderConfigSection({
 }: ReminderConfigSectionProps) {
   const [permissionStatus, setPermissionStatus] = useState<string>("default");
   const [isRequesting, setIsRequesting] = useState<boolean>(false);
-  const [hasAttemptedRequest, setHasAttemptedRequest] = useState<boolean>(false);
+  const [hasAttemptedRequest, setHasAttemptedRequest] =
+    useState<boolean>(false);
   const [showCustomPicker, setShowCustomPicker] = useState<boolean>(false);
   const [testSentMessage, setTestSentMessage] = useState<string | null>(null);
 
@@ -47,7 +51,14 @@ export function ReminderConfigSection({
       return occurredAt;
     }
     const now = new Date();
-    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+    const target = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      12,
+      0,
+      0,
+    );
     return target.toISOString();
   };
 
@@ -70,7 +81,9 @@ export function ReminderConfigSection({
     if (success) {
       setTestSentMessage("¡Notificación de prueba enviada a tu pantalla!");
     } else {
-      setTestSentMessage("No se pudo enviar. Comprueba los permisos de tu navegador.");
+      setTestSentMessage(
+        "No se pudo enviar. Comprueba los permisos de tu navegador.",
+      );
     }
     setTimeout(() => setTestSentMessage(null), 4000);
   };
@@ -91,47 +104,56 @@ export function ReminderConfigSection({
     {
       label: "Una vez",
       value: "NONE",
-      description: "Aviso único puntual. Sonará una sola vez en la fecha y hora seleccionada.",
+      description:
+        "Aviso único puntual. Sonará una sola vez en la fecha y hora seleccionada.",
     },
     {
       label: "Cada 2 horas",
       value: "EVERY_2_HOURS",
-      description: "Aviso periódico cada 2 horas entre la fecha de inicio y la fecha final.",
+      description:
+        "Aviso periódico cada 2 horas entre la fecha de inicio y la fecha final.",
     },
     {
       label: "Cada 4 horas",
       value: "EVERY_4_HOURS",
-      description: "Aviso periódico cada 4 horas entre la fecha de inicio y la fecha final.",
+      description:
+        "Aviso periódico cada 4 horas entre la fecha de inicio y la fecha final.",
     },
     {
       label: "Cada 6 horas",
       value: "EVERY_6_HOURS",
-      description: "Aviso periódico cada 6 horas entre la fecha de inicio y la fecha final.",
+      description:
+        "Aviso periódico cada 6 horas entre la fecha de inicio y la fecha final.",
     },
     {
       label: "Cada 8 horas",
       value: "EVERY_8_HOURS",
-      description: "Aviso periódico cada 8 horas entre la fecha de inicio y la fecha final.",
+      description:
+        "Aviso periódico cada 8 horas entre la fecha de inicio y la fecha final.",
     },
     {
       label: "Cada 12 horas",
       value: "EVERY_12_HOURS",
-      description: "Aviso periódico cada 12 horas entre la fecha de inicio y la fecha final.",
+      description:
+        "Aviso periódico cada 12 horas entre la fecha de inicio y la fecha final.",
     },
     {
       label: "Diario",
       value: "DAILY",
-      description: "Aviso continuo todos los días. Sonará diariamente a la hora fijada desde la fecha de inicio hasta la fecha final.",
+      description:
+        "Aviso continuo todos los días. Sonará diariamente a la hora fijada desde la fecha de inicio hasta la fecha final.",
     },
     {
       label: "Semanal",
       value: "WEEKLY",
-      description: "Aviso semanal. Sonará cada semana el mismo día de la semana a la hora fijada hasta la fecha final.",
+      description:
+        "Aviso semanal. Sonará cada semana el mismo día de la semana a la hora fijada hasta la fecha final.",
     },
     {
       label: "Mensual",
       value: "MONTHLY",
-      description: "Aviso mensual. Sonará cada mes el mismo día a la hora fijada hasta la fecha final.",
+      description:
+        "Aviso mensual. Sonará cada mes el mismo día a la hora fijada hasta la fecha final.",
     },
   ];
 
@@ -147,11 +169,22 @@ export function ReminderConfigSection({
     "MONTHLY",
   ];
 
-  const initialHourMatch = recurrence ? recurrence.match(/^EVERY_(\d+)_HOURS?$/) : null;
-  const isCustomHourActive =
-    Boolean(initialHourMatch && !["EVERY_2_HOURS", "EVERY_4_HOURS", "EVERY_6_HOURS", "EVERY_8_HOURS", "EVERY_12_HOURS"].includes(recurrence));
+  const initialHourMatch = recurrence
+    ? recurrence.match(/^EVERY_(\d+)_HOURS?$/)
+    : null;
+  const isCustomHourActive = Boolean(
+    initialHourMatch &&
+    ![
+      "EVERY_2_HOURS",
+      "EVERY_4_HOURS",
+      "EVERY_6_HOURS",
+      "EVERY_8_HOURS",
+      "EVERY_12_HOURS",
+    ].includes(recurrence),
+  );
 
-  const [showCustomHoursInput, setShowCustomHoursInput] = useState<boolean>(isCustomHourActive);
+  const [showCustomHoursInput, setShowCustomHoursInput] =
+    useState<boolean>(isCustomHourActive);
   const [customHoursValue, setCustomHoursValue] = useState<string>(
     initialHourMatch ? initialHourMatch[1] : "3",
   );
@@ -184,23 +217,30 @@ export function ReminderConfigSection({
   const effectiveTrigger = getEffectiveTriggerDate();
   const effectiveEnd = getEffectiveEndDate();
 
-  const hourMatch = recurrence ? recurrence.match(/^EVERY_(\d+)_HOURS?$/) : null;
+  const hourMatch = recurrence
+    ? recurrence.match(/^EVERY_(\d+)_HOURS?$/)
+    : null;
   const currentRecurrenceDescription = hourMatch
     ? `Aviso periódico flexible cada ${hourMatch[1]} horas entre la fecha de inicio y la fecha final.`
-    : (recurrenceOptions.find((r) => r.value === recurrence)?.description ||
-      recurrenceOptions[0].description);
+    : recurrenceOptions.find((r) => r.value === recurrence)?.description ||
+      recurrenceOptions[0].description;
 
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>🔔 Recordatorios y Notificaciones</Text>
+          <Text style={styles.headerTitle}>
+            🔔 Recordatorios y Notificaciones
+          </Text>
           <Text style={styles.headerSubtitle}>
             Planifica un aviso sonoro y emergente en tu dispositivo
           </Text>
         </View>
         <Pressable
-          style={[styles.toggleBtn, enabled ? styles.toggleBtnActive : styles.toggleBtnInactive]}
+          style={[
+            styles.toggleBtn,
+            enabled ? styles.toggleBtnActive : styles.toggleBtnInactive,
+          ]}
           onPress={() => {
             const next = !enabled;
             onEnabledChange(next);
@@ -217,7 +257,9 @@ export function ReminderConfigSection({
             }
           }}
         >
-          <Text style={styles.toggleBtnText}>{enabled ? "ACTIVADO" : "DESACTIVADO"}</Text>
+          <Text style={styles.toggleBtnText}>
+            {enabled ? "ACTIVADO" : "DESACTIVADO"}
+          </Text>
         </Pressable>
       </View>
 
@@ -231,8 +273,13 @@ export function ReminderConfigSection({
                   ✅ Notificaciones permitidas en este navegador.
                 </Text>
               </View>
-              <Pressable style={styles.testNotificationBtn} onPress={handleSendTestNotification}>
-                <Text style={styles.testNotificationBtnText}>Probar Notificación</Text>
+              <Pressable
+                style={styles.testNotificationBtn}
+                onPress={handleSendTestNotification}
+              >
+                <Text style={styles.testNotificationBtnText}>
+                  Probar Notificación
+                </Text>
               </Pressable>
             </View>
           ) : permissionStatus === "denied" ? (
@@ -241,8 +288,10 @@ export function ReminderConfigSection({
                 🚫 Notificaciones bloqueadas en tu navegador
               </Text>
               <Text style={styles.permissionDeniedDesc}>
-                Tu navegador tiene bloqueadas las notificaciones para este sitio. Para habilitarlas:{"\n"}
-                1. Haz clic en el icono del candado 🔒 o ajustes (a la izquierda de la URL en tu navegador).{"\n"}
+                Tu navegador tiene bloqueadas las notificaciones para este
+                sitio. Para habilitarlas:{"\n"}
+                1. Haz clic en el icono del candado 🔒 o ajustes (a la izquierda
+                de la URL en tu navegador).{"\n"}
                 2. En la opción "Notificaciones", selecciona "Permitir".{"\n"}
                 3. Pulsa el botón de abajo para verificar.
               </Text>
@@ -252,14 +301,18 @@ export function ReminderConfigSection({
                 disabled={isRequesting}
               >
                 <Text style={styles.permissionRetryBtnText}>
-                  {isRequesting ? "Comprobando..." : "🔄 Comprobar Permisos Nuevamente"}
+                  {isRequesting
+                    ? "Comprobando..."
+                    : "🔄 Comprobar Permisos Nuevamente"}
                 </Text>
               </Pressable>
             </View>
           ) : permissionStatus === "unsupported" ? (
             <View style={styles.permissionWarningBox}>
               <Text style={styles.permissionWarningText}>
-                ℹ️ Notificaciones de escritorio no disponibles en este entorno (requiere HTTPS o navegador compatible). Recibirás avisos visuales en la aplicación.
+                ℹ️ Notificaciones de escritorio no disponibles en este entorno
+                (requiere HTTPS o navegador compatible). Recibirás avisos
+                visuales en la aplicación.
               </Text>
             </View>
           ) : hasAttemptedRequest ? (
@@ -268,8 +321,10 @@ export function ReminderConfigSection({
                 🔔 El navegador no abrió la ventana de permisos automáticamente
               </Text>
               <Text style={styles.permissionPromptFallbackDesc}>
-                En navegadores como Chrome, Edge o Brave, la ventana emergente puede estar silenciada. Para activarlas en 2 pasos:{"\n"}
-                1. Haz clic en el icono del candado 🔒 o ajustes a la izquierda de la dirección web (URL).{"\n"}
+                En navegadores como Chrome, Edge o Brave, la ventana emergente
+                puede estar silenciada. Para activarlas en 2 pasos:{"\n"}
+                1. Haz clic en el icono del candado 🔒 o ajustes a la izquierda
+                de la dirección web (URL).{"\n"}
                 2. En "Notificaciones", cambia a "Permitir".{"\n"}
                 3. Pulsa el botón inferior para confirmar.
               </Text>
@@ -280,7 +335,9 @@ export function ReminderConfigSection({
                   disabled={isRequesting}
                 >
                   <Text style={styles.permissionRetryBtnText}>
-                    {isRequesting ? "Verificando..." : "🔄 Comprobar Si Ya Fueron Permitidas"}
+                    {isRequesting
+                      ? "Verificando..."
+                      : "🔄 Comprobar Si Ya Fueron Permitidas"}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -297,15 +354,21 @@ export function ReminderConfigSection({
           ) : (
             <View style={styles.permissionWarningBox}>
               <Text style={styles.permissionWarningText}>
-                ⚠️ Para recibir avisos en tu pantalla, autoriza los permisos en tu navegador:
+                ⚠️ Para recibir avisos en tu pantalla, autoriza los permisos en
+                tu navegador:
               </Text>
               <Pressable
-                style={[styles.permissionGrantBtn, isRequesting && styles.permissionGrantBtnDisabled]}
+                style={[
+                  styles.permissionGrantBtn,
+                  isRequesting && styles.permissionGrantBtnDisabled,
+                ]}
                 onPress={handleRequestPermission}
                 disabled={isRequesting}
               >
                 <Text style={styles.permissionGrantBtnText}>
-                  {isRequesting ? "⏳ Solicitando..." : "Activar Permisos Ahora"}
+                  {isRequesting
+                    ? "⏳ Solicitando..."
+                    : "Activar Permisos Ahora"}
                 </Text>
               </Pressable>
             </View>
@@ -318,10 +381,13 @@ export function ReminderConfigSection({
           {/* 2. Momento del Aviso rápido si hay evento */}
           {occurredAt ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.subLabel}>¿Cuándo deseas recibir el primer aviso respecto al evento?</Text>
+              <Text style={styles.subLabel}>
+                ¿Cuándo deseas recibir el primer aviso respecto al evento?
+              </Text>
               <View style={styles.optionsWrap}>
                 {offsetOptions.map((opt) => {
-                  const isSelected = offsetMinutes === opt.value && !showCustomPicker;
+                  const isSelected =
+                    offsetMinutes === opt.value && !showCustomPicker;
                   return (
                     <Pressable
                       key={opt.value}
@@ -332,7 +398,12 @@ export function ReminderConfigSection({
                         onReminderTimeChange("");
                       }}
                     >
-                      <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                      <Text
+                        style={[
+                          styles.chipText,
+                          isSelected && styles.chipTextActive,
+                        ]}
+                      >
                         {opt.label}
                       </Text>
                     </Pressable>
@@ -347,7 +418,12 @@ export function ReminderConfigSection({
                     }
                   }}
                 >
-                  <Text style={[styles.chipText, showCustomPicker && styles.chipTextActive]}>
+                  <Text
+                    style={[
+                      styles.chipText,
+                      showCustomPicker && styles.chipTextActive,
+                    ]}
+                  >
                     🕒 Fecha y hora personalizada
                   </Text>
                 </Pressable>
@@ -360,7 +436,9 @@ export function ReminderConfigSection({
             <View style={styles.sectionBlock}>
               <DateTimePicker
                 value={reminderTime || getSmartDefaultIso()}
-                onChange={(iso) => onReminderTimeChange(iso || getSmartDefaultIso())}
+                onChange={(iso) =>
+                  onReminderTimeChange(iso || getSmartDefaultIso())
+                }
                 label="📅 Fecha y hora de inicio del aviso:"
                 testID="input-reminder-start-date"
               />
@@ -370,7 +448,12 @@ export function ReminderConfigSection({
           {/* 4. Selector de Fecha Final (Predeterminada la del evento) */}
           <View style={styles.sectionBlock}>
             <DateTimePicker
-              value={reminderEndTime || occurredAt || reminderTime || getSmartDefaultIso()}
+              value={
+                reminderEndTime ||
+                occurredAt ||
+                reminderTime ||
+                getSmartDefaultIso()
+              }
               onChange={(iso) => onReminderEndTimeChange?.(iso)}
               label="🏁 Fecha y hora final del aviso (Predeterminada: fecha del evento):"
               testID="input-reminder-end-date"
@@ -379,7 +462,9 @@ export function ReminderConfigSection({
               <View style={styles.eventDateHelperRow}>
                 <Text style={styles.eventDateHelperText}>
                   🎯 Fecha del evento:{" "}
-                  <Text style={styles.eventDateHelperHighlight}>{formatDateTime(occurredAt)}</Text>
+                  <Text style={styles.eventDateHelperHighlight}>
+                    {formatDateTime(occurredAt)}
+                  </Text>
                 </Text>
                 {reminderEndTime && reminderEndTime !== occurredAt ? (
                   <Pressable
@@ -397,7 +482,9 @@ export function ReminderConfigSection({
 
           {/* 5. Frecuencia de Repetición con Explicación Intuitiva */}
           <View style={styles.sectionBlock}>
-            <Text style={styles.subLabel}>Frecuencia de repetición del aviso:</Text>
+            <Text style={styles.subLabel}>
+              Frecuencia de repetición del aviso:
+            </Text>
             <View style={styles.optionsWrap}>
               {recurrenceOptions.map((opt) => {
                 const isSelected = recurrence === opt.value;
@@ -410,7 +497,12 @@ export function ReminderConfigSection({
                       onRecurrenceChange(opt.value);
                     }}
                   >
-                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        isSelected && styles.chipTextActive,
+                      ]}
+                    >
                       {opt.label}
                     </Text>
                   </Pressable>
@@ -421,7 +513,8 @@ export function ReminderConfigSection({
               <Pressable
                 style={[
                   styles.chip,
-                  (showCustomHoursInput || isCustomHourActive) && styles.chipActive,
+                  (showCustomHoursInput || isCustomHourActive) &&
+                    styles.chipActive,
                 ]}
                 onPress={() => {
                   setShowCustomHoursInput(true);
@@ -434,7 +527,8 @@ export function ReminderConfigSection({
                 <Text
                   style={[
                     styles.chipText,
-                    (showCustomHoursInput || isCustomHourActive) && styles.chipTextActive,
+                    (showCustomHoursInput || isCustomHourActive) &&
+                      styles.chipTextActive,
                   ]}
                 >
                   ⚙️ Cada X horas...
@@ -444,8 +538,13 @@ export function ReminderConfigSection({
 
             {/* Input para intervalo personalizado en horas */}
             {showCustomHoursInput && (
-              <View style={styles.customHoursRow} testID="custom-hours-container">
-                <Text style={styles.customHoursLabel}>Horas entre cada aviso:</Text>
+              <View
+                style={styles.customHoursRow}
+                testID="custom-hours-container"
+              >
+                <Text style={styles.customHoursLabel}>
+                  Horas entre cada aviso:
+                </Text>
                 <TextInput
                   style={styles.customHoursInput}
                   value={customHoursValue}
@@ -476,11 +575,16 @@ export function ReminderConfigSection({
 
           {/* 6. Tarjeta de Resumen y Verificación Inmediata */}
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>📋 Planificación Confirmada del Aviso</Text>
+            <Text style={styles.summaryTitle}>
+              📋 Planificación Confirmada del Aviso
+            </Text>
             {effectiveTrigger ? (
               <View style={styles.summaryDetails}>
                 <Text style={styles.summaryItemText}>
-                  🔔 <Text style={styles.summaryItemBold}>Primer aviso (Inicio):</Text>{" "}
+                  🔔{" "}
+                  <Text style={styles.summaryItemBold}>
+                    Primer aviso (Inicio):
+                  </Text>{" "}
                   {effectiveTrigger.toLocaleDateString("es-ES", {
                     weekday: "long",
                     day: "numeric",
@@ -492,7 +596,10 @@ export function ReminderConfigSection({
                 </Text>
                 {effectiveEnd ? (
                   <Text style={styles.summaryItemText}>
-                    🏁 <Text style={styles.summaryItemBold}>Fecha límite (Fin):</Text>{" "}
+                    🏁{" "}
+                    <Text style={styles.summaryItemBold}>
+                      Fecha límite (Fin):
+                    </Text>{" "}
                     {effectiveEnd.toLocaleDateString("es-ES", {
                       weekday: "long",
                       day: "numeric",
@@ -501,7 +608,8 @@ export function ReminderConfigSection({
                       hour: "2-digit",
                       minute: "2-digit",
                     })}{" "}
-                    {occurredAt && (reminderEndTime === occurredAt || !reminderEndTime)
+                    {occurredAt &&
+                    (reminderEndTime === occurredAt || !reminderEndTime)
                       ? "(Fecha del evento)"
                       : ""}
                   </Text>
@@ -529,7 +637,8 @@ export function ReminderConfigSection({
               </View>
             ) : (
               <Text style={styles.summaryWarningText}>
-                ⚠️ Selecciona una fecha u hora válida arriba para programar el aviso.
+                ⚠️ Selecciona una fecha u hora válida arriba para programar el
+                aviso.
               </Text>
             )}
           </View>

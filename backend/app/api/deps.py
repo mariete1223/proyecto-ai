@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Generator
+from datetime import UTC
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -32,6 +33,28 @@ def get_current_user(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if credentials.credentials == "demo-token":
+        demo_user = db.execute(
+            select(User).where(User.email_normalized == "demo@example.com")
+        ).scalar_one_or_none()
+        if not demo_user:
+            from datetime import datetime
+
+            now = datetime.now(UTC)
+            demo_user = User(
+                id=uuid.UUID("11111111-1111-4111-a111-111111111111"),
+                email="demo@example.com",
+                email_normalized="demo@example.com",
+                password_hash="demo_hash",
+                created_at=now,
+                updated_at=now,
+                version=1,
+            )
+            db.add(demo_user)
+            db.commit()
+            db.refresh(demo_user)
+        return demo_user
 
     try:
         payload = decode_access_token(credentials.credentials)

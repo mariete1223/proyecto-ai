@@ -65,37 +65,59 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.overlay}>
         <View style={styles.card}>
           <Text style={styles.title}>
             {mode === "login" ? "Iniciar Sesión" : "Crear Cuenta"}
           </Text>
           <Text style={styles.subtitle}>
-            Tus recuerdos y tareas se guardan de forma 100% privada y aislada en tu cuenta personal.
+            Tus recuerdos y tareas se guardan de forma 100% privada y aislada en
+            tu cuenta personal.
           </Text>
 
           {/* Mode Switcher */}
           <View style={styles.tabsRow}>
             <Pressable
-              style={[styles.tabButton, mode === "login" && styles.tabButtonActive]}
+              style={[
+                styles.tabButton,
+                mode === "login" && styles.tabButtonActive,
+              ]}
               onPress={() => {
                 setMode("login");
                 setErrorMessage(null);
               }}
             >
-              <Text style={[styles.tabText, mode === "login" && styles.tabTextActive]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  mode === "login" && styles.tabTextActive,
+                ]}
+              >
                 Iniciar Sesión
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.tabButton, mode === "register" && styles.tabButtonActive]}
+              style={[
+                styles.tabButton,
+                mode === "register" && styles.tabButtonActive,
+              ]}
               onPress={() => {
                 setMode("register");
                 setErrorMessage(null);
               }}
             >
-              <Text style={[styles.tabText, mode === "register" && styles.tabTextActive]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  mode === "register" && styles.tabTextActive,
+                ]}
+              >
                 Registrarse
               </Text>
             </Pressable>
@@ -153,7 +175,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {/* Offline / Guest Mode */}
           {onContinueOffline && (
             <Pressable style={styles.guestButton} onPress={onContinueOffline}>
-              <Text style={styles.guestButtonText}>Continuar en modo offline / invitado</Text>
+              <Text style={styles.guestButtonText}>
+                Continuar en modo offline / invitado
+              </Text>
             </Pressable>
           )}
         </View>

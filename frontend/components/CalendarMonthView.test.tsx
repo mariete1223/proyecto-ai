@@ -1,4 +1,10 @@
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
 import React from "react";
 import { createLocalCategory } from "../db/categories";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
@@ -464,4 +470,3 @@ describe("CalendarMonthView Component (Task 35)", () => {
     );
   });
 });
-

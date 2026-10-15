@@ -25,7 +25,10 @@ def _rollback(session: Session) -> None:
 @lru_cache(maxsize=1)
 def get_database_engine() -> Engine:
     """Build the process-wide engine without opening a database connection."""
-    return create_engine(load_database_url(), pool_pre_ping=True)
+    url = load_database_url()
+    if url.drivername.startswith("sqlite"):
+        return create_engine(url, connect_args={"check_same_thread": False})
+    return create_engine(url, pool_pre_ping=True)
 
 
 @lru_cache(maxsize=1)
@@ -44,7 +47,12 @@ def get_database_session() -> Generator[Session, None, None]:
     try:
         yield session
         session.commit()
-    except SQLAlchemyError:
+    except SQLAlchemyError as exc:
+        import logging
+
+        logging.getLogger(__name__).error(
+            "Database error in session: %s", exc, exc_info=True
+        )
         _rollback(session)
         raise DatabaseOperationError("Database operation failed.") from None
     except BaseException:

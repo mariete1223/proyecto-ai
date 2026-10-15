@@ -135,11 +135,14 @@ export class VoiceRecognitionService {
 
             for (let i = 0; i < event.results.length; i++) {
               const result = event.results[i];
-              const text = result[0]?.transcript ? result[0].transcript.trim() : "";
+              const text = result[0]?.transcript
+                ? result[0].transcript.trim()
+                : "";
               if (!text) continue;
 
               if (result.isFinal) {
-                finalizedAccumulator += (finalizedAccumulator ? " " : "") + text;
+                finalizedAccumulator +=
+                  (finalizedAccumulator ? " " : "") + text;
               } else {
                 interimText += (interimText ? " " : "") + text;
               }

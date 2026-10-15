@@ -1,0 +1,17 @@
+{
+  "name": "Proyecto AI",
+  "short_name": "Proyecto AI",
+  "description": "Tu asistente inteligente de notas, tareas y calendario",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

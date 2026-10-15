@@ -50,7 +50,8 @@ describe("SQLite Local Database Setup & Migrations", () => {
 
   it("persists tables across reinstantiation when localStorage is available", async () => {
     const mockStorage: Record<string, string> = {};
-    const originalWindow = (globalThis as unknown as { window?: unknown }).window;
+    const originalWindow = (globalThis as unknown as { window?: unknown })
+      .window;
     (globalThis as unknown as { window: unknown }).window = {
       localStorage: {
         getItem: (k: string) => mockStorage[k] ?? null,

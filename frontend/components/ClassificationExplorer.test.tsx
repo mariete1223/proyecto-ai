@@ -222,11 +222,7 @@ describe("ClassificationExplorer Component (Task 37)", () => {
     });
 
     const { getByTestId, queryByTestId } = await render(
-      <ClassificationExplorer
-        db={db}
-        userId={userId}
-        pageSize={5}
-      />,
+      <ClassificationExplorer db={db} userId={userId} pageSize={5} />,
     );
 
     // Switch to TAGS tab

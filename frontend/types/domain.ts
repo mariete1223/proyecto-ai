@@ -90,14 +90,20 @@ export function getEntryDisplayTitle(
   return clean.substring(0, maxChars) + "...";
 }
 
-export function normalizeUtcIso(isoString: string | null | undefined): string | null {
+export function normalizeUtcIso(
+  isoString: string | null | undefined,
+): string | null {
   if (!isoString) return null;
   let clean = isoString.trim();
   if (!clean) return null;
   if (clean.includes(" ") && !clean.includes("T")) {
     clean = clean.replace(" ", "T");
   }
-  if (clean.includes("T") && !clean.endsWith("Z") && !/[+-]\d{2}(:\d{2})?$/.test(clean)) {
+  if (
+    clean.includes("T") &&
+    !clean.endsWith("Z") &&
+    !/[+-]\d{2}(:\d{2})?$/.test(clean)
+  ) {
     clean = clean + "Z";
   }
   return clean;
@@ -179,7 +185,10 @@ export function formatReminderSummary(entry: {
   }
 
   // Multi-offset display
-  if (entry.reminder_offsets_minutes && entry.reminder_offsets_minutes.length > 1) {
+  if (
+    entry.reminder_offsets_minutes &&
+    entry.reminder_offsets_minutes.length > 1
+  ) {
     const labels = entry.reminder_offsets_minutes.map(formatOffsetLabel);
     return `Avisos: ${labels.join(", ")}${recSuffix}`;
   }
@@ -239,5 +248,3 @@ export function formatReminderSummary(entry: {
 
   return `${timeDesc}${recSuffix}`;
 }
-
-

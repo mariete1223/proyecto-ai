@@ -7,7 +7,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.domain import Category, Entry, EntryTag, Tag
-from app.models.enums import CategoryKind, TaskRecurrence, TaskStatus
+from app.models.enums import CategoryKind, TaskPriority, TaskRecurrence, TaskStatus
 from app.schemas.entry import EntryCreate, EntryUpdate
 
 
@@ -35,6 +35,7 @@ def create_entry(
         raise InvalidEntryDataError("Category not found or does not belong to user.")
 
     if category.kind == CategoryKind.TASK:
+        task_priority = data.task_priority or TaskPriority.MEDIUM
         if data.task_status is None and data.task_recurrence is None:
             task_status = TaskStatus.PENDING
             task_recurrence = TaskRecurrence.ONCE
@@ -50,8 +51,13 @@ def create_entry(
             raise InvalidEntryDataError(
                 "Task fields can only be set for categories of kind TASK."
             )
+        if data.task_priority is not None:
+            raise InvalidEntryDataError(
+                "Task priority can only be set for categories of kind TASK."
+            )
         task_status = None
         task_recurrence = None
+        task_priority = None
 
     distinct_tag_ids = list(dict.fromkeys(data.tag_ids))
     if distinct_tag_ids:
@@ -69,9 +75,11 @@ def create_entry(
         id=uuid.uuid4(),
         user_id=user_id,
         category_id=data.category_id,
+        title=data.title.strip() if data.title else None,
         occurred_at=occurred_at,
         content=content,
         task_status=task_status,
+        task_priority=task_priority,
         task_recurrence=task_recurrence,
         capture_session_id=None,
         created_at=now,
@@ -256,19 +264,31 @@ def update_entry(
             )
         entry.task_status = new_status
         entry.task_recurrence = new_recurrence
+        if data.task_priority is not None:
+            entry.task_priority = data.task_priority
+        elif entry.task_priority is None:
+            entry.task_priority = TaskPriority.MEDIUM
     else:
         if data.task_status is not None or data.task_recurrence is not None:
             raise InvalidEntryDataError(
                 "Task fields can only be set for categories of kind TASK."
             )
+        if data.task_priority is not None:
+            raise InvalidEntryDataError(
+                "Task priority can only be set for categories of kind TASK."
+            )
         entry.task_status = None
         entry.task_recurrence = None
+        entry.task_priority = None
 
     if data.content is not None:
         cleaned_content = data.content.strip()
         if not cleaned_content:
             raise InvalidEntryDataError("Entry content cannot be empty.")
         entry.content = cleaned_content
+
+    if "title" in data.model_fields_set:
+        entry.title = data.title.strip() if data.title else None
 
     if "occurred_at" in data.model_fields_set:
         entry.occurred_at = data.occurred_at

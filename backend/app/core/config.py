@@ -15,16 +15,20 @@ class DatabaseConfigurationError(RuntimeError):
 
 
 def load_database_url() -> URL:
-    """Load and validate the PostgreSQL URL without exposing its contents."""
+    """Load and validate the database URL for PostgreSQL (or SQLite in dev)."""
     raw_url = os.environ.get(DATABASE_URL_ENV_VAR)
 
     if raw_url is None or not raw_url.strip():
+        if os.environ.get("ALLOW_DEV_SQLITE") != "0":
+            return make_url("sqlite:///app.db")
         raise DatabaseConfigurationError(
             f"{DATABASE_URL_ENV_VAR} is required and must not be empty."
         )
 
     try:
         url = make_url(raw_url.strip())
+        if url.drivername.startswith("sqlite"):
+            return url
         backend_name = url.get_backend_name()
         driver_name = url.get_driver_name()
         _ = url.port

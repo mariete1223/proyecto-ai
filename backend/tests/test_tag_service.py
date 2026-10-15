@@ -109,3 +109,37 @@ def test_update_and_delete_tag(db_session: Session) -> None:
 
     with pytest.raises(TagNotFoundError):
         get_tag_by_id(db_session, user.id, tag.id)
+
+
+def test_tag_color_creation_and_uniqueness(db_session: Session) -> None:
+    user = create_user(db_session, "user@example.com", "Password123!")
+
+    # 1. Tag with explicit color
+    t1 = create_tag(db_session, user.id, TagCreate(name="Tag1", color="#38BDF8"))
+    assert t1.color == "#38BDF8"
+
+    # 2. Duplicate color for same user raises TagAlreadyExistsError
+    with pytest.raises(TagAlreadyExistsError, match="Color already in use"):
+        create_tag(db_session, user.id, TagCreate(name="Tag2", color="#38bdf8"))
+
+    # 3. Another user CAN use the same color
+    user2 = create_user(db_session, "user2@example.com", "Password123!")
+    t2_other = create_tag(
+        db_session, user2.id, TagCreate(name="TagOther", color="#38BDF8")
+    )
+    assert t2_other.color == "#38BDF8"
+
+    # 4. Auto-assigns distinct available preset colors when omitted
+    t3 = create_tag(db_session, user.id, TagCreate(name="Tag3"))
+    t4 = create_tag(db_session, user.id, TagCreate(name="Tag4"))
+    assert t3.color != t1.color
+    assert t4.color != t3.color
+    assert t4.color != t1.color
+
+    # 5. Update tag to duplicate color raises error
+    with pytest.raises(TagAlreadyExistsError, match="Color already in use"):
+        update_tag(db_session, user.id, t3.id, TagUpdate(color="#38BDF8"))
+
+    # 6. Update tag to its own color succeeds
+    updated_same = update_tag(db_session, user.id, t3.id, TagUpdate(color=t3.color))
+    assert updated_same.color == t3.color

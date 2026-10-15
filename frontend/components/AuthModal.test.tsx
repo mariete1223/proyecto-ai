@@ -13,7 +13,11 @@ describe("AuthModal", () => {
       />,
     );
 
-    expect(getByText("Tus recuerdos y tareas se guardan de forma 100% privada y aislada en tu cuenta personal.")).toBeTruthy();
+    expect(
+      getByText(
+        "Tus recuerdos y tareas se guardan de forma 100% privada y aislada en tu cuenta personal.",
+      ),
+    ).toBeTruthy();
     expect(getByPlaceholderText("tu@email.com")).toBeTruthy();
     expect(getByPlaceholderText("Mínimo 8 caracteres")).toBeTruthy();
   });
@@ -50,7 +54,9 @@ describe("AuthModal", () => {
     fireEvent.press(submitBtn);
 
     await waitFor(() => {
-      expect(getByText("Por favor, introduce un correo electrónico válido.")).toBeTruthy();
+      expect(
+        getByText("Por favor, introduce un correo electrónico válido."),
+      ).toBeTruthy();
     });
   });
 });

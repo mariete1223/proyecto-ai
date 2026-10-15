@@ -128,7 +128,7 @@ def test_create_entry_task_category_defaults_and_validation(
         db_session,
         user.id,
         CategoryCreate(
-            name="Standard", voice_command="std", color="#112233", icon="icon"
+            name="Standard", voice_command="std", color="#445566", icon="icon"
         ),
     )
     with pytest.raises(InvalidEntryDataError):

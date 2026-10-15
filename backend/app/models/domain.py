@@ -36,7 +36,7 @@ from app.models.enums import (
 )
 
 
-class GUID(TypeDecorator):
+class GUID(TypeDecorator[Any]):
     """Platform-independent GUID type.
     Uses PostgreSQL's UUID type, otherwise uses String(36).
     """
@@ -70,7 +70,7 @@ UUID_TYPE = GUID()
 TIMESTAMP = DateTime(timezone=True)
 
 
-class JSONType(TypeDecorator):
+class JSONType(TypeDecorator[Any]):
     """Portable JSON type: uses JSONB on PostgreSQL, TEXT on SQLite/others."""
 
     impl = Text
@@ -245,11 +245,15 @@ class Entry(Base):
         enum_type(TaskRecurrence, "task_recurrence"), nullable=True
     )
     capture_session_id: Mapped[UUID | None] = mapped_column(UUID_TYPE, nullable=True)
-    reminder_enabled: Mapped[bool | None] = mapped_column(Boolean, default=False, nullable=True)
+    reminder_enabled: Mapped[bool | None] = mapped_column(
+        Boolean, default=False, nullable=True
+    )
     reminder_time: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)
     reminder_end_time: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)
     reminder_recurrence: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    reminder_offset_minutes: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)
+    reminder_offset_minutes: Mapped[int | None] = mapped_column(
+        Integer, default=0, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     version: Mapped[int] = mapped_column(Integer)
@@ -350,4 +354,3 @@ class PushSubscription(Base):
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP)
-

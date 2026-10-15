@@ -17,6 +17,7 @@ import { theme } from "../styles/theme";
 import {
   Entry,
   formatDateTime,
+  formatReminderSummary,
   getEntryDisplayTitle,
   TaskPriority,
   TaskStatus,
@@ -137,7 +138,9 @@ export function PendingTasksView(props: PendingTasksViewProps) {
       onTaskUpdated?.();
     } catch (err: unknown) {
       setError(
-        err instanceof Error ? err.message : "Error al actualizar la prioridad.",
+        err instanceof Error
+          ? err.message
+          : "Error al actualizar la prioridad.",
       );
     }
   };
@@ -149,7 +152,9 @@ export function PendingTasksView(props: PendingTasksViewProps) {
         title: quickTitleText.trim(),
       });
       setTasks((prev) =>
-        prev.map((t) => (t.id === entryId ? { ...t, title: updated.title } : t)),
+        prev.map((t) =>
+          t.id === entryId ? { ...t, title: updated.title } : t,
+        ),
       );
       setEditingTitleEntryId(null);
       setQuickTitleText("");
@@ -421,23 +426,31 @@ export function PendingTasksView(props: PendingTasksViewProps) {
                 >
                   {item.title ? (
                     <View style={styles.cardHeaderWithBadge}>
-                      <Text style={styles.taskTitleHeader}>📌 {item.title}</Text>
+                      <Text style={styles.taskTitleHeader}>
+                        📌 {item.title}
+                      </Text>
                       <View
                         testID={`task-priority-badge-${item.id}`}
                         style={[
                           styles.taskPriorityBadge,
-                          item.task_priority === "HIGH" && styles.priorityBadgeHigh,
-                          item.task_priority === "LOW" && styles.priorityBadgeLow,
-                          (!item.task_priority || item.task_priority === "MEDIUM") &&
+                          item.task_priority === "HIGH" &&
+                            styles.priorityBadgeHigh,
+                          item.task_priority === "LOW" &&
+                            styles.priorityBadgeLow,
+                          (!item.task_priority ||
+                            item.task_priority === "MEDIUM") &&
                             styles.priorityBadgeMedium,
                         ]}
                       >
                         <Text
                           style={[
                             styles.taskPriorityBadgeText,
-                            item.task_priority === "HIGH" && styles.priorityBadgeHighText,
-                            item.task_priority === "LOW" && styles.priorityBadgeLowText,
-                            (!item.task_priority || item.task_priority === "MEDIUM") &&
+                            item.task_priority === "HIGH" &&
+                              styles.priorityBadgeHighText,
+                            item.task_priority === "LOW" &&
+                              styles.priorityBadgeLowText,
+                            (!item.task_priority ||
+                              item.task_priority === "MEDIUM") &&
                               styles.priorityBadgeMediumText,
                           ]}
                         >
@@ -464,18 +477,24 @@ export function PendingTasksView(props: PendingTasksViewProps) {
                           testID={`task-priority-badge-${item.id}`}
                           style={[
                             styles.taskPriorityBadge,
-                            item.task_priority === "HIGH" && styles.priorityBadgeHigh,
-                            item.task_priority === "LOW" && styles.priorityBadgeLow,
-                            (!item.task_priority || item.task_priority === "MEDIUM") &&
+                            item.task_priority === "HIGH" &&
+                              styles.priorityBadgeHigh,
+                            item.task_priority === "LOW" &&
+                              styles.priorityBadgeLow,
+                            (!item.task_priority ||
+                              item.task_priority === "MEDIUM") &&
                               styles.priorityBadgeMedium,
                           ]}
                         >
                           <Text
                             style={[
                               styles.taskPriorityBadgeText,
-                              item.task_priority === "HIGH" && styles.priorityBadgeHighText,
-                              item.task_priority === "LOW" && styles.priorityBadgeLowText,
-                              (!item.task_priority || item.task_priority === "MEDIUM") &&
+                              item.task_priority === "HIGH" &&
+                                styles.priorityBadgeHighText,
+                              item.task_priority === "LOW" &&
+                                styles.priorityBadgeLowText,
+                              (!item.task_priority ||
+                                item.task_priority === "MEDIUM") &&
                                 styles.priorityBadgeMediumText,
                             ]}
                           >
@@ -496,7 +515,9 @@ export function PendingTasksView(props: PendingTasksViewProps) {
                           setQuickTitleText("");
                         }}
                       >
-                        <Text style={styles.addTitleBtnText}>✏️ Añadir Título</Text>
+                        <Text style={styles.addTitleBtnText}>
+                          ✏️ Añadir Título
+                        </Text>
                       </Pressable>
                     </View>
                   )}
@@ -504,7 +525,9 @@ export function PendingTasksView(props: PendingTasksViewProps) {
                     {item.occurred_at
                       ? `📅 ${formatDateTime(item.occurred_at)} • `
                       : ""}
-                    {item.reminder_enabled ? "🔔 Recordatorio activo • " : ""}
+                    {item.reminder_enabled
+                      ? `🔔 ${formatReminderSummary(item)} • `
+                      : ""}
                     Estado:{" "}
                     {item.task_status === "PENDING"
                       ? "Pendiente"
@@ -581,9 +604,21 @@ export function PendingTasksView(props: PendingTasksViewProps) {
                 <Text style={styles.cardPriorityLabel}>Prioridad:</Text>
                 {(
                   [
-                    { id: "HIGH", label: "🔴 Alta", testId: `set-prio-high-${item.id}` },
-                    { id: "MEDIUM", label: "🟡 Media", testId: `set-prio-med-${item.id}` },
-                    { id: "LOW", label: "🔵 Baja", testId: `set-prio-low-${item.id}` },
+                    {
+                      id: "HIGH",
+                      label: "🔴 Alta",
+                      testId: `set-prio-high-${item.id}`,
+                    },
+                    {
+                      id: "MEDIUM",
+                      label: "🟡 Media",
+                      testId: `set-prio-med-${item.id}`,
+                    },
+                    {
+                      id: "LOW",
+                      label: "🔵 Baja",
+                      testId: `set-prio-low-${item.id}`,
+                    },
                   ] as const
                 ).map((p) => {
                   const isCurrent = (item.task_priority ?? "MEDIUM") === p.id;

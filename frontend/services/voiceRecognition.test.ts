@@ -151,7 +151,12 @@ describe("VoiceRecognitionService (Task 30)", () => {
       mockInstance.onresult({
         results: [
           { isFinal: true, 0: { transcript: "Tarea fecha mañana" } },
-          { isFinal: false, 0: { transcript: "tengo que ir a comprar al mercado prioridad alta" } },
+          {
+            isFinal: false,
+            0: {
+              transcript: "tengo que ir a comprar al mercado prioridad alta",
+            },
+          },
         ],
       });
 

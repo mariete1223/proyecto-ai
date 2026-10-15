@@ -141,7 +141,10 @@ export function parseVoiceEditCommand(
       changes.reminder_enabled = true;
       changes.reminder_recurrence = `EVERY_${hrs}_HOURS`;
       actions.push(`Frecuencia: cada ${hrs} horas`);
-    } else if (/diario|todos los d[ií]as/i.test(lower) && /aviso|recordatorio/i.test(lower)) {
+    } else if (
+      /diario|todos los d[ií]as/i.test(lower) &&
+      /aviso|recordatorio/i.test(lower)
+    ) {
       changes.reminder_enabled = true;
       changes.reminder_recurrence = "DAILY";
       actions.push("Frecuencia: diario");
@@ -195,12 +198,16 @@ export function parseVoiceEditCommand(
       const period = m[3] ? m[3].toLowerCase() : "";
 
       if (
-        (period.includes("tarde") || period.includes("noche") || period === "pm") &&
+        (period.includes("tarde") ||
+          period.includes("noche") ||
+          period === "pm") &&
         h < 12
       ) {
         h += 12;
       } else if (
-        (period.includes("mañana") || period.includes("manana") || period === "am") &&
+        (period.includes("mañana") ||
+          period.includes("manana") ||
+          period === "am") &&
         h === 12
       ) {
         h = 0;

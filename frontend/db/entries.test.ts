@@ -154,7 +154,9 @@ describe("Local Entries and Tasks Storage Layer", () => {
           content: "Invalid task priority on standard note",
           task_priority: "HIGH",
         }),
-      ).rejects.toThrow("Task fields can only be set for categories of kind TASK.");
+      ).rejects.toThrow(
+        "Task fields can only be set for categories of kind TASK.",
+      );
     });
 
     it("updates task_priority successfully", async () => {
@@ -260,4 +262,3 @@ describe("Local Entries and Tasks Storage Layer", () => {
     });
   });
 });
-

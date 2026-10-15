@@ -1,4 +1,4 @@
-import { DatabaseAdapter } from "./database";
+import { DatabaseAdapter, generateUuid } from "./database";
 
 export interface CaptureCorrection {
   id: string;
@@ -27,7 +27,7 @@ export async function createLocalCorrection(
   userId: string,
   data: CreateCorrectionData,
 ): Promise<CaptureCorrection> {
-  const id = Math.random().toString(36).substring(2, 15);
+  const id = generateUuid();
   const now = new Date().toISOString();
 
   const correction: CaptureCorrection = {

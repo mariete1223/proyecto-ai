@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Generado por start.ps1 - contiene URL dinamica del tunel
+.env.local
+.vercel

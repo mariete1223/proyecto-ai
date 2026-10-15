@@ -196,7 +196,26 @@ Description: Implementar un componente simulador de ondas de voz animadas durant
 Goal: Facilitar la localización rápida de entradas/tareas y permitir exportar la información del usuario en JSON.
 Description: Añadir una barra de búsqueda en vivo para filtrar contenido al instante en la interfaz web, junto con selectores por etiqueta rápida y un botón de exportación que descargue las entradas y tareas en formato JSON estructurado.
 
-## 50. Verificación integral de calidad y suite de pruebas frontend/backend
-Goal: Garantizar que el 100% de la funcionalidad de frontend y backend pase todas las pruebas sin regresiones.
-Description: Actualizar y ampliar las suites de pruebas unitarias e integración en frontend y backend (WebMainLayout.test.tsx, PendingTasksView.test.tsx, CalendarMonthView.test.tsx, VoiceCaptureFlow.test.tsx, mvpIntegrationTest.test.ts, test_sync_api.py, etc.). Verificar mediante npm run check y pytest que todos los linteres, comprobaciones de tipo y tests pasan con éxito.
+## 51. Prioridad en Tareas (Alta, Media, Baja) y Comando de Voz de Prioridad
+
+## Goal
+Permitir asignar un nivel de prioridad (`ALTA`, `MEDIA`, `BAJA`) a las tareas tanto desde los formularios y vistas de la app como mediante el comando de voz `prioridad [alta|media|baja]`, el cual está habilitado exclusivamente para tareas.
+
+## Acceptance criteria
+- [x] Existe el enum `TaskPriority` con valores `LOW`, `MEDIUM`, `HIGH` en frontend (`domain.ts`) y backend (`enums.py`).
+- [x] El modelo `Entry` y la tabla `entries` de SQLite y PostgreSQL tienen la columna `task_priority` nullable.
+- [x] La restricción de integridad exige que `task_priority` solo pueda tener valor cuando la entidad sea una tarea (`task_status IS NOT NULL`); para notas/eventos debe ser `NULL`.
+- [x] Al crear o editar una tarea en `EntryForm.tsx` y `EntryDetailView.tsx`, se muestra un selector de prioridad (`Alta`, `Media`, `Baja`) que desaparece si la categoría no es de tipo `TASK`.
+- [x] En `PendingTasksView.tsx`, cada tarea muestra una insignia visual con su prioridad (rojo para Alta, amarillo para Media, azul/gris para Baja) y se permite filtrar/ordenar por prioridad.
+- [x] En `voiceParser.ts`, se reconoce el comando `prioridad [alta|media|baja|urgente|normal]` y se extrae `taskPriority: "HIGH" | "MEDIUM" | "LOW"`.
+- [x] El comando de voz `prioridad` solo se procesa si la categoría identificada es de tipo `TASK`; si la categoría no es tarea, el comando de prioridad no se aplica.
+- [x] La sincronización bidireccional (`syncEngine.ts` y `sync_service.py`) transfiere y persiste `task_priority` entre cliente y servidor.
+- [x] Las suites completas de pruebas unitarias e integración en frontend y backend pasan al 100%.
+
+## Out of scope
+- Notificaciones push basadas en vencimiento de prioridades (reservado para tareas posteriores).
+
+## Constraints
+- Mantener compatibilidad total en SQLite local, MemoryDatabaseAdapter y backend SQLAlchemy.
+- No añadir nuevas dependencias en `pyproject.toml` ni `package.json`.
 

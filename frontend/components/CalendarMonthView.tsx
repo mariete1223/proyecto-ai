@@ -78,9 +78,13 @@ export function CalendarMonthView({
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Quick reminder editor states
-  const [editingReminderEntryId, setEditingReminderEntryId] = useState<string | null>(null);
-  const [selectedReminderOffset, setSelectedReminderOffset] = useState<number>(0);
-  const [selectedReminderRecurrence, setSelectedReminderRecurrence] = useState<ReminderRecurrence>("NONE");
+  const [editingReminderEntryId, setEditingReminderEntryId] = useState<
+    string | null
+  >(null);
+  const [selectedReminderOffset, setSelectedReminderOffset] =
+    useState<number>(0);
+  const [selectedReminderRecurrence, setSelectedReminderRecurrence] =
+    useState<ReminderRecurrence>("NONE");
 
   // Inline Quick Add form for selected day
   const [showQuickAddForm, setShowQuickAddForm] = useState<boolean>(false);
@@ -88,12 +92,17 @@ export function CalendarMonthView({
   const [quickAddTitle, setQuickAddTitle] = useState<string>("");
   const [quickAddContent, setQuickAddContent] = useState<string>("");
   const [quickAddTime, setQuickAddTime] = useState<string>("12:00");
-  const [quickAddReminderEnabled, setQuickAddReminderEnabled] = useState<boolean>(false);
-  const [quickAddReminderOffset, setQuickAddReminderOffset] = useState<number>(0);
-  const [isCreatingQuickEntry, setIsCreatingQuickEntry] = useState<boolean>(false);
+  const [quickAddReminderEnabled, setQuickAddReminderEnabled] =
+    useState<boolean>(false);
+  const [quickAddReminderOffset, setQuickAddReminderOffset] =
+    useState<number>(0);
+  const [isCreatingQuickEntry, setIsCreatingQuickEntry] =
+    useState<boolean>(false);
 
   // Toast message feedback
-  const [reminderToastMessage, setReminderToastMessage] = useState<string | null>(null);
+  const [reminderToastMessage, setReminderToastMessage] = useState<
+    string | null
+  >(null);
   const toastTimerRef = React.useRef<any>(null);
 
   useEffect(() => {
@@ -121,13 +130,16 @@ export function CalendarMonthView({
   };
 
   const handleToggleTaskStatus = async (entry: Entry) => {
-    const nextStatus: TaskStatus = entry.task_status === "DONE" ? "PENDING" : "DONE";
+    const nextStatus: TaskStatus =
+      entry.task_status === "DONE" ? "PENDING" : "DONE";
     try {
       await updateLocalEntry(db, userId, entry.id, {
         task_status: nextStatus,
       });
       setEntries((prev) =>
-        prev.map((e) => (e.id === entry.id ? { ...e, task_status: nextStatus } : e)),
+        prev.map((e) =>
+          e.id === entry.id ? { ...e, task_status: nextStatus } : e,
+        ),
       );
       setSelectedDayEntries((prev) =>
         prev
@@ -203,7 +215,8 @@ export function CalendarMonthView({
     if (!selectedDayEntries || !quickAddContent.trim()) return;
     try {
       setIsCreatingQuickEntry(true);
-      const catId = quickAddCatId || (categories.length > 0 ? categories[0].id : "");
+      const catId =
+        quickAddCatId || (categories.length > 0 ? categories[0].id : "");
       const selectedCategory = categories.find((c) => c.id === catId);
       const isTask = selectedCategory?.kind === "TASK";
 
@@ -304,7 +317,9 @@ export function CalendarMonthView({
         title: quickTitleText.trim(),
       });
       setEntries((prev) =>
-        prev.map((e) => (e.id === entryId ? { ...e, title: updated.title } : e)),
+        prev.map((e) =>
+          e.id === entryId ? { ...e, title: updated.title } : e,
+        ),
       );
       setSelectedDayEntries((prev) =>
         prev
@@ -380,7 +395,15 @@ export function CalendarMonthView({
     return () => {
       mounted = false;
     };
-  }, [db, userId, year, month, selectedCategoryIds, selectedTagIds, refreshSignal]);
+  }, [
+    db,
+    userId,
+    year,
+    month,
+    selectedCategoryIds,
+    selectedTagIds,
+    refreshSignal,
+  ]);
 
   const prevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -889,9 +912,7 @@ export function CalendarMonthView({
                         </View>
                       )}
                     </View>
-                    <Text style={styles.entryTimeText}>
-                      📅 {timeStr}
-                    </Text>
+                    <Text style={styles.entryTimeText}>📅 {timeStr}</Text>
                   </View>
 
                   {ent.title ? (
@@ -992,7 +1013,9 @@ export function CalendarMonthView({
                       >
                         <Text style={styles.quickReminderLivePreviewText}>
                           ⏰ Sonará a las:{" "}
-                          <Text style={styles.quickReminderLivePreviewHighlight}>
+                          <Text
+                            style={styles.quickReminderLivePreviewHighlight}
+                          >
                             {formatReminderSummary({
                               ...ent,
                               reminder_enabled: true,
@@ -1191,9 +1214,7 @@ export function CalendarMonthView({
                           setDeletingEntryId(ent.id);
                         }}
                       >
-                        <Text style={styles.deleteEntryBtnText}>
-                          🗑️
-                        </Text>
+                        <Text style={styles.deleteEntryBtnText}>🗑️</Text>
                       </Pressable>
                     </View>
                   )}
@@ -1217,9 +1238,7 @@ export function CalendarMonthView({
             style={styles.testNotificationBtn}
             onPress={handleTestNotification}
           >
-            <Text style={styles.testNotificationBtnText}>
-              🔔 Probar Avisos
-            </Text>
+            <Text style={styles.testNotificationBtnText}>🔔 Probar Avisos</Text>
           </Pressable>
         </View>
 

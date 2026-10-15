@@ -1,5 +1,8 @@
 export function generateUuid(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -229,12 +232,15 @@ function parseWhereConditions(
     }
 
     // trim(col) != ''
-    const trimNotEqMatch = cond.match(/^trim\(([a-z0-9_]+)\)\s*(!=|<>)\s*['"](.*)['"]$/i);
+    const trimNotEqMatch = cond.match(
+      /^trim\(([a-z0-9_]+)\)\s*(!=|<>)\s*['"](.*)['"]$/i,
+    );
     if (trimNotEqMatch && trimNotEqMatch[1]) {
       const col = trimNotEqMatch[1].toLowerCase();
       const val = trimNotEqMatch[3] ?? "";
       matchers.push((row) => {
-        const strVal = typeof row[col] === "string" ? (row[col] as string).trim() : "";
+        const strVal =
+          typeof row[col] === "string" ? (row[col] as string).trim() : "";
         return strVal !== val;
       });
       continue;

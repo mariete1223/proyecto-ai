@@ -44,7 +44,7 @@ describe("PendingTasksView Component", () => {
 
     await waitFor(() => {
       expect(getByTestId("empty-container")).toBeTruthy();
-      expect(getByText("No hay tareas pendientes sin fecha")).toBeTruthy();
+      expect(getByText("No hay tareas pendientes")).toBeTruthy();
     });
   });
 
@@ -190,6 +190,49 @@ describe("PendingTasksView Component", () => {
 
     await waitFor(() => {
       expect(queryByText("Exportación de Datos (JSON):")).toBeNull();
+    });
+  });
+
+  it("renders priority badge and filters by priority", async () => {
+    await createLocalEntry(db, userId, {
+      category_id: taskCatId,
+      content: "Tarea urgente del sistema",
+      task_status: "PENDING",
+      task_recurrence: "ONCE",
+      task_priority: "HIGH",
+    });
+
+    await createLocalEntry(db, userId, {
+      category_id: taskCatId,
+      content: "Tarea secundaria tranquila",
+      task_status: "PENDING",
+      task_recurrence: "ONCE",
+      task_priority: "LOW",
+    });
+
+    const { getByTestId, queryByText } = await render(
+      <PendingTasksView db={db} userId={userId} />,
+    );
+
+    await waitFor(() => {
+      expect(queryByText("Tarea urgente del sistema")).not.toBeNull();
+      expect(queryByText("Tarea secundaria tranquila")).not.toBeNull();
+    });
+
+    // Filter by HIGH priority
+    fireEvent.press(getByTestId("tab-prio-high"));
+
+    await waitFor(() => {
+      expect(queryByText("Tarea urgente del sistema")).not.toBeNull();
+      expect(queryByText("Tarea secundaria tranquila")).toBeNull();
+    });
+
+    // Filter by LOW priority
+    fireEvent.press(getByTestId("tab-prio-low"));
+
+    await waitFor(() => {
+      expect(queryByText("Tarea urgente del sistema")).toBeNull();
+      expect(queryByText("Tarea secundaria tranquila")).not.toBeNull();
     });
   });
 });

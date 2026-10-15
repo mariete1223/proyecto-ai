@@ -263,7 +263,9 @@ export function ClassificationExplorer({
       .replace(/[^a-z0-9]/g, "");
 
     const trimmedColor = (newCatColor || "#38BDF8").trim().toUpperCase();
-    const duplicate = categories.find((c) => c.color?.toUpperCase() === trimmedColor);
+    const duplicate = categories.find(
+      (c) => c.color?.toUpperCase() === trimmedColor,
+    );
     if (duplicate) {
       setFormError("El color ya está en uso por otra categoría.");
       return;
@@ -526,7 +528,9 @@ export function ClassificationExplorer({
         title: quickTitleText.trim(),
       });
       setAssociatedEntries((prev) =>
-        prev.map((e) => (e.id === entryId ? { ...e, title: updated.title } : e)),
+        prev.map((e) =>
+          e.id === entryId ? { ...e, title: updated.title } : e,
+        ),
       );
       setEditingTitleEntryId(null);
       setQuickTitleText("");
@@ -645,7 +649,9 @@ export function ClassificationExplorer({
             }}
           />
 
-          <Text style={styles.inputLabel}>Comando de Voz (Autogenerado si se omite)</Text>
+          <Text style={styles.inputLabel}>
+            Comando de Voz (Autogenerado si se omite)
+          </Text>
           <TextInput
             testID="input-new-cat-voice"
             style={styles.input}
@@ -1097,7 +1103,9 @@ export function ClassificationExplorer({
               style={styles.actionBtnSecondary}
               onPress={() => handleStartEditCategory(activeCategory)}
             >
-              <Text style={styles.actionBtnSecondaryText}>✏️ Editar / Renombrar</Text>
+              <Text style={styles.actionBtnSecondaryText}>
+                ✏️ Editar / Renombrar
+              </Text>
             </Pressable>
             {confirmDeleteCatId === activeCategory.id ? (
               <View style={styles.confirmDeleteInline}>
@@ -1303,6 +1311,11 @@ export function ClassificationExplorer({
                       📅 {formatDateTime(entry.occurred_at)}
                     </Text>
                   )}
+                  {entry.reminder_enabled ? (
+                    <Text style={styles.entryReminderBadge}>
+                      🔔 Recordatorio activo
+                    </Text>
+                  ) : null}
                   <Text style={styles.entryDateCreated}>
                     🕒 Creado: {formatDateTime(entry.created_at)}
                   </Text>
@@ -1340,8 +1353,13 @@ export function ClassificationExplorer({
                 <>
                   {entry.title ? (
                     <>
-                      <Text style={styles.entryCardTitle}>📌 {entry.title}</Text>
-                      <Text style={styles.entryContentPreview} numberOfLines={2}>
+                      <Text style={styles.entryCardTitle}>
+                        📌 {entry.title}
+                      </Text>
+                      <Text
+                        style={styles.entryContentPreview}
+                        numberOfLines={2}
+                      >
                         {entry.content}
                       </Text>
                     </>
@@ -1358,7 +1376,9 @@ export function ClassificationExplorer({
                           setQuickTitleText("");
                         }}
                       >
-                        <Text style={styles.addTitleBtnText}>✏️ Añadir Título</Text>
+                        <Text style={styles.addTitleBtnText}>
+                          ✏️ Añadir Título
+                        </Text>
                       </Pressable>
                     </View>
                   )}
@@ -1726,6 +1746,11 @@ const styles = StyleSheet.create({
   },
   entryDateAssigned: {
     color: "#38BDF8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  entryReminderBadge: {
+    color: "#F59E0B",
     fontSize: 11,
     fontWeight: "700",
   },

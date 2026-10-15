@@ -13,6 +13,7 @@ def test_database_url_is_required(
     environ: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("ALLOW_DEV_SQLITE", "0")  # disable dev SQLite fallback
     for key, value in environ.items():
         monkeypatch.setenv(key, value)
 
@@ -24,7 +25,6 @@ def test_database_url_is_required(
     "raw_url",
     (
         "not a url",
-        "sqlite:///local.db",
         "postgresql+psycopg://localhost",
         "postgresql+psycopg2://user:secret@localhost/database",
         "postgresql+asyncpg://user:secret@localhost/database",
@@ -44,6 +44,14 @@ def test_database_url_rejects_invalid_values_without_leaking_them(
     assert raw_url not in message
     assert "user" not in message
     assert "secret" not in message
+
+
+def test_sqlite_url_in_database_url_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///local.db")
+    url = load_database_url()
+    assert url.drivername == "sqlite"
 
 
 def test_plain_postgresql_url_is_configured_for_psycopg_3(

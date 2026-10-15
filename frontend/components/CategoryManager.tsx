@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   createLocalCategory,
+  deleteLocalCategory,
   listCategories,
   updateLocalCategory,
 } from "../db/categories";
@@ -33,6 +34,12 @@ const PRESET_COLORS = [
   "#06B6D4", // Cyan
 ];
 
+function getFirstAvailablePresetColor(existingCategories: Category[]): string {
+  const used = new Set(existingCategories.map((c) => c.color?.toUpperCase()));
+  const available = PRESET_COLORS.find((c) => !used.has(c));
+  return available || PRESET_COLORS[0];
+}
+
 export function CategoryManager({
   db,
   userId,
@@ -59,6 +66,13 @@ export function CategoryManager({
         const cats = await listCategories(db, userId);
         if (mounted) {
           setCategories(cats);
+          setColor((prev) => {
+            const used = new Set(cats.map((c) => c.color?.toUpperCase()));
+            if (used.has(prev.toUpperCase())) {
+              return getFirstAvailablePresetColor(cats);
+            }
+            return prev;
+          });
         }
       } catch (err) {
         if (mounted) {
@@ -72,20 +86,23 @@ export function CategoryManager({
     };
   }, [db, userId]);
 
-  const resetForm = () => {
+  const resetForm = (cats: Category[] = categories) => {
     setEditingCategory(null);
     setName("");
     setVoiceCommand("");
     setDescription("");
-    setColor("#38BDF8");
+    setColor(getFirstAvailablePresetColor(cats));
     setIcon("folder");
     setKind("STANDARD");
     setErrorMessage(null);
     setSuccessMessage(null);
   };
 
+  const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
+
   const startEdit = (cat: Category) => {
     setEditingCategory(cat);
+    setDeletingCatId(null);
     setName(cat.name);
     setVoiceCommand(cat.voice_command);
     setDescription(cat.description || "");
@@ -94,6 +111,28 @@ export function CategoryManager({
     setKind(cat.kind);
     setErrorMessage(null);
     setSuccessMessage(null);
+  };
+
+  const handleDeleteCategory = async (catId: string) => {
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      await deleteLocalCategory(db, userId, catId);
+      setSuccessMessage("Categoría eliminada.");
+      setDeletingCatId(null);
+      const cats = await listCategories(db, userId);
+      setCategories(cats);
+      if (editingCategory?.id === catId) {
+        resetForm(cats);
+      }
+      if (onCategoryChanged) {
+        onCategoryChanged();
+      }
+    } catch (err) {
+      setErrorMessage((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -107,6 +146,17 @@ export function CategoryManager({
 
     if (!/^#[0-9A-Fa-f]{6}$/.test(color)) {
       setErrorMessage("Formato de color hexadecimal inválido (ej. #38BDF8).");
+      return;
+    }
+
+    const normalizedColor = color.trim().toUpperCase();
+    const duplicate = categories.find(
+      (c) =>
+        c.color?.toUpperCase() === normalizedColor &&
+        (!editingCategory || c.id !== editingCategory.id),
+    );
+    if (duplicate) {
+      setErrorMessage("El color ya está en uso por otra categoría.");
       return;
     }
 
@@ -132,20 +182,25 @@ export function CategoryManager({
       }
 
       const wasEditing = Boolean(editingCategory);
-      resetForm();
+      const cats = await listCategories(db, userId);
+      setCategories(cats);
+      resetForm(cats);
       if (wasEditing) {
         setSuccessMessage("¡Categoría actualizada correctamente!");
       } else {
         setSuccessMessage("¡Categoría creada correctamente!");
       }
 
-      const cats = await listCategories(db, userId);
-      setCategories(cats);
       if (onCategoryChanged) {
         onCategoryChanged();
       }
     } catch (err) {
-      setErrorMessage((err as Error).message);
+      const msg = (err as Error).message || "";
+      if (msg.toLowerCase().includes("color")) {
+        setErrorMessage("El color ya está en uso por otra categoría.");
+      } else {
+        setErrorMessage(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -192,13 +247,42 @@ export function CategoryManager({
               {cat.description ? (
                 <Text style={styles.catDetail}>Desc: {cat.description}</Text>
               ) : null}
-              <Pressable
-                testID={`btn-edit-cat-${cat.id}`}
-                style={styles.editButton}
-                onPress={() => startEdit(cat)}
-              >
-                <Text style={styles.editButtonText}>Editar</Text>
-              </Pressable>
+              <View style={styles.cardActionsRow}>
+                <Pressable
+                  testID={`btn-edit-cat-${cat.id}`}
+                  style={styles.editButton}
+                  onPress={() => startEdit(cat)}
+                >
+                  <Text style={styles.editButtonText}>Editar</Text>
+                </Pressable>
+
+                {deletingCatId === cat.id ? (
+                  <View style={styles.deleteConfirmRow}>
+                    <Text style={styles.confirmDeleteText}>¿Eliminar?</Text>
+                    <Pressable
+                      testID={`btn-confirm-delete-cat-${cat.id}`}
+                      style={styles.confirmDeleteBtn}
+                      onPress={() => handleDeleteCategory(cat.id)}
+                    >
+                      <Text style={styles.confirmDeleteBtnText}>Sí</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.cancelDeleteBtn}
+                      onPress={() => setDeletingCatId(null)}
+                    >
+                      <Text style={styles.cancelDeleteBtnText}>No</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    testID={`btn-delete-cat-${cat.id}`}
+                    style={styles.deleteButton}
+                    onPress={() => setDeletingCatId(cat.id)}
+                  >
+                    <Text style={styles.deleteButtonText}>Eliminar</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
           ))
         )}
@@ -314,7 +398,7 @@ export function CategoryManager({
             <Pressable
               testID="btn-cancel-edit"
               style={styles.cancelButton}
-              onPress={resetForm}
+              onPress={() => resetForm()}
             >
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </Pressable>
@@ -417,6 +501,54 @@ const styles = StyleSheet.create({
   editButtonText: {
     color: "#F8FAFC",
     fontSize: 12,
+  },
+  cardActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+  deleteButton: {
+    backgroundColor: "#7F1D1D",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  deleteButtonText: {
+    color: "#FECACA",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  deleteConfirmRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  confirmDeleteText: {
+    color: "#F87171",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  confirmDeleteBtn: {
+    backgroundColor: "#DC2626",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  confirmDeleteBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  cancelDeleteBtn: {
+    backgroundColor: "#334155",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  cancelDeleteBtnText: {
+    color: "#94A3B8",
+    fontSize: 11,
   },
   formContainer: {
     backgroundColor: "#0F172A",

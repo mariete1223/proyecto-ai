@@ -4,12 +4,11 @@ import asyncio
 import logging
 import re
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.core.vapid import send_web_push, send_web_push_detail
+from app.core.vapid import send_web_push_detail
 from app.db.session import get_database_engine
 from app.models.domain import Entry, PushSubscription
 
@@ -65,7 +64,9 @@ def check_and_send_due_reminders(db: Session) -> int:
                     continue
 
             # Fetch user's push subscriptions
-            sub_stmt = select(PushSubscription).where(PushSubscription.user_id == entry.user_id)
+            sub_stmt = select(PushSubscription).where(
+                PushSubscription.user_id == entry.user_id
+            )
             subs = db.execute(sub_stmt).scalars().all()
 
             notif_title = f"🔔 {entry.title.strip() if entry.title and entry.title.strip() else 'Recordatorio de Proyecto AI'}"
@@ -96,7 +97,9 @@ def check_and_send_due_reminders(db: Session) -> int:
 
             if expired_sub_ids:
                 db.execute(
-                    delete(PushSubscription).where(PushSubscription.id.in_(expired_sub_ids))
+                    delete(PushSubscription).where(
+                        PushSubscription.id.in_(expired_sub_ids)
+                    )
                 )
 
             # Advance recurrence or disable
@@ -147,7 +150,9 @@ def check_and_send_due_reminders(db: Session) -> int:
 async def run_reminder_push_loop(interval_seconds: int = 30) -> None:
     """Continuous background loop checking for due reminders every interval_seconds."""
     engine = get_database_engine()
-    logger.info("Iniciando background worker de Web Push (intervalo: %ds)...", interval_seconds)
+    logger.info(
+        "Iniciando background worker de Web Push (intervalo: %ds)...", interval_seconds
+    )
 
     while True:
         try:

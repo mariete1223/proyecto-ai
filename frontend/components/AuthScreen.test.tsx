@@ -38,7 +38,9 @@ describe("AuthScreen Component", () => {
     fireEvent.press(submitBtn);
 
     await waitFor(() => {
-      expect(getByText("Por favor, introduce un correo electrónico válido.")).toBeTruthy();
+      expect(
+        getByText("Por favor, introduce un correo electrónico válido."),
+      ).toBeTruthy();
     });
   });
 });

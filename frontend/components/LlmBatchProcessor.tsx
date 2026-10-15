@@ -12,7 +12,13 @@ import { listCategories } from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
 import { createLocalEntry } from "../db/entries";
 import { listTags } from "../db/tags";
-import { Category, Entry, normalizeTextKey, Tag, TaskStatus } from "../types/domain";
+import {
+  Category,
+  Entry,
+  normalizeTextKey,
+  Tag,
+  TaskStatus,
+} from "../types/domain";
 
 export interface LlmRawImportItem {
   category_name?: string;
@@ -97,11 +103,15 @@ ${refDateStr}
     "category_name": "Nombre de Categoría",
     "title": "Título corto y descriptivo (opcional)",
     "content": "Contenido detallado y limpio de la entrada",
-    "occurred_at": "YYYY-MM-DDTHH:mm:ssZ" o "YYYY-MM-DD" o null,
+    "occurred_at": null,
     "task_status": "PENDING" (si es tarea) o null,
     "tags": ["Etiqueta1", "Etiqueta2"]
   }
 ]
+
+### REGLAS IMPORTANTES:
+1. NOTAS DESESTRUCTURADAS: Para notas desestructuradas o notas generales ("Notas"), NO debes extraer una fecha como tal en "occurred_at" (debe ser null). Las notas desestructuradas pueden contener múltiples fechas o referencias temporales variadas; conserva intactas todas las fechas y horas dentro del texto en "content".
+2. TAREAS Y EVENTOS: Solo incluye fecha en "occurred_at" (formato ISO 8601 UTC o YYYY-MM-DD) si la entrada es un evento puntual con fecha concreta o una tarea con fecha límite única. En cualquier otro caso, usa null.
 
 ### MI TEXTO LIBRE PARA ESTRUCTURAR:
 """
@@ -136,12 +146,17 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
       // Clean up markdown code block wrappers ```json ... ``` if present
       let cleanJson = jsonInput.trim();
       if (cleanJson.startsWith("```")) {
-        cleanJson = cleanJson.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+        cleanJson = cleanJson
+          .replace(/^```(?:json)?/i, "")
+          .replace(/```$/, "")
+          .trim();
       }
 
       const rawItems = JSON.parse(cleanJson);
       if (!Array.isArray(rawItems)) {
-        setErrorMessage("El JSON introducido debe ser una lista/array [...] de objetos.");
+        setErrorMessage(
+          "El JSON introducido debe ser una lista/array [...] de objetos.",
+        );
         return;
       }
 
@@ -175,11 +190,17 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
         }
 
         const isTask = matchedCat?.kind === "TASK";
+        const isEvent = matchedCat?.kind === "EVENT";
         const rawStatus =
           item.task_status === "COMPLETED" ? "DONE" : item.task_status;
         const finalStatus: TaskStatus | null = isTask
           ? rawStatus || "PENDING"
           : null;
+
+        // Para notas desestructuradas (o categorías estándar/notas generales),
+        // no se debe leer la fecha como tal (se mantiene null) para no romper notas con múltiples fechas.
+        const resolvedOccurredAt =
+          isTask || isEvent ? item.occurred_at || null : null;
 
         // Match tags
         const matchedTagIds: string[] = [];
@@ -205,7 +226,7 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
           isTask,
           title: item.title && item.title.trim() ? item.title.trim() : null,
           content: item.content.trim(),
-          occurredAt: item.occurred_at || null,
+          occurredAt: resolvedOccurredAt,
           taskStatus: finalStatus,
           tagIds: matchedTagIds,
           tagNames: matchedTagNames,
@@ -282,14 +303,18 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
       </View>
 
       <Text style={styles.subText}>
-        Convierte una nota larga, diario o volcado libre del día en múltiples entradas estructuradas utilizando ChatGPT, Claude o Gemini.
+        Convierte una nota larga, diario o volcado libre del día en múltiples
+        entradas estructuradas utilizando ChatGPT, Claude o Gemini.
       </Text>
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
         <Pressable
           testID="btn-tab-llm-prompt"
-          style={[styles.tabButton, activeTab === "PROMPT" && styles.activeTabButton]}
+          style={[
+            styles.tabButton,
+            activeTab === "PROMPT" && styles.activeTabButton,
+          ]}
           onPress={() => setActiveTab("PROMPT")}
         >
           <Text
@@ -303,7 +328,10 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
         </Pressable>
         <Pressable
           testID="btn-tab-llm-import"
-          style={[styles.tabButton, activeTab === "IMPORT" && styles.activeTabButton]}
+          style={[
+            styles.tabButton,
+            activeTab === "IMPORT" && styles.activeTabButton,
+          ]}
           onPress={() => setActiveTab("IMPORT")}
         >
           <Text
@@ -331,7 +359,9 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
 
       {activeTab === "PROMPT" ? (
         <View style={styles.tabContent}>
-          <Text style={styles.label}>Paso 1: Escribe o pega la nota libre a estructurar:</Text>
+          <Text style={styles.label}>
+            Paso 1: Escribe o pega la nota libre a estructurar:
+          </Text>
           <TextInput
             testID="input-llm-raw-note"
             style={styles.textArea}
@@ -345,21 +375,30 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
 
           <Pressable
             testID="btn-copy-llm-prompt"
-            style={[styles.primaryButton, copiedSuccess && styles.successButton]}
+            style={[
+              styles.primaryButton,
+              copiedSuccess && styles.successButton,
+            ]}
             onPress={handleCopyPrompt}
           >
             <Text style={styles.primaryButtonText}>
-              {copiedSuccess ? "✓ ¡Prompt copiado al portapapeles!" : "📋 Copiar Prompt Completo para el LLM"}
+              {copiedSuccess
+                ? "✓ ¡Prompt copiado al portapapeles!"
+                : "📋 Copiar Prompt Completo para el LLM"}
             </Text>
           </Pressable>
 
           <Text style={styles.helpFootnote}>
-            💡 **Siguiente paso:** Pega el prompt copiado en ChatGPT / Claude. Copia el JSON que te responda y pulsa la pestaña **"2️⃣ Importar JSON de la IA"**.
+            💡 **Siguiente paso:** Pega el prompt copiado en ChatGPT / Claude.
+            Copia el JSON que te responda y pulsa la pestaña **"2️⃣ Importar JSON
+            de la IA"**.
           </Text>
         </View>
       ) : (
         <View style={styles.tabContent}>
-          <Text style={styles.label}>Paso 2: Pega el JSON generado por la IA:</Text>
+          <Text style={styles.label}>
+            Paso 2: Pega el JSON generado por la IA:
+          </Text>
           <TextInput
             testID="input-llm-json-response"
             style={styles.textArea}
@@ -367,7 +406,7 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
             numberOfLines={6}
             value={jsonInput}
             onChangeText={setJsonInput}
-            placeholder='Pega aquí el bloque JSON devuelto por el LLM [...]'
+            placeholder="Pega aquí el bloque JSON devuelto por el LLM [...]"
             placeholderTextColor="#64748b"
           />
 
@@ -377,7 +416,9 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
               style={styles.secondaryButton}
               onPress={parseJsonInput}
             >
-              <Text style={styles.secondaryButtonText}>🔍 Analizar y Previsualizar</Text>
+              <Text style={styles.secondaryButtonText}>
+                🔍 Analizar y Previsualizar
+              </Text>
             </Pressable>
 
             {parsedItems.length > 0 && (
@@ -406,7 +447,11 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
               </Text>
               <ScrollView style={styles.previewScroll}>
                 {parsedItems.map((item, idx) => (
-                  <View key={idx} style={styles.previewCard} testID={`preview-item-${idx}`}>
+                  <View
+                    key={idx}
+                    style={styles.previewCard}
+                    testID={`preview-item-${idx}`}
+                  >
                     <View style={styles.previewCardHeader}>
                       <View
                         style={[

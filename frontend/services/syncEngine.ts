@@ -1,4 +1,8 @@
 import { DatabaseAdapter } from "../db/database";
+import {
+  applyRemoteDeletion,
+  RemoteDeletionEntityType,
+} from "./remoteDeletion";
 
 export interface SyncConfig {
   apiBaseUrl: string;
@@ -69,6 +73,12 @@ function generateUuid(): string {
   });
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(id: unknown): boolean {
+  return typeof id === "string" && UUID_REGEX.test(id);
+}
+
 export async function getPendingLocalChanges(
   db: DatabaseAdapter,
   userId: string,
@@ -76,17 +86,37 @@ export async function getPendingLocalChanges(
   const changes: SyncClientChange[] = [];
 
   // 1. Categories
-  const categories = await db.getAllAsync<Record<string, unknown>>(
+  const catPending = await db.getAllAsync<Record<string, unknown>>(
     `SELECT * FROM categories WHERE user_id = ? AND sync_status = 'PENDING_PUSH';`,
     [userId],
   );
+  const catError = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM categories WHERE user_id = ? AND sync_status = 'ERROR';`,
+    [userId],
+  );
+  const categories = [...catPending, ...catError];
   for (const cat of categories) {
+    let catId = String(cat.id);
+    if (!isUuid(catId)) {
+      const newUuid = generateUuid();
+      await db.runAsync(`UPDATE categories SET id = ? WHERE id = ?;`, [
+        newUuid,
+        catId,
+      ]);
+      await db.runAsync(
+        `UPDATE entries SET category_id = ? WHERE category_id = ?;`,
+        [newUuid, catId],
+      );
+      catId = newUuid;
+      cat.id = newUuid;
+    }
     const { sync_status, ...payload } = cat;
+    payload.id = catId;
     const version = typeof cat.version === "number" ? cat.version : 1;
     changes.push({
       change_id: generateUuid(),
       entity_type: "CATEGORY",
-      entity_id: String(cat.id),
+      entity_id: catId,
       action: version === 1 ? "CREATE" : "UPDATE",
       base_version: version === 1 ? 0 : version - 1,
       payload: payload as Record<string, unknown>,
@@ -94,17 +124,33 @@ export async function getPendingLocalChanges(
   }
 
   // 2. Tags
-  const tags = await db.getAllAsync<Record<string, unknown>>(
+  const tagPending = await db.getAllAsync<Record<string, unknown>>(
     `SELECT * FROM tags WHERE user_id = ? AND sync_status = 'PENDING_PUSH';`,
     [userId],
   );
+  const tagError = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM tags WHERE user_id = ? AND sync_status = 'ERROR';`,
+    [userId],
+  );
+  const tags = [...tagPending, ...tagError];
   for (const tag of tags) {
+    let tagId = String(tag.id);
+    if (!isUuid(tagId)) {
+      const newUuid = generateUuid();
+      await db.runAsync(`UPDATE tags SET id = ? WHERE id = ?;`, [
+        newUuid,
+        tagId,
+      ]);
+      tagId = newUuid;
+      tag.id = newUuid;
+    }
     const { sync_status, ...payload } = tag;
+    payload.id = tagId;
     const version = typeof tag.version === "number" ? tag.version : 1;
     changes.push({
       change_id: generateUuid(),
       entity_type: "TAG",
-      entity_id: String(tag.id),
+      entity_id: tagId,
       action: version === 1 ? "CREATE" : "UPDATE",
       base_version: version === 1 ? 0 : version - 1,
       payload: payload as Record<string, unknown>,
@@ -112,17 +158,51 @@ export async function getPendingLocalChanges(
   }
 
   // 3. Entries
-  const entries = await db.getAllAsync<Record<string, unknown>>(
+  // Sanear posibles categorías huérfanas antes de subir
+  const validCats = await db.getAllAsync<{ id: string }>(
+    `SELECT id FROM categories WHERE user_id = ?;`,
+    [userId],
+  );
+  const validCatIds = new Set(validCats.map((c) => c.id));
+  const fallbackCatId = validCats[0]?.id;
+
+  const entPending = await db.getAllAsync<Record<string, unknown>>(
     `SELECT * FROM entries WHERE user_id = ? AND sync_status = 'PENDING_PUSH';`,
     [userId],
   );
+  const entError = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM entries WHERE user_id = ? AND sync_status = 'ERROR';`,
+    [userId],
+  );
+  const entries = [...entPending, ...entError];
   for (const entry of entries) {
+    let entryId = String(entry.id);
+    if (!isUuid(entryId)) {
+      const newUuid = generateUuid();
+      await db.runAsync(`UPDATE entries SET id = ? WHERE id = ?;`, [
+        newUuid,
+        entryId,
+      ]);
+      entryId = newUuid;
+      entry.id = newUuid;
+    }
+    let currentCatId = String(entry.category_id || "");
+    if ((!currentCatId || !validCatIds.has(currentCatId)) && fallbackCatId) {
+      currentCatId = fallbackCatId;
+      entry.category_id = fallbackCatId;
+      await db.runAsync(`UPDATE entries SET category_id = ? WHERE id = ?;`, [
+        fallbackCatId,
+        entryId,
+      ]);
+    }
     const { sync_status, ...payload } = entry;
+    payload.id = entryId;
+    payload.category_id = currentCatId;
     const version = typeof entry.version === "number" ? entry.version : 1;
     changes.push({
       change_id: generateUuid(),
       entity_type: "ENTRY",
-      entity_id: String(entry.id),
+      entity_id: entryId,
       action: version === 1 ? "CREATE" : "UPDATE",
       base_version: version === 1 ? 0 : version - 1,
       payload: payload as Record<string, unknown>,
@@ -130,17 +210,33 @@ export async function getPendingLocalChanges(
   }
 
   // 4. Capture Corrections
-  const corrections = await db.getAllAsync<Record<string, unknown>>(
+  const corrPending = await db.getAllAsync<Record<string, unknown>>(
     `SELECT * FROM capture_corrections WHERE user_id = ? AND sync_status = 'PENDING_PUSH';`,
     [userId],
   );
+  const corrError = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM capture_corrections WHERE user_id = ? AND sync_status = 'ERROR';`,
+    [userId],
+  );
+  const corrections = [...corrPending, ...corrError];
   for (const corr of corrections) {
+    let corrId = String(corr.id);
+    if (!isUuid(corrId)) {
+      const newUuid = generateUuid();
+      await db.runAsync(`UPDATE capture_corrections SET id = ? WHERE id = ?;`, [
+        newUuid,
+        corrId,
+      ]);
+      corrId = newUuid;
+      corr.id = newUuid;
+    }
     const { sync_status, ...payload } = corr;
+    payload.id = corrId;
     const version = typeof corr.version === "number" ? corr.version : 1;
     changes.push({
       change_id: generateUuid(),
       entity_type: "CAPTURE_CORRECTION",
-      entity_id: String(corr.id),
+      entity_id: corrId,
       action: version === 1 ? "CREATE" : "UPDATE",
       base_version: version === 1 ? 0 : version - 1,
       payload: payload as Record<string, unknown>,
@@ -321,11 +417,14 @@ export async function applyRemoteChanges(
     const entityId = c.entity_id;
 
     if (entityType === "CATEGORY") {
-      const existing = await db.getFirstAsync<{ id: string }>(
+      // Buscar primero por ID (caso normal de sync)
+      const existingById = await db.getFirstAsync<{ id: string }>(
         `SELECT id FROM categories WHERE id = ? AND user_id = ?;`,
         [entityId, userId],
       );
-      if (existing) {
+
+      if (existingById) {
+        // Actualizar por ID
         await db.runAsync(
           `UPDATE categories SET kind = ?, name = ?, name_normalized = ?, voice_command = ?, voice_command_normalized = ?, description = ?, color = ?, icon = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
           [
@@ -344,24 +443,59 @@ export async function applyRemoteChanges(
           ],
         );
       } else {
-        await db.runAsync(
-          `INSERT INTO categories (id, user_id, kind, name, name_normalized, voice_command, voice_command_normalized, description, color, icon, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED');`,
-          [
-            entityId,
-            userId,
-            payload.kind ?? "STANDARD",
-            payload.name ?? "",
-            payload.name_normalized ?? "",
-            payload.voice_command ?? "",
-            payload.voice_command_normalized ?? "",
-            payload.description ?? "",
-            payload.color ?? "#000000",
-            payload.icon ?? "folder",
-            payload.created_at ?? new Date().toISOString(),
-            payload.updated_at ?? new Date().toISOString(),
-            payload.version ?? 1,
-          ],
+        // Buscar por nombre normalizado para evitar duplicados
+        // (ocurre cuando el item local tiene UUID distinto al del servidor)
+        const existingByName = await db.getFirstAsync<{ id: string }>(
+          `SELECT id FROM categories WHERE name_normalized = ? AND user_id = ?;`,
+          [payload.name_normalized ?? "", userId],
         );
+
+        if (existingByName) {
+          // Re-vincular todas las entradas locales asociadas a este nuevo ID de categoría
+          await db.runAsync(
+            `UPDATE entries SET category_id = ?, sync_status = 'PENDING_PUSH' WHERE category_id = ? AND user_id = ?;`,
+            [entityId, existingByName.id, userId],
+          );
+          // Actualizar el registro local con el ID del servidor y marcarlo como SYNCED
+          await db.runAsync(
+            `UPDATE categories SET id = ?, kind = ?, name = ?, name_normalized = ?, voice_command = ?, voice_command_normalized = ?, description = ?, color = ?, icon = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
+            [
+              entityId, // re-asignar el UUID del servidor
+              payload.kind ?? "STANDARD",
+              payload.name ?? "",
+              payload.name_normalized ?? "",
+              payload.voice_command ?? "",
+              payload.voice_command_normalized ?? "",
+              payload.description ?? "",
+              payload.color ?? "#000000",
+              payload.icon ?? "folder",
+              payload.updated_at ?? new Date().toISOString(),
+              payload.version ?? 1,
+              existingByName.id, // buscar por el ID local antiguo
+              userId,
+            ],
+          );
+        } else {
+          // No existe ni por ID ni por nombre → insertar como nuevo
+          await db.runAsync(
+            `INSERT INTO categories (id, user_id, kind, name, name_normalized, voice_command, voice_command_normalized, description, color, icon, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED');`,
+            [
+              entityId,
+              userId,
+              payload.kind ?? "STANDARD",
+              payload.name ?? "",
+              payload.name_normalized ?? "",
+              payload.voice_command ?? "",
+              payload.voice_command_normalized ?? "",
+              payload.description ?? "",
+              payload.color ?? "#000000",
+              payload.icon ?? "folder",
+              payload.created_at ?? new Date().toISOString(),
+              payload.updated_at ?? new Date().toISOString(),
+              payload.version ?? 1,
+            ],
+          );
+        }
       }
     } else if (entityType === "TAG") {
       const existing = await db.getFirstAsync<{ id: string }>(
@@ -370,10 +504,11 @@ export async function applyRemoteChanges(
       );
       if (existing) {
         await db.runAsync(
-          `UPDATE tags SET name = ?, name_normalized = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
+          `UPDATE tags SET name = ?, name_normalized = ?, color = COALESCE(?, color), updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
           [
             payload.name ?? "",
             payload.name_normalized ?? "",
+            payload.color ?? null,
             payload.updated_at ?? new Date().toISOString(),
             payload.version ?? 1,
             entityId,
@@ -381,33 +516,89 @@ export async function applyRemoteChanges(
           ],
         );
       } else {
-        await db.runAsync(
-          `INSERT INTO tags (id, user_id, name, name_normalized, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'SYNCED');`,
-          [
-            entityId,
-            userId,
-            payload.name ?? "",
-            payload.name_normalized ?? "",
-            payload.created_at ?? new Date().toISOString(),
-            payload.updated_at ?? new Date().toISOString(),
-            payload.version ?? 1,
-          ],
+        const existingByName = await db.getFirstAsync<{ id: string }>(
+          `SELECT id FROM tags WHERE name_normalized = ? AND user_id = ?;`,
+          [payload.name_normalized ?? "", userId],
         );
+        if (existingByName) {
+          const existingLinks = await db.getAllAsync<{
+            id: string;
+            entry_id: string;
+          }>(
+            `SELECT id, entry_id FROM entry_tags WHERE tag_id = ? AND user_id = ?;`,
+            [existingByName.id, userId],
+          );
+          for (const link of existingLinks) {
+            const hasTarget = await db.getFirstAsync<{ id: string }>(
+              `SELECT id FROM entry_tags WHERE entry_id = ? AND tag_id = ? AND user_id = ?;`,
+              [link.entry_id, entityId, userId],
+            );
+            if (hasTarget) {
+              await db.runAsync(`DELETE FROM entry_tags WHERE id = ?;`, [
+                link.id,
+              ]);
+            } else {
+              await db.runAsync(
+                `UPDATE entry_tags SET tag_id = ? WHERE id = ?;`,
+                [entityId, link.id],
+              );
+            }
+          }
+          await db.runAsync(
+            `UPDATE tags SET id = ?, name = ?, name_normalized = ?, color = COALESCE(?, color), updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
+            [
+              entityId,
+              payload.name ?? "",
+              payload.name_normalized ?? "",
+              payload.color ?? null,
+              payload.updated_at ?? new Date().toISOString(),
+              payload.version ?? 1,
+              existingByName.id,
+              userId,
+            ],
+          );
+        } else {
+          await db.runAsync(
+            `INSERT INTO tags (id, user_id, name, name_normalized, color, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED');`,
+            [
+              entityId,
+              userId,
+              payload.name ?? "",
+              payload.name_normalized ?? "",
+              payload.color ?? "#64748B",
+              payload.created_at ?? new Date().toISOString(),
+              payload.updated_at ?? new Date().toISOString(),
+              payload.version ?? 1,
+            ],
+          );
+        }
       }
     } else if (entityType === "ENTRY") {
-      const existing = await db.getFirstAsync<{ id: string }>(
-        `SELECT id FROM entries WHERE id = ? AND user_id = ?;`,
-        [entityId, userId],
-      );
+      const existing = await db.getFirstAsync<{
+        id: string;
+        title?: string | null;
+      }>(`SELECT id, title FROM entries WHERE id = ? AND user_id = ?;`, [
+        entityId,
+        userId,
+      ]);
+      const titleToUse =
+        payload.title !== undefined &&
+        payload.title !== null &&
+        payload.title !== ""
+          ? String(payload.title).trim()
+          : (existing?.title ?? null);
+
       if (existing) {
         await db.runAsync(
-          `UPDATE entries SET category_id = ?, occurred_at = ?, content = ?, task_status = ?, task_recurrence = ?, capture_session_id = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
+          `UPDATE entries SET category_id = ?, title = ?, occurred_at = ?, content = ?, task_status = ?, task_recurrence = ?, task_priority = ?, capture_session_id = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
           [
             payload.category_id,
+            titleToUse,
             payload.occurred_at ?? null,
             payload.content ?? "",
             payload.task_status ?? null,
             payload.task_recurrence ?? null,
+            payload.task_priority ?? null,
             payload.capture_session_id ?? null,
             payload.updated_at ?? new Date().toISOString(),
             payload.version ?? 1,
@@ -416,22 +607,66 @@ export async function applyRemoteChanges(
           ],
         );
       } else {
-        await db.runAsync(
-          `INSERT INTO entries (id, user_id, category_id, occurred_at, content, task_status, task_recurrence, capture_session_id, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED');`,
-          [
-            entityId,
-            userId,
-            payload.category_id,
-            payload.occurred_at ?? null,
-            payload.content ?? "",
-            payload.task_status ?? null,
-            payload.task_recurrence ?? null,
-            payload.capture_session_id ?? null,
-            payload.created_at ?? new Date().toISOString(),
-            payload.updated_at ?? new Date().toISOString(),
-            payload.version ?? 1,
-          ],
-        );
+        // Comprobar si ya existe una entrada local con el mismo contenido exacto
+        // (por ejemplo, entradas semilla creadas con UUIDs locales distintos)
+        const existingByContent = await db.getFirstAsync<{
+          id: string;
+          title?: string | null;
+        }>(`SELECT id, title FROM entries WHERE user_id = ? AND content = ?;`, [
+          userId,
+          payload.content ?? "",
+        ]);
+
+        if (existingByContent) {
+          const resolvedTitle =
+            payload.title !== undefined &&
+            payload.title !== null &&
+            payload.title !== ""
+              ? String(payload.title).trim()
+              : (existingByContent.title ?? null);
+          // Re-identificar la entrada local con el ID del servidor para no duplicar
+          await db.runAsync(
+            `UPDATE entries SET id = ?, category_id = ?, title = ?, occurred_at = ?, task_status = ?, task_recurrence = ?, task_priority = ?, capture_session_id = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
+            [
+              entityId,
+              payload.category_id,
+              resolvedTitle,
+              payload.occurred_at ?? null,
+              payload.task_status ?? null,
+              payload.task_recurrence ?? null,
+              payload.task_priority ?? null,
+              payload.capture_session_id ?? null,
+              payload.updated_at ?? new Date().toISOString(),
+              payload.version ?? 1,
+              existingByContent.id,
+              userId,
+            ],
+          );
+          // Actualizar tags vinculadas si las hubiera
+          await db.runAsync(
+            `UPDATE entry_tags SET entry_id = ? WHERE entry_id = ? AND user_id = ?;`,
+            [entityId, existingByContent.id, userId],
+          );
+        } else {
+          await db.runAsync(
+            `INSERT INTO entries (id, user_id, category_id, title, occurred_at, content, task_status, task_recurrence, task_priority, capture_session_id, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED');`,
+            [
+              entityId,
+              userId,
+              payload.category_id,
+              payload.title ? String(payload.title).trim() : null,
+              payload.occurred_at ?? null,
+              payload.content ?? "",
+              payload.task_status ?? null,
+              payload.task_recurrence ?? null,
+              payload.task_priority ?? null,
+              payload.capture_session_id ?? null,
+              payload.created_at ?? new Date().toISOString(),
+              payload.updated_at ?? new Date().toISOString(),
+              payload.version ?? 1,
+            ],
+          );
+        }
       }
     }
   }
@@ -442,24 +677,16 @@ export async function applyRemoteChanges(
     const entityType = tb.entity_type;
     const entityId = tb.entity_id;
 
-    if (entityType === "CATEGORY") {
-      await db.runAsync(
-        `DELETE FROM categories WHERE id = ? AND user_id = ?;`,
-        [entityId, userId],
-      );
-    } else if (entityType === "TAG") {
-      await db.runAsync(`DELETE FROM tags WHERE id = ? AND user_id = ?;`, [
-        entityId,
+    if (
+      entityType === "CATEGORY" ||
+      entityType === "TAG" ||
+      entityType === "ENTRY"
+    ) {
+      await applyRemoteDeletion(
+        db,
         userId,
-      ]);
-    } else if (entityType === "ENTRY") {
-      await db.runAsync(`DELETE FROM entries WHERE id = ? AND user_id = ?;`, [
+        entityType as RemoteDeletionEntityType,
         entityId,
-        userId,
-      ]);
-      await db.runAsync(
-        `DELETE FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
-        [entityId, userId],
       );
     }
   }
@@ -526,13 +753,12 @@ export async function syncEngine(
     let hasMore = true;
 
     while (hasMore) {
-      const url = new URL(`${config.apiBaseUrl}/api/v1/sync/pull`);
+      let pullUrl = `${config.apiBaseUrl}/api/v1/sync/pull?limit=50`;
       if (cursor) {
-        url.searchParams.set("cursor", cursor);
+        pullUrl += `&cursor=${encodeURIComponent(cursor)}`;
       }
-      url.searchParams.set("limit", "50");
 
-      const pullRes = await fetchImpl(url.toString(), {
+      const pullRes = await fetchImpl(pullUrl, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${config.token}`,
@@ -608,3 +834,5 @@ export async function syncEngine(
     };
   }
 }
+
+export const performSync = syncEngine;

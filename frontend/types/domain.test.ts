@@ -14,19 +14,33 @@ describe("domain date/time utilities", () => {
     });
 
     it("appends Z to ISO strings without timezone offset", () => {
-      expect(normalizeUtcIso("2026-10-13T17:33:00")).toBe("2026-10-13T17:33:00Z");
-      expect(normalizeUtcIso("2026-10-13T17:33:00.000")).toBe("2026-10-13T17:33:00.000Z");
+      expect(normalizeUtcIso("2026-10-13T17:33:00")).toBe(
+        "2026-10-13T17:33:00Z",
+      );
+      expect(normalizeUtcIso("2026-10-13T17:33:00.000")).toBe(
+        "2026-10-13T17:33:00.000Z",
+      );
     });
 
     it("replaces space with T and appends Z for SQL-style timestamps", () => {
-      expect(normalizeUtcIso("2026-10-13 17:33:00")).toBe("2026-10-13T17:33:00Z");
-      expect(normalizeUtcIso("2026-10-13 17:33:00.000000")).toBe("2026-10-13T17:33:00.000000Z");
+      expect(normalizeUtcIso("2026-10-13 17:33:00")).toBe(
+        "2026-10-13T17:33:00Z",
+      );
+      expect(normalizeUtcIso("2026-10-13 17:33:00.000000")).toBe(
+        "2026-10-13T17:33:00.000000Z",
+      );
     });
 
     it("preserves strings that already have Z or timezone offsets", () => {
-      expect(normalizeUtcIso("2026-10-13T17:33:00Z")).toBe("2026-10-13T17:33:00Z");
-      expect(normalizeUtcIso("2026-10-13T17:33:00+02:00")).toBe("2026-10-13T17:33:00+02:00");
-      expect(normalizeUtcIso("2026-10-13T17:33:00-05:00")).toBe("2026-10-13T17:33:00-05:00");
+      expect(normalizeUtcIso("2026-10-13T17:33:00Z")).toBe(
+        "2026-10-13T17:33:00Z",
+      );
+      expect(normalizeUtcIso("2026-10-13T17:33:00+02:00")).toBe(
+        "2026-10-13T17:33:00+02:00",
+      );
+      expect(normalizeUtcIso("2026-10-13T17:33:00-05:00")).toBe(
+        "2026-10-13T17:33:00-05:00",
+      );
     });
   });
 

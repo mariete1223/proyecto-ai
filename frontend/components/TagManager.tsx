@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
+  DEFAULT_TAG_PRESET_COLORS,
   createLocalTag,
   deleteLocalTag,
   getTagUsageCount,
@@ -21,12 +22,27 @@ interface TagWithUsage {
   usageCount: number;
 }
 
+function getFirstAvailableTagColor(
+  tags: TagWithUsage[],
+  currentColor?: string,
+): string {
+  const used = new Set(
+    tags.map((t) => t.tag.color?.toUpperCase()).filter(Boolean),
+  );
+  if (currentColor && !used.has(currentColor.toUpperCase())) {
+    return currentColor;
+  }
+  const available = DEFAULT_TAG_PRESET_COLORS.find((c) => !used.has(c));
+  return available || DEFAULT_TAG_PRESET_COLORS[0];
+}
+
 export function TagManager({ db, userId, onTagChanged }: TagManagerProps) {
   const [tagsWithUsage, setTagsWithUsage] = useState<TagWithUsage[]>([]);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
   const [deletingTag, setDeletingTag] = useState<TagWithUsage | null>(null);
 
   const [name, setName] = useState<string>("");
+  const [color, setColor] = useState<string>("#38BDF8");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -60,6 +76,15 @@ export function TagManager({ db, userId, onTagChanged }: TagManagerProps) {
         );
         if (mounted) {
           setTagsWithUsage(withUsage);
+          setColor((prev) => {
+            const used = new Set(
+              withUsage.map((t) => t.tag.color?.toUpperCase()).filter(Boolean),
+            );
+            if (used.has(prev.toUpperCase())) {
+              return getFirstAvailableTagColor(withUsage);
+            }
+            return prev;
+          });
         }
       } catch (err) {
         if (mounted) {
@@ -73,10 +98,11 @@ export function TagManager({ db, userId, onTagChanged }: TagManagerProps) {
     };
   }, [db, userId]);
 
-  const resetForm = () => {
+  const resetForm = (currentTags: TagWithUsage[] = tagsWithUsage) => {
     setEditingTag(null);
     setDeletingTag(null);
     setName("");
+    setColor(getFirstAvailableTagColor(currentTags));
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -85,6 +111,7 @@ export function TagManager({ db, userId, onTagChanged }: TagManagerProps) {
     setEditingTag(item.tag);
     setDeletingTag(null);
     setName(item.tag.name);
+    setColor(item.tag.color || DEFAULT_TAG_PRESET_COLORS[0]);
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -124,19 +151,38 @@ export function TagManager({ db, userId, onTagChanged }: TagManagerProps) {
       return;
     }
 
+    if (!/^#[0-9A-Fa-f]{6}$/.test(color)) {
+      setErrorMessage("Formato de color hexadecimal inválido (ej. #38BDF8).");
+      return;
+    }
+
+    const normColor = color.trim().toUpperCase();
+    const duplicate = tagsWithUsage.find(
+      (item) =>
+        (item.tag.color ?? "").toUpperCase() === normColor &&
+        (!editingTag || item.tag.id !== editingTag.id),
+    );
+    if (duplicate) {
+      setErrorMessage("El color ya está en uso por otra etiqueta.");
+      return;
+    }
+
     setLoading(true);
     try {
       const wasEditing = Boolean(editingTag);
       if (editingTag) {
         await updateLocalTag(db, userId, editingTag.id, {
           name: name.trim(),
+          color: normColor,
         });
       } else {
         await createLocalTag(db, userId, {
           name: name.trim(),
+          color: normColor,
         });
       }
 
+      await loadTags();
       resetForm();
       if (wasEditing) {
         setSuccessMessage("¡Etiqueta actualizada correctamente!");
@@ -144,12 +190,16 @@ export function TagManager({ db, userId, onTagChanged }: TagManagerProps) {
         setSuccessMessage("¡Etiqueta creada correctamente!");
       }
 
-      await loadTags();
       if (onTagChanged) {
         onTagChanged();
       }
     } catch (err) {
-      setErrorMessage((err as Error).message);
+      const msg = (err as Error).message || "";
+      if (msg.toLowerCase().includes("color")) {
+        setErrorMessage("El color ya está en uso por otra etiqueta.");
+      } else {
+        setErrorMessage(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -220,7 +270,15 @@ export function TagManager({ db, userId, onTagChanged }: TagManagerProps) {
               testID={`tag-item-${tag.id}`}
             >
               <View style={styles.tagHeader}>
-                <Text style={styles.tagName}>{`#${tag.name}`}</Text>
+                <View
+                  style={[
+                    styles.tagColorDot,
+                    { backgroundColor: tag.color || "#38BDF8" },
+                  ]}
+                />
+                <Text
+                  style={[styles.tagName, { color: tag.color || "#38BDF8" }]}
+                >{`#${tag.name}`}</Text>
                 <Text style={styles.usageBadge}>
                   {usageCount > 0 ? `En uso: ${usageCount}` : "Sin uso"}
                 </Text>
@@ -264,12 +322,44 @@ export function TagManager({ db, userId, onTagChanged }: TagManagerProps) {
           onChangeText={setName}
         />
 
+        <Text style={styles.label}>Color Hexadecimal</Text>
+        <View style={styles.colorInputRow}>
+          <View
+            style={[
+              styles.colorPreviewDot,
+              { backgroundColor: color || "#38BDF8" },
+            ]}
+          />
+          <TextInput
+            testID="input-tag-color"
+            style={[styles.input, { flex: 1 }]}
+            placeholder="#38BDF8"
+            placeholderTextColor="#64748B"
+            value={color}
+            onChangeText={setColor}
+          />
+        </View>
+        <View style={styles.colorRow}>
+          {DEFAULT_TAG_PRESET_COLORS.map((c) => (
+            <Pressable
+              key={c}
+              testID={`tag-color-preset-${c.replace("#", "")}`}
+              style={[
+                styles.colorDot,
+                { backgroundColor: c },
+                color.toUpperCase() === c && styles.colorDotActive,
+              ]}
+              onPress={() => setColor(c)}
+            />
+          ))}
+        </View>
+
         <View style={styles.buttonRow}>
           {editingTag && (
             <Pressable
               testID="btn-cancel-edit-tag"
               style={styles.cancelButton}
-              onPress={resetForm}
+              onPress={() => resetForm()}
             >
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </Pressable>
@@ -486,5 +576,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#FEF3C7",
     marginBottom: 10,
+  },
+  tagColorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  colorInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  colorPreviewDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#64748B",
+  },
+  colorRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 8,
+  },
+  colorDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  colorDotActive: {
+    borderColor: "#FFFFFF",
+    borderWidth: 2,
+    transform: [{ scale: 1.15 }],
   },
 });

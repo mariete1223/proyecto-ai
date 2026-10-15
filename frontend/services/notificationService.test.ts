@@ -86,7 +86,8 @@ describe("NotificationService", () => {
     notificationService.scheduleForEntry(entry);
 
     expect(setTimeoutSpy).toHaveBeenCalled();
-    const delayArg = setTimeoutSpy.mock.calls[setTimeoutSpy.mock.calls.length - 1][1];
+    const delayArg =
+      setTimeoutSpy.mock.calls[setTimeoutSpy.mock.calls.length - 1][1];
     // Delay should be approximately 60 mins (3,600,000 ms), with tolerance of 5000 ms
     expect(delayArg).toBeGreaterThan(3590000);
     expect(delayArg).toBeLessThan(3610000);
@@ -116,7 +117,8 @@ describe("NotificationService", () => {
     notificationService.scheduleForEntry(entry);
 
     expect(setTimeoutSpy).toHaveBeenCalled();
-    const lastCall = setTimeoutSpy.mock.calls[setTimeoutSpy.mock.calls.length - 1];
+    const lastCall =
+      setTimeoutSpy.mock.calls[setTimeoutSpy.mock.calls.length - 1];
     const delayArg = lastCall[1];
     // Next recurrence should be in ~4 hours (14,400,000 ms)
     expect(delayArg).toBeGreaterThan(14390000);
@@ -186,4 +188,3 @@ describe("NotificationService", () => {
     }).not.toThrow();
   });
 });
-

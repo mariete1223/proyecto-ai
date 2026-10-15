@@ -279,8 +279,12 @@ export function VoiceCaptureFlow({
       const isTask = category?.kind === "TASK";
       const finalTitle =
         titleStr !== undefined
-          ? (titleStr && titleStr.trim() ? titleStr.trim() : null)
-          : (manualTitle.trim() ? manualTitle.trim() : null);
+          ? titleStr && titleStr.trim()
+            ? titleStr.trim()
+            : null
+          : manualTitle.trim()
+            ? manualTitle.trim()
+            : null;
 
       const entry = await createLocalEntry(db, userId, {
         category_id: catId,
@@ -365,10 +369,18 @@ export function VoiceCaptureFlow({
 
       {/* Mobile Keyboard Dictation Notice if WebSpeech is unsupported in Expo Go */}
       {typeof window !== "undefined" &&
-        !("SpeechRecognition" in window || "webkitSpeechRecognition" in window) && (
-          <View style={styles.mobileDictationHintBox} testID="mobile-dictation-hint">
+        !(
+          "SpeechRecognition" in window || "webkitSpeechRecognition" in window
+        ) && (
+          <View
+            style={styles.mobileDictationHintBox}
+            testID="mobile-dictation-hint"
+          >
             <Text style={styles.mobileDictationHintText}>
-              💡 <Text style={{ fontWeight: "700" }}>Dictado por Móvil:</Text> En Expo Go (iOS), toca el campo de transcripción más abajo y presiona el ícono de micrófono 🎙️ en la barra espaciadora de tu teclado nativo para dictar con tu voz.
+              💡 <Text style={{ fontWeight: "700" }}>Dictado por Móvil:</Text>{" "}
+              En Expo Go (iOS), toca el campo de transcripción más abajo y
+              presiona el ícono de micrófono 🎙️ en la barra espaciadora de tu
+              teclado nativo para dictar con tu voz.
             </Text>
           </View>
         )}
@@ -441,7 +453,9 @@ export function VoiceCaptureFlow({
       {/* Visual Voice Commands Guide (Dynamic) */}
       <View style={styles.guideContainer} testID="voice-commands-guide">
         <View style={styles.guideHeaderRow}>
-          <Text style={styles.guideHeader}>💡 Comandos de Voz Disponibles:</Text>
+          <Text style={styles.guideHeader}>
+            💡 Comandos de Voz Disponibles:
+          </Text>
           {categories.length > 5 && (
             <Pressable
               testID="btn-toggle-all-categories-help"
@@ -467,28 +481,32 @@ export function VoiceCaptureFlow({
                 Comienza diciendo el comando de la categoría:
               </Text>
             </View>
-            <View style={styles.catCommandsWrap} testID="help-category-commands">
-              {(showAllHelpCategories ? categories : categories.slice(0, 5)).map(
-                (cat) => (
+            <View
+              style={styles.catCommandsWrap}
+              testID="help-category-commands"
+            >
+              {(showAllHelpCategories
+                ? categories
+                : categories.slice(0, 5)
+              ).map((cat) => (
+                <View
+                  key={cat.id}
+                  style={[
+                    styles.catCommandChip,
+                    { borderColor: cat.color || "#38BDF8" },
+                  ]}
+                >
                   <View
-                    key={cat.id}
                     style={[
-                      styles.catCommandChip,
-                      { borderColor: cat.color || "#38BDF8" },
+                      styles.catDot,
+                      { backgroundColor: cat.color || "#38BDF8" },
                     ]}
-                  >
-                    <View
-                      style={[
-                        styles.catDot,
-                        { backgroundColor: cat.color || "#38BDF8" },
-                      ]}
-                    />
-                    <Text style={styles.catCommandText}>
-                      {`"${cat.voice_command || cat.name.toLowerCase()}"`}
-                    </Text>
-                  </View>
-                ),
-              )}
+                  />
+                  <Text style={styles.catCommandText}>
+                    {`"${cat.voice_command || cat.name.toLowerCase()}"`}
+                  </Text>
+                </View>
+              ))}
             </View>
           </View>
 
@@ -521,13 +539,15 @@ export function VoiceCaptureFlow({
                 🏷️ Etiquetas ({uniqueTags.length})
               </Text>
               <Text style={styles.guideSubtext}>
-                Di <Text style={styles.boldCode}>{'"etiquetas"'}</Text> seguido de:
+                Di <Text style={styles.boldCode}>{'"etiquetas"'}</Text> seguido
+                de:
               </Text>
             </View>
             <View style={styles.catCommandsWrap} testID="help-tag-commands">
               {uniqueTags.length === 0 ? (
                 <Text style={styles.guideText}>
-                  Di <Text style={styles.boldCode}>{'"etiquetas urgente"'}</Text>
+                  Di{" "}
+                  <Text style={styles.boldCode}>{'"etiquetas urgente"'}</Text>
                 </Text>
               ) : (
                 uniqueTags.map((tag) => (
@@ -572,7 +592,10 @@ export function VoiceCaptureFlow({
             </View>
 
             {/* Quick Action Bar below tokens for no-scroll saving */}
-            <View style={styles.quickSaveTokensRow} testID="quick-save-tokens-row">
+            <View
+              style={styles.quickSaveTokensRow}
+              testID="quick-save-tokens-row"
+            >
               <Pressable
                 testID="btn-quick-save-tokens"
                 style={[styles.quickSaveBtn, loading && styles.buttonDisabled]}
@@ -656,14 +679,19 @@ export function VoiceCaptureFlow({
             ))}
           </View>
 
-          {categories.find((c) => c.id === manualCategoryId)?.kind === "TASK" && (
+          {categories.find((c) => c.id === manualCategoryId)?.kind ===
+            "TASK" && (
             <>
               <Text style={styles.label}>⚡ Prioridad de la Tarea</Text>
               <View style={styles.chipsRow}>
                 {(
                   [
                     { id: "HIGH", label: "🔴 Alta", testId: "voice-prio-high" },
-                    { id: "MEDIUM", label: "🟡 Media", testId: "voice-prio-med" },
+                    {
+                      id: "MEDIUM",
+                      label: "🟡 Media",
+                      testId: "voice-prio-med",
+                    },
                     { id: "LOW", label: "🔵 Baja", testId: "voice-prio-low" },
                   ] as const
                 ).map((p) => (

@@ -110,9 +110,7 @@ describe("Spoken Command Parser (voiceParser)", () => {
     expect(result.categoryId).toBe("cat-2");
     expect(result.occurredAt).toBe(refDate.toISOString());
     expect(
-      result.tokens?.some(
-        (t) => t.type === "DATE" && t.label === "Fecha: Hoy",
-      ),
+      result.tokens?.some((t) => t.type === "DATE" && t.label === "Fecha: Hoy"),
     ).toBe(true);
     expect(result.content).toBe("llamar al doctor por la tarde");
     expect(result.tagIds).toEqual([]);
@@ -445,18 +443,30 @@ describe("Spoken Command Parser (voiceParser)", () => {
   describe("Task Priority Spoken Commands (exclusive to TASK categories)", () => {
     it("extracts 'prioridad alta' for TASK category and strips the command cleanly", () => {
       const transcript = "tarea prioridad alta enviar informe financiero";
-      const result = parseSpokenCommand(transcript, sampleCategories, sampleTags, refDate);
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.categoryId).toBe("cat-2");
       expect(result.taskPriority).toBe("HIGH");
       expect(result.content).toBe("enviar informe financiero");
-      expect(result.tokens?.some((t) => t.label === "Prioridad: Alta")).toBe(true);
+      expect(result.tokens?.some((t) => t.label === "Prioridad: Alta")).toBe(
+        true,
+      );
     });
 
     it("extracts 'prioridad urgente' as HIGH priority for TASK category", () => {
       const transcript = "tarea prioridad urgente reparar fuga de agua";
-      const result = parseSpokenCommand(transcript, sampleCategories, sampleTags, refDate);
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.categoryId).toBe("cat-2");
@@ -466,7 +476,12 @@ describe("Spoken Command Parser (voiceParser)", () => {
 
     it("extracts 'prioridad baja' for TASK category", () => {
       const transcript = "tarea prioridad baja ordenar estantería";
-      const result = parseSpokenCommand(transcript, sampleCategories, sampleTags, refDate);
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.categoryId).toBe("cat-2");
@@ -476,7 +491,12 @@ describe("Spoken Command Parser (voiceParser)", () => {
 
     it("extracts 'con prioridad media' for TASK category", () => {
       const transcript = "tarea con prioridad media llamar al proveedor";
-      const result = parseSpokenCommand(transcript, sampleCategories, sampleTags, refDate);
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.categoryId).toBe("cat-2");
@@ -486,7 +506,12 @@ describe("Spoken Command Parser (voiceParser)", () => {
 
     it("defaults task priority to MEDIUM when not specified for TASK category", () => {
       const transcript = "tarea revisar código de sincronización";
-      const result = parseSpokenCommand(transcript, sampleCategories, sampleTags, refDate);
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.categoryId).toBe("cat-2");
@@ -495,20 +520,34 @@ describe("Spoken Command Parser (voiceParser)", () => {
     });
 
     it("does NOT recognize 'prioridad' command when category is not TASK (e.g. Notas)", () => {
-      const transcript = "nota prioridad alta sobre la arquitectura del sistema";
-      const result = parseSpokenCommand(transcript, sampleCategories, sampleTags, refDate);
+      const transcript =
+        "nota prioridad alta sobre la arquitectura del sistema";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.categoryId).toBe("cat-1"); // Notas (STANDARD)
       expect(result.taskPriority).toBeNull();
       // 'prioridad alta' remains part of the content because the command is exclusive to tasks
       expect(result.content).toContain("prioridad alta");
-      expect(result.tokens?.some((t) => t.label.startsWith("Prioridad:"))).toBe(false);
+      expect(result.tokens?.some((t) => t.label.startsWith("Prioridad:"))).toBe(
+        false,
+      );
     });
 
     it("extracts content, date and priority when priority is at the end of the phrase (Issue #59)", () => {
-      const transcript = "Tarea fecha mañana tengo que ir a comprar al mercado prioridad alta";
-      const result = parseSpokenCommand(transcript, sampleCategories, sampleTags, refDate);
+      const transcript =
+        "Tarea fecha mañana tengo que ir a comprar al mercado prioridad alta";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.categoryId).toBe("cat-2");
@@ -547,7 +586,11 @@ describe("Spoken Command Parser (voiceParser)", () => {
       expect(d.getUTCMonth()).toBe(9); // October
       expect(d.getUTCDate()).toBe(19); // Monday next week
       expect(result.content).toBe("comprar entradas para el teatro");
-      expect(result.tokens?.some((t) => t.label.includes("Lunes de la próxima semana"))).toBe(true);
+      expect(
+        result.tokens?.some((t) =>
+          t.label.includes("Lunes de la próxima semana"),
+        ),
+      ).toBe(true);
     });
 
     it("parses 'para el lunes de la semana que viene' from a Monday reference date (+7 days)", () => {
@@ -631,7 +674,8 @@ describe("Spoken Command Parser (voiceParser)", () => {
     });
 
     it("parses standalone 'semana siguiente' defaulting to Monday of next week", () => {
-      const transcript = "tarea semana siguiente revisar inventario del almacén";
+      const transcript =
+        "tarea semana siguiente revisar inventario del almacén";
       const result = parseSpokenCommand(
         transcript,
         sampleCategories,
@@ -643,7 +687,9 @@ describe("Spoken Command Parser (voiceParser)", () => {
       const d = new Date(result.occurredAt!);
       expect(d.getUTCDate()).toBe(19);
       expect(result.content).toBe("revisar inventario del almacén");
-      expect(result.tokens?.some((t) => t.label === "Fecha: Próxima semana")).toBe(true);
+      expect(
+        result.tokens?.some((t) => t.label === "Fecha: Próxima semana"),
+      ).toBe(true);
     });
 
     it("parses standalone 'la semana que viene' defaulting to Monday of next week", () => {
@@ -662,7 +708,8 @@ describe("Spoken Command Parser (voiceParser)", () => {
     });
 
     it("parses standalone 'para la próxima semana'", () => {
-      const transcript = "tarea para la próxima semana enviar presupuesto al cliente";
+      const transcript =
+        "tarea para la próxima semana enviar presupuesto al cliente";
       const result = parseSpokenCommand(
         transcript,
         sampleCategories,
@@ -877,7 +924,11 @@ describe("Spoken Command Parser (voiceParser)", () => {
       expect(result.reminderOffsetMinutes).toBe(1440);
       expect(result.reminderOffsetsMinutes).toEqual([1440]);
       expect(result.content).toBe("entrega de informe");
-      expect(result.tokens?.some((t) => t.label === "Aviso: 1 día antes (automático)")).toBe(true);
+      expect(
+        result.tokens?.some(
+          (t) => t.label === "Aviso: 1 día antes (automático)",
+        ),
+      ).toBe(true);
     });
 
     it("does not activate reminder when non-Alerta command has no scheduled date", () => {
@@ -895,7 +946,8 @@ describe("Spoken Command Parser (voiceParser)", () => {
     });
 
     it("preserves explicit 'sin aviso' for non-Alerta category with scheduled date", () => {
-      const transcript = "tarea para mañana a las 10:00 entrega de informe sin aviso";
+      const transcript =
+        "tarea para mañana a las 10:00 entrega de informe sin aviso";
       const result = parseSpokenCommand(
         transcript,
         sampleCategories,
@@ -910,4 +962,3 @@ describe("Spoken Command Parser (voiceParser)", () => {
     });
   });
 });
-

@@ -15,7 +15,6 @@ from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_db
 from app.core.auth import create_access_token
-from app.core.vapid import get_vapid_public_key
 from app.main import app
 from app.models.domain import Category, Entry, PushSubscription, User
 from app.services.push_worker import check_and_send_due_reminders
@@ -124,12 +123,13 @@ def test_subscribe_push_endpoint(
     test_db_session: Session,
 ) -> None:
     endpoint = "https://fcm.googleapis.com/fcm/send/test-sub-123"
+    keys_dict = {
+        "p256dh": "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QT9t0A3qcVIi6109968853",
+        "auth": "tBHItJI5svbpez7KI4CCXg",
+    }
     payload = {
         "endpoint": endpoint,
-        "keys": {
-            "p256dh": "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QT9t0A3qcVIi6109968853",
-            "auth": "tBHItJI5svbpez7KI4CCXg",
-        },
+        "keys": keys_dict,
         "user_agent": "Mozilla/5.0 Test",
     }
 
@@ -152,7 +152,7 @@ def test_subscribe_push_endpoint(
     )
     assert sub is not None
     assert sub.user_id == test_user.id
-    assert sub.p256dh == payload["keys"]["p256dh"]
+    assert sub.p256dh == keys_dict["p256dh"]
 
 
 def test_push_test_endpoint(
@@ -223,7 +223,9 @@ def test_check_and_send_due_reminders(
     test_db_session.add(sub)
     test_db_session.commit()
 
-    with patch("app.services.push_worker.send_web_push_detail", return_value=(True, False)) as mock_push:
+    with patch(
+        "app.services.push_worker.send_web_push_detail", return_value=(True, False)
+    ) as mock_push:
         sent = check_and_send_due_reminders(test_db_session)
         assert sent == 1
         mock_push.assert_called_once()
@@ -237,9 +239,10 @@ def test_send_web_push_key_and_claims(
     test_db_session: Session,
     test_user: User,
 ) -> None:
-    from app.core.vapid import send_web_push, send_web_push_detail
-    from unittest.mock import MagicMock
     import os
+    from unittest.mock import MagicMock
+
+    from app.core.vapid import send_web_push_detail
 
     sub_info = {
         "endpoint": "https://web.push.apple.com/test-endpoint",
@@ -310,12 +313,18 @@ def test_transient_error_preserves_subscription(
     test_db_session.commit()
 
     # Simulate transient error (e.g. 500 Internal Server Error or network timeout: is_expired=False)
-    with patch("app.services.push_worker.send_web_push_detail", return_value=(False, False)):
+    with patch(
+        "app.services.push_worker.send_web_push_detail", return_value=(False, False)
+    ):
         sent = check_and_send_due_reminders(test_db_session)
         assert sent == 0
 
     # The subscription MUST NOT be deleted on transient errors!
-    db_sub = test_db_session.query(PushSubscription).filter(PushSubscription.id == sub.id).first()
+    db_sub = (
+        test_db_session.query(PushSubscription)
+        .filter(PushSubscription.id == sub.id)
+        .first()
+    )
     assert db_sub is not None
 
 
@@ -376,7 +385,9 @@ def test_check_and_send_due_reminders_with_offset(
     test_db_session.add(sub)
     test_db_session.commit()
 
-    with patch("app.services.push_worker.send_web_push_detail", return_value=(True, False)) as mock_push:
+    with patch(
+        "app.services.push_worker.send_web_push_detail", return_value=(True, False)
+    ) as mock_push:
         sent = check_and_send_due_reminders(test_db_session)
         assert sent == 1
         mock_push.assert_called_once()
@@ -423,14 +434,21 @@ def test_check_and_send_due_reminders_hourly_recurrence(
     test_db_session.add(sub)
     test_db_session.commit()
 
-    with patch("app.services.push_worker.send_web_push_detail", return_value=(True, False)):
+    with patch(
+        "app.services.push_worker.send_web_push_detail", return_value=(True, False)
+    ):
         sent = check_and_send_due_reminders(test_db_session)
         assert sent == 1
 
     test_db_session.refresh(entry)
     assert entry.reminder_enabled is True
+    assert entry.reminder_time is not None
     # SQLite TIMESTAMP may return naive datetime; compare normalized to UTC
-    entry_rt = entry.reminder_time if entry.reminder_time.tzinfo else entry.reminder_time.replace(tzinfo=UTC)
+    entry_rt = (
+        entry.reminder_time
+        if entry.reminder_time.tzinfo
+        else entry.reminder_time.replace(tzinfo=UTC)
+    )
     assert entry_rt == now + timedelta(hours=4)
 
 
@@ -472,13 +490,12 @@ def test_check_and_send_due_reminders_hourly_cutoff_at_end_time(
     test_db_session.add(sub)
     test_db_session.commit()
 
-    with patch("app.services.push_worker.send_web_push_detail", return_value=(True, False)):
+    with patch(
+        "app.services.push_worker.send_web_push_detail", return_value=(True, False)
+    ):
         sent = check_and_send_due_reminders(test_db_session)
         assert sent == 1
 
     test_db_session.refresh(entry)
     # Should be disabled because next cycle (now + 4h) exceeds reminder_end_time (now + 2h)
     assert entry.reminder_enabled is False
-
-
-

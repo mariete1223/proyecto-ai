@@ -6,7 +6,7 @@ import { DatabaseAdapter } from "../db/database";
 import { createLocalEntry } from "../db/entries";
 import { listTags } from "../db/tags";
 import { ParsedSpokenCommand } from "../services/voiceParser";
-import { Category, Entry, Tag } from "../types/domain";
+import { Category, Entry, Tag, TaskPriority } from "../types/domain";
 
 export interface PreviewBeforeSaveProps {
   db: DatabaseAdapter;
@@ -31,9 +31,13 @@ export function PreviewBeforeSave({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
     interpretedCommand.categoryId ?? "",
   );
+  const [priority, setPriority] = useState<TaskPriority>(
+    interpretedCommand.taskPriority ?? "MEDIUM",
+  );
   const [occurredAt, setOccurredAt] = useState<string>(
     interpretedCommand.occurredAt ?? "",
   );
+  const [title, setTitle] = useState<string>(interpretedCommand.title ?? "");
   const [content, setContent] = useState<string>(
     interpretedCommand.content ?? "",
   );
@@ -104,10 +108,12 @@ export function PreviewBeforeSave({
 
       const entry = await createLocalEntry(db, userId, {
         category_id: selectedCategoryId,
+        title: title.trim() ? title.trim() : null,
         content: content.trim(),
         occurred_at: occurredAt.trim() ? occurredAt.trim() : null,
         task_status: isTask ? "PENDING" : null,
         task_recurrence: isTask ? "ONCE" : null,
+        task_priority: isTask ? priority : null,
         capture_session_id: captureSessionId,
         tag_ids: selectedTagIds,
       });
@@ -204,6 +210,38 @@ export function PreviewBeforeSave({
         ))}
       </View>
 
+      {/* Priority Selection for Tasks */}
+      {categories.find((c) => c.id === selectedCategoryId)?.kind === "TASK" && (
+        <>
+          <Text style={styles.label}>Prioridad de la Tarea</Text>
+          <View style={styles.chipsContainer} testID="preview-prio-selector">
+            {(
+              [
+                { id: "HIGH", label: "🔴 Alta", testId: "preview-prio-high" },
+                { id: "MEDIUM", label: "🟡 Media", testId: "preview-prio-med" },
+                { id: "LOW", label: "🔵 Baja", testId: "preview-prio-low" },
+              ] as const
+            ).map((p) => (
+              <Pressable
+                key={p.id}
+                testID={p.testId}
+                style={[styles.chip, priority === p.id && styles.chipActive]}
+                onPress={() => setPriority(p.id)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    priority === p.id && styles.chipTextActive,
+                  ]}
+                >
+                  {p.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+
       {/* Date */}
       <Text style={styles.label}>Fecha Interpretada (ISO 8601)</Text>
       <TextInput
@@ -213,6 +251,17 @@ export function PreviewBeforeSave({
         placeholderTextColor="#64748B"
         value={occurredAt}
         onChangeText={setOccurredAt}
+      />
+
+      {/* Title */}
+      <Text style={styles.label}>Título (Opcional)</Text>
+      <TextInput
+        testID="input-preview-title"
+        style={styles.input}
+        placeholder="Título de la entrada o tarea..."
+        placeholderTextColor="#64748B"
+        value={title}
+        onChangeText={setTitle}
       />
 
       {/* Content */}
