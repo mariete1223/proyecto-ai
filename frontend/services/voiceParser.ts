@@ -761,6 +761,17 @@ export function parseSpokenCommand(
         label: "Aviso: a la hora establecida (automático)",
       });
     }
+  } else if (occurredAt) {
+    if (reminderEnabled === undefined) {
+      reminderEnabled = true;
+      reminderOffsetMinutes = 1440;
+      reminderOffsetsMinutes = [1440];
+      tokens.push({
+        text: "aviso automático",
+        type: "KEYWORD",
+        label: "Aviso: 1 día antes (automático)",
+      });
+    }
   }
 
   // 6. Content extraction

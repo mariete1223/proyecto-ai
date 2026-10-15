@@ -201,5 +201,63 @@ describe("Local Entries and Tasks Storage Layer", () => {
 
       expect(disabledEntry.reminder_enabled).toBe(false);
     });
+
+    it("automatically sets reminder 1 day before (1440 min) for non-Alerta categories when occurred_at is set", async () => {
+      // Tareas con fecha
+      const taskWithDate = await createLocalEntry(db, userId, {
+        category_id: taskCatId,
+        content: "Entrega de proyecto",
+        occurred_at: "2026-10-20T10:00:00.000Z",
+      });
+
+      expect(taskWithDate.reminder_enabled).toBe(true);
+      expect(taskWithDate.reminder_offset_minutes).toBe(1440);
+      expect(taskWithDate.reminder_offsets_minutes).toEqual([1440]);
+
+      // Notas estándar con fecha
+      const noteWithDate = await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "Cita médica",
+        occurred_at: "2026-10-21T16:00:00.000Z",
+      });
+
+      expect(noteWithDate.reminder_enabled).toBe(true);
+      expect(noteWithDate.reminder_offset_minutes).toBe(1440);
+      expect(noteWithDate.reminder_offsets_minutes).toEqual([1440]);
+
+      // Entrada sin fecha no activa recordatorio automático
+      const datelessEntry = await createLocalEntry(db, userId, {
+        category_id: taskCatId,
+        content: "Tarea sin fecha ni hora",
+      });
+
+      expect(datelessEntry.reminder_enabled).toBeFalsy();
+      expect(datelessEntry.reminder_offset_minutes).toBeNull();
+
+      // Respeta false explícito
+      const explicitFalseEntry = await createLocalEntry(db, userId, {
+        category_id: taskCatId,
+        content: "Tarea con fecha pero sin aviso",
+        occurred_at: "2026-10-22T10:00:00.000Z",
+        reminder_enabled: false,
+      });
+
+      expect(explicitFalseEntry.reminder_enabled).toBe(false);
+
+      // Respeta offsets personalizados especificados explícitamente
+      const customOffsetsEntry = await createLocalEntry(db, userId, {
+        category_id: taskCatId,
+        content: "Tarea con aviso 1 hora antes",
+        occurred_at: "2026-10-22T10:00:00.000Z",
+        reminder_enabled: true,
+        reminder_offset_minutes: 60,
+        reminder_offsets_minutes: [60],
+      });
+
+      expect(customOffsetsEntry.reminder_enabled).toBe(true);
+      expect(customOffsetsEntry.reminder_offset_minutes).toBe(60);
+      expect(customOffsetsEntry.reminder_offsets_minutes).toEqual([60]);
+    });
   });
 });
+

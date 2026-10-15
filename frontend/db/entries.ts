@@ -127,18 +127,34 @@ export async function createLocalEntry(
   let reminderOffsetMinutes = data.reminder_offset_minutes;
   let reminderOffsetsMinutes = data.reminder_offsets_minutes ?? null;
 
-  if (isAlertCategory && occurredAt) {
-    if (reminderEnabled === undefined || reminderEnabled === null) {
-      reminderEnabled = true;
-    }
-    if (reminderOffsetMinutes === undefined || reminderOffsetMinutes === null) {
-      reminderOffsetMinutes =
-        reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
-          ? reminderOffsetsMinutes[0]
-          : 0;
-    }
-    if (reminderOffsetsMinutes === null && reminderEnabled) {
-      reminderOffsetsMinutes = [reminderOffsetMinutes ?? 0];
+  if (occurredAt) {
+    if (isAlertCategory) {
+      if (reminderEnabled === undefined || reminderEnabled === null) {
+        reminderEnabled = true;
+      }
+      if (reminderOffsetMinutes === undefined || reminderOffsetMinutes === null) {
+        reminderOffsetMinutes =
+          reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
+            ? reminderOffsetsMinutes[0]
+            : 0;
+      }
+      if (reminderOffsetsMinutes === null && reminderEnabled) {
+        reminderOffsetsMinutes = [reminderOffsetMinutes ?? 0];
+      }
+    } else {
+      // Para cualquier otra categoría con fecha, el recordatorio por defecto es 1 día antes (1440 min)
+      if (reminderEnabled === undefined || reminderEnabled === null) {
+        reminderEnabled = true;
+      }
+      if (reminderOffsetMinutes === undefined || reminderOffsetMinutes === null) {
+        reminderOffsetMinutes =
+          reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
+            ? reminderOffsetsMinutes[0]
+            : 1440;
+      }
+      if (reminderOffsetsMinutes === null && reminderEnabled) {
+        reminderOffsetsMinutes = [reminderOffsetMinutes ?? 1440];
+      }
     }
   }
 

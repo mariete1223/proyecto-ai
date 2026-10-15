@@ -119,6 +119,7 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
         reminder_end_time: reminderEndTime.trim() ? reminderEndTime.trim() : null,
         reminder_recurrence: reminderRecurrence,
         reminder_offset_minutes: reminderOffsetMinutes,
+        reminder_offsets_minutes: reminderEnabled ? [reminderOffsetMinutes] : null,
         tag_ids: selectedTagIds,
       });
 
@@ -179,13 +180,16 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
               ]}
               onPress={() => {
                 setSelectedCategoryId(cat.id);
-                if (
+                const isAlert =
                   cat.name_normalized === "alerta" ||
                   cat.voice_command_normalized === "alerta" ||
-                  cat.name.toLowerCase() === "alerta"
-                ) {
+                  cat.name.toLowerCase() === "alerta";
+                if (isAlert) {
                   setReminderEnabled(true);
                   setReminderOffsetMinutes(0);
+                } else if (occurredAt) {
+                  setReminderEnabled(true);
+                  setReminderOffsetMinutes(1440);
                 }
               }}
             >
@@ -318,7 +322,17 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
       <DateTimePicker
         testID="input-date"
         value={occurredAt}
-        onChange={setOccurredAt}
+        onChange={(val) => {
+          setOccurredAt(val);
+          if (val && !reminderEnabled) {
+            const isAlert =
+              selectedCategory?.name_normalized === "alerta" ||
+              selectedCategory?.voice_command_normalized === "alerta" ||
+              selectedCategory?.name.toLowerCase() === "alerta";
+            setReminderEnabled(true);
+            setReminderOffsetMinutes(isAlert ? 0 : 1440);
+          }
+        }}
         label="Fecha y Hora de la Entrada"
       />
 

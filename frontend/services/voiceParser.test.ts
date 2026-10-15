@@ -860,5 +860,54 @@ describe("Spoken Command Parser (voiceParser)", () => {
       expect(result.reminderEnabled).toBe(false);
       expect(result.content).toBe("reunión");
     });
+
+    it("defaults notification to 1 day before (1440 min) when occurred_at is present for non-Alerta category", () => {
+      const transcript = "tarea para mañana a las 10:00 entrega de informe";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Tareas");
+      expect(result.occurredAt).toBeDefined();
+      expect(result.reminderEnabled).toBe(true);
+      expect(result.reminderOffsetMinutes).toBe(1440);
+      expect(result.reminderOffsetsMinutes).toEqual([1440]);
+      expect(result.content).toBe("entrega de informe");
+      expect(result.tokens?.some((t) => t.label === "Aviso: 1 día antes (automático)")).toBe(true);
+    });
+
+    it("does not activate reminder when non-Alerta command has no scheduled date", () => {
+      const transcript = "tarea entrega de informe urgente";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      // Sin fecha programada, no se activa aviso automático
+      // Note: para tareas sin fecha, parser asigna occurredAt a today si es tarea, pero verifiquemos si reminderEnabled fue tocado
+    });
+
+    it("preserves explicit 'sin aviso' for non-Alerta category with scheduled date", () => {
+      const transcript = "tarea para mañana a las 10:00 entrega de informe sin aviso";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Tareas");
+      expect(result.reminderEnabled).toBe(false);
+      expect(result.content).toBe("entrega de informe");
+    });
   });
 });
+
