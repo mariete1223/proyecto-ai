@@ -62,3 +62,5 @@ Frequency: 100% reproducible en los últimos commits de `main`.
 ## Publication history
 
 - 2026-10-15: Intake local registrado como borrador idempotente `ci-format-check-failures.md`.
+- 2026-10-15: Publicado en GitHub como Issue #72.
+- 2026-10-15: Resuelto mediante ciclo PM -> Engineer -> QA. Commit `db5a755`. Verificado en verde en GitHub Actions Run 38711190991. Issue cerrada.
