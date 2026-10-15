@@ -59,17 +59,34 @@ import { AuthSession, authStorage } from "./services/authService";
 import appConfig from "./app.json";
 
 const ACTIVE_BACKEND_TUNNEL =
-  "https://division-supporters-logical-graphical.trycloudflare.com";
+  "https://firewall-hitting-two-steve.trycloudflare.com";
 
 const getBackendUrl = (): string => {
-  const fromEnv = process.env.EXPO_PUBLIC_BACKEND_URL;
-
   // 1. En navegador web:
   if (
     Platform.OS === "web" &&
     typeof window !== "undefined" &&
     window.location?.hostname
   ) {
+    // A. Query param (?backend=https://...) o localStorage override
+    try {
+      if (typeof window.location.search === "string") {
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryBackend = urlParams.get("backend");
+        if (queryBackend && queryBackend.trim()) {
+          const clean = queryBackend.trim().replace(/\/+$/, "");
+          window.localStorage?.setItem("custom_backend_url", clean);
+          return clean;
+        }
+      }
+      const savedBackend = window.localStorage?.getItem("custom_backend_url");
+      if (savedBackend && savedBackend.trim()) {
+        return savedBackend.trim().replace(/\/+$/, "");
+      }
+    } catch {
+      // ignore
+    }
+
     const host = window.location.hostname;
     // Si estamos en localhost o 127.0.0.1
     if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
@@ -85,6 +102,7 @@ const getBackendUrl = (): string => {
     }
     // Si estamos en el túnel Cloudflare Web o en Vercel (acceso remoto/móvil por internet):
     if (host.includes("trycloudflare.com") || host.includes("vercel.app")) {
+      const fromEnv = process.env.EXPO_PUBLIC_BACKEND_URL;
       if (fromEnv && fromEnv.trim()) {
         return fromEnv.trim();
       }
@@ -92,7 +110,8 @@ const getBackendUrl = (): string => {
     }
   }
 
-  // 2. Si no es web o para apps nativas:
+  const fromEnv = process.env.EXPO_PUBLIC_BACKEND_URL;
+
   if (
     fromEnv &&
     fromEnv.trim() &&

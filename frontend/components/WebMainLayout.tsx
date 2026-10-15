@@ -200,6 +200,39 @@ export function WebMainLayout({
             Servidor backend privado no disponible. En la versión web, las
             operaciones requieren conexión directa al backend FastAPI.
           </Text>
+          {Platform.OS === "web" && typeof window !== "undefined" && (
+            <Pressable
+              style={{
+                marginTop: 6,
+                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                paddingHorizontal: 12,
+                paddingVertical: 5,
+                borderRadius: 6,
+                alignSelf: "flex-start",
+              }}
+              onPress={() => {
+                const current =
+                  window.localStorage?.getItem("custom_backend_url") ||
+                  apiConfig.baseUrl;
+                const newUrl = window.prompt(
+                  "Introduce la URL de tu backend (ej. túnel Cloudflare o Render):",
+                  current,
+                );
+                if (newUrl && newUrl.trim() && newUrl.trim() !== current) {
+                  window.localStorage?.setItem(
+                    "custom_backend_url",
+                    newUrl.trim().replace(/\/+$/, ""),
+                  );
+                  window.location.reload();
+                }
+              }}
+              testID="btn-configure-backend-url"
+            >
+              <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "600" }}>
+                ⚙️ Cambiar URL del Backend
+              </Text>
+            </Pressable>
+          )}
         </View>
       )}
 
