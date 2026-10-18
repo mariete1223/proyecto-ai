@@ -28,6 +28,7 @@ import { MobileMainLayout, MobileTab } from "./components/MobileMainLayout";
 import { PendingTasksView } from "./components/PendingTasksView";
 import { VoiceCaptureFlow } from "./components/VoiceCaptureFlow";
 import { WebMainLayout } from "./components/WebMainLayout";
+import { StartupPermissionsPrompt } from "./components/StartupPermissionsPrompt";
 import {
   CANONICAL_CATEGORIES,
   ensureCanonicalCategories,
@@ -662,6 +663,12 @@ export default function App() {
 
     return (
       <View style={styles.tabContentWrapper}>
+        {/* Proactive Startup Permissions Banner (#77) */}
+        <StartupPermissionsPrompt
+          backendUrl={getBackendUrl()}
+          token={authSession?.token}
+        />
+
         {/* Floating Action Bar (Only on Desktop Web view) */}
         {!isMobileScreen && (
           <View style={styles.topActionsBar}>
