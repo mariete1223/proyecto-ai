@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -11,6 +12,8 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
+
+const appLogo = require("../assets/icon.png");
 
 export type MobileTab =
   "VOICE_CAPTURE" | "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "LLM_IMPORT";
@@ -77,7 +80,12 @@ export function MobileMainLayout({
       <View style={styles.topHeader}>
         <View style={styles.brandRow}>
           <View style={styles.logoBadge}>
-            <Text style={styles.logoBadgeText}>VD</Text>
+            <Image
+              source={appLogo}
+              style={styles.logoImage}
+              resizeMode="cover"
+              accessibilityLabel="VoxDaily Icon"
+            />
           </View>
           <View>
             <Text style={styles.headerTitle}>VoxDaily</Text>
@@ -292,14 +300,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: theme.colors.primary,
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
-  logoBadgeText: {
-    color: "#ffffff",
-    fontWeight: "900",
-    fontSize: 14,
+  logoImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
   },
   headerTitle: {
     color: "#ffffff",

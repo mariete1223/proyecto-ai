@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,6 +14,8 @@ import {
 } from "react-native";
 import { AuthSession, loginUser, registerUser } from "../services/authService";
 import { theme } from "../styles/theme";
+
+const appLogo = require("../assets/icon.png");
 
 export interface AuthScreenProps {
   baseUrl: string;
@@ -102,17 +105,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   width: isSmallScreen ? 44 : 54,
                   height: isSmallScreen ? 44 : 54,
                   borderRadius: isSmallScreen ? 12 : 16,
+                  overflow: "hidden",
                 },
               ]}
             >
-              <Text
-                style={[
-                  styles.logoBadgeText,
-                  { fontSize: isSmallScreen ? 18 : 22 },
-                ]}
-              >
-                VD
-              </Text>
+              <Image
+                source={appLogo}
+                style={{
+                  width: isSmallScreen ? 44 : 54,
+                  height: isSmallScreen ? 44 : 54,
+                  borderRadius: isSmallScreen ? 12 : 16,
+                }}
+                resizeMode="cover"
+                accessibilityLabel="VoxDaily Icon"
+              />
             </View>
             <Text
               style={[styles.brandTitle, { fontSize: isSmallScreen ? 22 : 28 }]}

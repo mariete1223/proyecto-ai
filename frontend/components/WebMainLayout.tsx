@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -11,6 +12,8 @@ import {
 } from "react-native";
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
+
+const appLogo = require("../assets/icon.png");
 
 export interface WebMainLayoutProps {
   apiConfig: WebApiConfig;
@@ -88,7 +91,12 @@ export function WebMainLayout({
         >
           <View style={styles.brandContainer}>
             <View style={styles.logoBadge}>
-              <Text style={styles.logoBadgeText}>VD</Text>
+              <Image
+                source={appLogo}
+                style={styles.logoImage}
+                resizeMode="cover"
+                accessibilityLabel="VoxDaily Icon"
+              />
             </View>
             <View>
               <Text style={styles.headerTitle}>VoxDaily</Text>
@@ -393,18 +401,18 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: theme.colors.primary,
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: theme.colors.primary,
+    shadowColor: "#38bdf8",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4,
     shadowRadius: 6,
   },
-  logoBadgeText: {
-    color: "#ffffff",
-    fontWeight: "900",
-    fontSize: 16,
+  logoImage: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
   },
   headerTitle: {
     color: "#ffffff",
