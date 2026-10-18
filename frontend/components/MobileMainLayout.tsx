@@ -13,7 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
 
-const appLogo = require("../assets/icon.png");
+const appLogo = require("../assets/logo-small.png");
 
 export type MobileTab =
   "VOICE_CAPTURE" | "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "LLM_IMPORT";
@@ -281,12 +281,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   logoBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 7,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.25)",
   },
   logoImage: {
     width: 28,

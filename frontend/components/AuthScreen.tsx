@@ -15,7 +15,7 @@ import {
 import { AuthSession, loginUser, registerUser } from "../services/authService";
 import { theme } from "../styles/theme";
 
-const appLogo = require("../assets/icon.png");
+const appLogo = require("../assets/logo-small.png");
 
 export interface AuthScreenProps {
   baseUrl: string;
@@ -290,17 +290,19 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: theme.colors.primary,
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: "#1e293b",
+    borderWidth: 1.5,
+    borderColor: "rgba(56, 189, 248, 0.35)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
+    marginBottom: 14,
+    shadowColor: "#38bdf8",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
     elevation: 6,
   },
   logoBadgeText: {

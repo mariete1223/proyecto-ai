@@ -13,7 +13,7 @@ import {
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
 
-const appLogo = require("../assets/icon.png");
+const appLogo = require("../assets/logo-small.png");
 
 export interface WebMainLayoutProps {
   apiConfig: WebApiConfig;
@@ -367,15 +367,18 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.25)",
     shadowColor: "#38bdf8",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4,
     shadowRadius: 6,
   },
   logoImage: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 9,
   },
   headerTitle: {
     color: "#ffffff",
