@@ -717,6 +717,7 @@ export async function syncEngine(
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${config.token}`,
+          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify({ client_changes: pendingChanges }),
       });
@@ -762,6 +763,7 @@ export async function syncEngine(
         method: "GET",
         headers: {
           Authorization: `Bearer ${config.token}`,
+          "ngrok-skip-browser-warning": "true",
         },
       });
 

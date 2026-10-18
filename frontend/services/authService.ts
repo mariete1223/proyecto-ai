@@ -83,7 +83,10 @@ export async function loginUser(
   try {
     const res = await fetchImpl(`${baseUrl}/api/v1/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
       body: JSON.stringify({ email: email.trim(), password }),
     });
 
@@ -101,7 +104,10 @@ export async function loginUser(
 
     // Obtain user profile to get userId and email
     const meRes = await fetchImpl(`${baseUrl}/api/v1/auth/me`, {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        "ngrok-skip-browser-warning": "true",
+      },
     });
 
     let userId =
@@ -146,7 +152,10 @@ export async function registerUser(
   try {
     const res = await fetchImpl(`${baseUrl}/api/v1/auth/register`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
       body: JSON.stringify({ email: email.trim(), password }),
     });
 
@@ -163,7 +172,10 @@ export async function registerUser(
     };
 
     const meRes = await fetchImpl(`${baseUrl}/api/v1/auth/me`, {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        "ngrok-skip-browser-warning": "true",
+      },
     });
 
     let userId =

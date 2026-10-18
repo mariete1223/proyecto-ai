@@ -58,8 +58,7 @@ import {
 import { AuthSession, authStorage } from "./services/authService";
 import appConfig from "./app.json";
 
-const ACTIVE_BACKEND_TUNNEL =
-  "https://firewall-hitting-two-steve.trycloudflare.com";
+const ACTIVE_BACKEND_TUNNEL = "https://raging-degraded-reptile.ngrok-free.dev";
 
 const getBackendUrl = (): string => {
   // 1. En navegador web:

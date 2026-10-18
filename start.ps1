@@ -50,47 +50,18 @@ if ($backendReady) {
     Write-Host "   Aviso: backend no respondio en 15s, continuando de todos modos..." -ForegroundColor Yellow
 }
 
-# 3. Arrancar el tunel Cloudflare
-Write-Host "Arrancando tunel Cloudflare..." -ForegroundColor Yellow
-$randId = Get-Random
-$tunnelOutLog = Join-Path $env:TEMP "cf_tunnel_out_$randId.log"
-$tunnelErrLog = Join-Path $env:TEMP "cf_tunnel_err_$randId.log"
+# 3. Arrancar el tunel Ngrok con dominio permanente
+Write-Host "Arrancando tunel Ngrok con dominio permanente..." -ForegroundColor Yellow
+$permanentDomain = "raging-degraded-reptile.ngrok-free.dev"
+$tunnelUrl = "https://$permanentDomain"
 
 $tunnelProcess = Start-Process -FilePath "npx.cmd" `
-    -ArgumentList "--yes", "cloudflared", "tunnel", "--url", "http://127.0.0.1:8000" `
+    -ArgumentList "--yes", "ngrok", "http", "8000", "--url", $permanentDomain `
     -WorkingDirectory $root `
-    -RedirectStandardOutput $tunnelOutLog `
-    -RedirectStandardError $tunnelErrLog `
     -PassThru `
     -WindowStyle Hidden
 
-Write-Host "   Esperando URL del tunel (max 30s)..." -ForegroundColor DarkGray
-
-$tunnelUrl = $null
-for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Seconds 1
-    $content = ""
-    if (Test-Path $tunnelOutLog) {
-        $content += Get-Content $tunnelOutLog -Raw -ErrorAction SilentlyContinue
-    }
-    if (Test-Path $tunnelErrLog) {
-        $content += Get-Content $tunnelErrLog -Raw -ErrorAction SilentlyContinue
-    }
-    if ($content -match "https://[a-z0-9-]+\.trycloudflare\.com") {
-        $tunnelUrl = $Matches[0]
-        break
-    }
-}
-
-if (-not $tunnelUrl) {
-    Write-Host "AVISO: No se obtuvo URL del tunel. Usando IP local como fallback." -ForegroundColor Red
-    $detectedIp = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1).IPAddress
-    if (-not $detectedIp) { $detectedIp = "192.168.0.35" }
-    $tunnelUrl = "http://${detectedIp}:8000"
-}
-
-Write-Host ""
-Write-Host "Tunel activo: $tunnelUrl" -ForegroundColor Green
+Write-Host "Tunel Ngrok permanente activo: $tunnelUrl" -ForegroundColor Green
 Write-Host ""
 
 # 4. Escribir .env.local para Expo (leido por Metro en arranque)

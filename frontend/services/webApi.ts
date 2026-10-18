@@ -11,6 +11,11 @@ export function isWebPlatform(): boolean {
   return Platform.OS === "web";
 }
 
+const getHeaders = (token?: string) => ({
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  "ngrok-skip-browser-warning": "true",
+});
+
 export async function checkBackendHealth(
   config: WebApiConfig,
 ): Promise<boolean> {
@@ -23,6 +28,7 @@ export async function checkBackendHealth(
       : null;
     const res = await fetchImpl(`${config.baseUrl}/health`, {
       method: "GET",
+      headers: { "ngrok-skip-browser-warning": "true" },
       signal: controller?.signal,
     });
     if (timeoutId) clearTimeout(timeoutId);
@@ -42,7 +48,7 @@ export async function fetchWebEntries(
   const fetchImpl = config.fetchFn ?? fetch;
   try {
     const res = await fetchImpl(`${config.baseUrl}/api/v1/entries/`, {
-      headers: config.token ? { Authorization: `Bearer ${config.token}` } : {},
+      headers: getHeaders(config.token),
     });
     if (!res.ok) {
       return {
@@ -69,7 +75,7 @@ export async function fetchWebCategories(
   const fetchImpl = config.fetchFn ?? fetch;
   try {
     const res = await fetchImpl(`${config.baseUrl}/api/v1/categories/`, {
-      headers: config.token ? { Authorization: `Bearer ${config.token}` } : {},
+      headers: getHeaders(config.token),
     });
     if (!res.ok) {
       return {
@@ -96,7 +102,7 @@ export async function fetchWebTags(
   const fetchImpl = config.fetchFn ?? fetch;
   try {
     const res = await fetchImpl(`${config.baseUrl}/api/v1/tags/`, {
-      headers: config.token ? { Authorization: `Bearer ${config.token}` } : {},
+      headers: getHeaders(config.token),
     });
     if (!res.ok) {
       return { success: false, error: `Error HTTP ${res.status}` };
