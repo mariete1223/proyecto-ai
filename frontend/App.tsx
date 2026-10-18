@@ -634,10 +634,12 @@ export default function App() {
                 db={db}
                 userId={userId}
                 entryId={selectedEntryId}
-                onClose={() => setSelectedEntryId(null)}
-                onUpdated={() => {
+                onClose={() => {
                   setSelectedEntryId(null);
                   isFormOpenRef.current = false;
+                  loadDatabaseState(true);
+                }}
+                onUpdated={() => {
                   loadDatabaseState(true);
                 }}
                 onDeleted={() => {

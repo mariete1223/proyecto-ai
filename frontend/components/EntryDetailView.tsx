@@ -561,6 +561,14 @@ export function EntryDetailView({
                 </Text>
               </Pressable>
             </View>
+            {successMessage ? (
+              <View
+                style={styles.voiceSuccessPill}
+                testID="voice-edit-inline-success"
+              >
+                <Text style={styles.voiceSuccessText}>✅ {successMessage}</Text>
+              </View>
+            ) : null}
             <Text style={styles.voiceGuideDesc}>
               Modifica la hora, el título o el recordatorio de esta entrada con
               tu voz:
@@ -1255,6 +1263,20 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "700",
+  },
+  voiceSuccessPill: {
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    borderWidth: 1,
+    borderColor: "#10B981",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  voiceSuccessText: {
+    color: "#6EE7B7",
+    fontSize: 12,
+    fontWeight: "600",
   },
   voiceGuideDesc: {
     color: "#CBD5E1",

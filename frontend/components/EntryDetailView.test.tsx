@@ -202,10 +202,14 @@ describe("EntryDetailView Component (Task 38)", () => {
       fireEvent.press(getByTestId("btn-apply-voice-edit"));
     });
 
-    // Verify success feedback
+    // Verify success feedback and inline pill
     expect(await findByTestId("entry-detail-success")).toBeTruthy();
+    expect(getByTestId("voice-edit-inline-success")).toBeTruthy();
     expect(getByText("📌 Tarea Urgente")).toBeTruthy();
     expect(onUpdatedMock).toHaveBeenCalledTimes(1);
+
+    // Verify detail view remains open and did not unmount
+    expect(getByTestId("entry-detail-view")).toBeTruthy();
 
     // Verify database was updated
     const updatedInDb = await getEntryById(db, userId, entryId);
@@ -214,6 +218,56 @@ describe("EntryDetailView Component (Task 38)", () => {
     expect(updatedInDb?.reminder_offset_minutes).toBe(15);
     const d = new Date(updatedInDb!.occurred_at!);
     expect(d.getHours()).toBe(19);
+    expect(d.getMinutes()).toBe(30);
+  });
+
+  it("remains open and displays updated time when applying voice edit (#73)", async () => {
+    let currentSelectedId: string | null = entryId;
+    const onCloseMock = jest.fn(() => {
+      currentSelectedId = null;
+    });
+    const onUpdatedMock = jest.fn();
+
+    const { getByTestId, getByText, findByTestId } = await render(
+      <EntryDetailView
+        db={db}
+        userId={userId}
+        entryId={entryId}
+        onClose={onCloseMock}
+        onUpdated={onUpdatedMock}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("btn-voice-edit-entry")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-voice-edit-entry"));
+    });
+
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-voice-edit-transcript"),
+        "cambiar la hora a las 18:30",
+      );
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-apply-voice-edit"));
+    });
+
+    // View must remain open and not trigger close
+    expect(onCloseMock).not.toHaveBeenCalled();
+    expect(currentSelectedId).toBe(entryId);
+    expect(onUpdatedMock).toHaveBeenCalledTimes(1);
+    expect(await findByTestId("voice-edit-inline-success")).toBeTruthy();
+
+    // The occurred_at date must reflect 18:30
+    const inDb = await getEntryById(db, userId, entryId);
+    expect(inDb).toBeTruthy();
+    const d = new Date(inDb!.occurred_at!);
+    expect(d.getHours()).toBe(18);
     expect(d.getMinutes()).toBe(30);
   });
 });
