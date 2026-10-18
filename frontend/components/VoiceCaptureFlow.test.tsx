@@ -237,11 +237,74 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
 
     expect(await findByTestId("correction-section")).toBeTruthy();
 
+    // Both save buttons are disabled before manual correction
+    expect(
+      getByTestId("btn-quick-save-tokens").props.accessibilityState?.disabled,
+    ).toBe(true);
+    expect(
+      getByTestId("btn-save-corrected-entry").props.accessibilityState
+        ?.disabled,
+    ).toBe(true);
+
+    // Manually select a valid category chip
+    await act(async () => {
+      fireEvent.press(getByText("Notas"));
+    });
+
+    // Manual save button is now enabled
+    expect(
+      getByTestId("btn-save-corrected-entry").props.accessibilityState
+        ?.disabled,
+    ).toBe(false);
+
     await act(async () => {
       fireEvent.press(getByTestId("btn-save-corrected-entry"));
     });
 
     expect(await findByTestId("voice-capture-success")).toBeTruthy();
+  });
+
+  it("disables saving when no command is recognized and enables repeating dictation (#79)", async () => {
+    const { getByTestId, getByText, queryByTestId, findByText } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-transcript"), "Hola");
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-parse-transcript"));
+    });
+
+    // Step 2: RESULT
+    expect(await findByText("Paso 2 de 2: Revisión")).toBeTruthy();
+    expect(getByText('Categoría no reconocida: "Hola"')).toBeTruthy();
+
+    // Verify quick save and manual save are disabled
+    const quickSaveBtn = getByTestId("btn-quick-save-tokens");
+    expect(quickSaveBtn.props.accessibilityState?.disabled).toBe(true);
+
+    const manualSaveBtn = getByTestId("btn-save-corrected-entry");
+    expect(manualSaveBtn.props.accessibilityState?.disabled).toBe(true);
+
+    // Verify quick re-record button is present and functional
+    const quickRerecordBtn = getByTestId("btn-quick-rerecord");
+    expect(quickRerecordBtn).toBeTruthy();
+    expect(getByText("🎙️ Repetir Dictado")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(quickRerecordBtn);
+    });
+
+    // Returned to Step 1 clean
+    expect(getByText("Paso 1 de 2: Dictado")).toBeTruthy();
+    expect(getByTestId("input-transcript").props.value).toBe("");
+    expect(queryByTestId("recognized-tokens-section")).toBeNull();
   });
 
   it("shows animated wave visualizer when starting listening", async () => {

@@ -90,9 +90,6 @@ export function VoiceCaptureFlow({
         if (mounted) {
           setCategories(cats);
           setTags(tgs);
-          if (cats.length > 0) {
-            setManualCategoryId(cats[0].id);
-          }
         }
       } catch (err) {
         if (mounted) {
@@ -240,6 +237,8 @@ export function VoiceCaptureFlow({
 
     if (parsed.categoryId) {
       setManualCategoryId(parsed.categoryId);
+    } else {
+      setManualCategoryId("");
     }
 
     if (parsed.isSuccess && parsed.categoryId && parsed.content) {
@@ -329,6 +328,12 @@ export function VoiceCaptureFlow({
     }
   };
 
+  const isQuickSaveDisabled =
+    loading || !parsedResult?.isSuccess || !parsedResult?.categoryId;
+
+  const isManualSaveDisabled =
+    loading || !manualCategoryId || !manualContent.trim();
+
   const handleResetVoiceCapture = () => {
     if (voiceService) {
       voiceService.cancel();
@@ -337,6 +342,7 @@ export function VoiceCaptureFlow({
     setTranscript("");
     transcriptRef.current = "";
     setParsedResult(null);
+    setManualCategoryId("");
     setManualTitle("");
     setManualContent("");
     setManualDateStr("");
@@ -737,12 +743,24 @@ export function VoiceCaptureFlow({
                   testID="quick-save-tokens-row"
                 >
                   <Pressable
+                    testID="btn-quick-rerecord"
+                    accessibilityLabel="Repetir Dictado"
+                    style={styles.quickRerecordBtn}
+                    onPress={handleResetVoiceCapture}
+                  >
+                    <Text style={styles.quickRerecordBtnText} numberOfLines={1}>
+                      🎙️ Repetir Dictado
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
                     testID="btn-quick-save-tokens"
+                    accessibilityLabel="Guardar Entrada"
                     style={[
                       styles.quickSaveBtn,
-                      loading && styles.buttonDisabled,
+                      isQuickSaveDisabled && styles.buttonDisabled,
                     ]}
-                    disabled={loading}
+                    disabled={isQuickSaveDisabled}
                     onPress={() =>
                       saveParsedEntry(
                         manualCategoryId,
@@ -753,7 +771,7 @@ export function VoiceCaptureFlow({
                       )
                     }
                   >
-                    <Text style={styles.quickSaveBtnText} numberOfLines={1}>
+                    <Text style={styles.quickSaveBtnText}>
                       💾 Guardar Entrada
                     </Text>
                   </Pressable>
@@ -761,6 +779,7 @@ export function VoiceCaptureFlow({
                   {onClose && (
                     <Pressable
                       testID="btn-quick-cancel-tokens"
+                      accessibilityLabel="Salir"
                       style={styles.quickCancelBtn}
                       onPress={onClose}
                     >
@@ -1056,8 +1075,12 @@ export function VoiceCaptureFlow({
 
               <Pressable
                 testID="btn-save-corrected-entry"
-                style={[styles.saveButton, loading && styles.buttonDisabled]}
-                disabled={loading}
+                accessibilityLabel="Confirmar y Guardar"
+                style={[
+                  styles.saveButton,
+                  isManualSaveDisabled && styles.buttonDisabled,
+                ]}
+                disabled={isManualSaveDisabled}
                 onPress={() =>
                   saveParsedEntry(
                     manualCategoryId,
@@ -1632,15 +1655,36 @@ const styles = StyleSheet.create({
   },
   quickSaveTokensRow: {
     flexDirection: "row",
-    gap: 8,
+    flexWrap: "wrap",
+    gap: 10,
     marginTop: 12,
   },
+  quickRerecordBtn: {
+    flexGrow: 1,
+    flexBasis: "100%",
+    backgroundColor: "rgba(99, 102, 241, 0.2)",
+    borderColor: "#6366F1",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickRerecordBtnText: {
+    color: "#C7D2FE",
+    fontSize: 13,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
   quickSaveBtn: {
-    flex: 1,
+    flexGrow: 2,
+    flexBasis: 140,
+    minWidth: 140,
     backgroundColor: "#10B981",
     borderRadius: 8,
     paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1648,15 +1692,17 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "bold",
+    textAlign: "center",
   },
   quickCancelBtn: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 90,
     backgroundColor: "rgba(239, 68, 68, 0.2)",
     borderColor: "#EF4444",
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1664,6 +1710,7 @@ const styles = StyleSheet.create({
     color: "#F87171",
     fontSize: 13,
     fontWeight: "600",
+    textAlign: "center",
   },
   actionsRow: {
     flexDirection: "row",
