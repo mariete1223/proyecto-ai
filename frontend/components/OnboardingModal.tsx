@@ -51,7 +51,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     icon: "🔔",
     title: "Nunca olvides un compromiso",
     description:
-      "Programa avisos a la hora exacta o con antelación calculada (15 min antes, 1h antes). Recibe alertas push incluso con la app cerrada.",
+      "Programa avisos a la hora exacta o con antelación calculada (15 min antes, 1h antes). Recibe alertas incluso con la app cerrada.",
     tip: "💡 Concede los permisos de notificaciones del navegador para recibir avisos.",
   },
 ];

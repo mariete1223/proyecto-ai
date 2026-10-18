@@ -50,6 +50,9 @@ export function VoiceCaptureFlow({
   const [tags, setTags] = useState<Tag[]>([]);
   const [showAllHelpCategories, setShowAllHelpCategories] = useState(false);
 
+  const [currentStep, setCurrentStep] = useState<"DICTATE" | "RESULT">(
+    "DICTATE",
+  );
   const [transcript, setTranscript] = useState<string>("");
   const transcriptRef = useRef<string>("");
   const [parsedResult, setParsedResult] = useState<ParsedSpokenCommand | null>(
@@ -165,6 +168,7 @@ export function VoiceCaptureFlow({
     setTranscript("");
     transcriptRef.current = "";
     setParsedResult(null);
+    setCurrentStep("DICTATE");
 
     const service = new VoiceRecognitionService({
       onStateChange: (st) => setVoiceState(st),
@@ -193,7 +197,7 @@ export function VoiceCaptureFlow({
       handleProcessTranscript(currentTranscript);
     } else {
       setErrorMessage(
-        "No se detectó voz del micrófono. Puedes escribir el comando o frase manualmente en la casilla inferior y pulsar Procesar.",
+        "No se detectó voz del micrófono. Puedes escribir el comando o frase manualmente en la casilla de dictado y pulsar Procesar.",
       );
     }
   };
@@ -205,6 +209,7 @@ export function VoiceCaptureFlow({
     }
 
     setTranscript(rawTranscript);
+    transcriptRef.current = rawTranscript;
     const parsed = parseSpokenCommand(rawTranscript, categories, tags);
     setParsedResult(parsed);
 
@@ -229,6 +234,14 @@ export function VoiceCaptureFlow({
       setManualTitle("");
     }
 
+    if (parsed.content) {
+      setManualContent(parsed.content);
+    }
+
+    if (parsed.categoryId) {
+      setManualCategoryId(parsed.categoryId);
+    }
+
     if (parsed.isSuccess && parsed.categoryId && parsed.content) {
       if (saveMode === "FAST_FORWARD") {
         await saveParsedEntry(
@@ -242,18 +255,19 @@ export function VoiceCaptureFlow({
           parsed.reminderOffsetMinutes,
           parsed.reminderOffsetsMinutes,
         );
-      } else {
-        setManualContent(parsed.content);
-        setManualCategoryId(parsed.categoryId);
       }
     } else {
       if (parsed.errors.length > 0) {
         setErrorMessage(parsed.errors.join(" "));
       }
-      setManualContent(parsed.content);
-      if (parsed.categoryId) {
-        setManualCategoryId(parsed.categoryId);
-      }
+    }
+
+    setCurrentStep("RESULT");
+    if (
+      typeof window !== "undefined" &&
+      typeof window.scrollTo === "function"
+    ) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -321,17 +335,50 @@ export function VoiceCaptureFlow({
     }
     setVoiceState("IDLE");
     setTranscript("");
+    transcriptRef.current = "";
     setParsedResult(null);
+    setManualTitle("");
     setManualContent("");
     setManualDateStr("");
     setManualTimeStr("12:00");
     setErrorMessage(null);
     setSuccessMessage(null);
+    setCurrentStep("DICTATE");
+    if (
+      typeof window !== "undefined" &&
+      typeof window.scrollTo === "function"
+    ) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   return (
     <View style={styles.card} testID="voice-capture-flow">
-      <Text style={styles.title}>Captura Hablada por Voz</Text>
+      {/* Top Header with title and step indicator badge */}
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>
+          {currentStep === "DICTATE"
+            ? "Captura Hablada por Voz"
+            : "Resultado del Dictado"}
+        </Text>
+        <View
+          style={[
+            styles.stepBadge,
+            currentStep === "RESULT" && styles.stepBadgeResult,
+          ]}
+        >
+          <Text
+            style={[
+              styles.stepBadgeText,
+              currentStep === "RESULT" && styles.stepBadgeTextResult,
+            ]}
+          >
+            {currentStep === "DICTATE"
+              ? "Paso 1 de 2: Dictado"
+              : "Paso 2 de 2: Revisión"}
+          </Text>
+        </View>
+      </View>
 
       {errorMessage && (
         <View style={styles.errorBox} testID="voice-capture-error">
@@ -345,591 +392,670 @@ export function VoiceCaptureFlow({
         </View>
       )}
 
-      {/* Recording Status Header Banner */}
-      <View
-        style={[
-          styles.statusBanner,
-          voiceState === "LISTENING" && styles.statusBannerActive,
-        ]}
-      >
-        <View
-          style={[
-            styles.statusDot,
-            voiceState === "LISTENING" && styles.statusDotActive,
-          ]}
-        />
-        <Text style={styles.stateText}>
-          {voiceState === "LISTENING"
-            ? "🔴 GRABANDO VOZ... Habla tu comando o nota"
-            : voiceState === "PROCESSING"
-              ? "⚡ Procesando voz..."
-              : "Micrófono listo para dictado"}
-        </Text>
-      </View>
-
-      {/* Mobile Keyboard Dictation Notice if WebSpeech is unsupported in Expo Go */}
-      {typeof window !== "undefined" &&
-        !(
-          "SpeechRecognition" in window || "webkitSpeechRecognition" in window
-        ) && (
+      {currentStep === "DICTATE" ? (
+        /* SCREEN 1: DICTATE SCREEN */
+        <View style={styles.screenContainer}>
+          {/* Recording Status Header Banner */}
           <View
-            style={styles.mobileDictationHintBox}
-            testID="mobile-dictation-hint"
+            style={[
+              styles.statusBanner,
+              voiceState === "LISTENING" && styles.statusBannerActive,
+            ]}
           >
-            <Text style={styles.mobileDictationHintText}>
-              💡 <Text style={{ fontWeight: "700" }}>Dictado por Móvil:</Text>{" "}
-              En Expo Go (iOS), toca el campo de transcripción más abajo y
-              presiona el ícono de micrófono 🎙️ en la barra espaciadora de tu
-              teclado nativo para dictar con tu voz.
+            <View
+              style={[
+                styles.statusDot,
+                voiceState === "LISTENING" && styles.statusDotActive,
+              ]}
+            />
+            <Text style={styles.stateText}>
+              {voiceState === "LISTENING"
+                ? "🔴 GRABANDO VOZ... Habla tu comando o nota"
+                : voiceState === "PROCESSING"
+                  ? "⚡ Procesando voz..."
+                  : "Micrófono listo para dictado"}
             </Text>
           </View>
-        )}
 
-      {/* Voice Wave Visualizer indicator */}
-      {voiceState === "LISTENING" && (
-        <View style={styles.waveVisualizer} testID="voice-wave-visualizer">
-          <View style={[styles.waveBar, { height: 18 }]} />
-          <View style={[styles.waveBar, { height: 36 }]} />
-          <View style={[styles.waveBar, { height: 24 }]} />
-          <View style={[styles.waveBar, { height: 42 }]} />
-          <View style={[styles.waveBar, { height: 30 }]} />
-          <View style={[styles.waveBar, { height: 20 }]} />
-        </View>
-      )}
+          {/* Voice Wave Visualizer indicator */}
+          {voiceState === "LISTENING" && (
+            <View style={styles.waveVisualizer} testID="voice-wave-visualizer">
+              <View style={[styles.waveBar, { height: 18 }]} />
+              <View style={[styles.waveBar, { height: 36 }]} />
+              <View style={[styles.waveBar, { height: 24 }]} />
+              <View style={[styles.waveBar, { height: 42 }]} />
+              <View style={[styles.waveBar, { height: 30 }]} />
+              <View style={[styles.waveBar, { height: 20 }]} />
+            </View>
+          )}
 
-      {/* Main Control Action Row */}
-      <View style={styles.controlsRow}>
-        {voiceState === "IDLE" || voiceState === "ERROR" ? (
-          <Pressable
-            testID="btn-start-listening"
-            style={[styles.listenButton, { flex: 1 }]}
-            onPress={handleStartListening}
-          >
-            <Text style={styles.listenButtonText} numberOfLines={1}>
-              🎙️ Dictar
-            </Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            testID="btn-stop-listening"
-            style={[styles.stopButton, { flex: 1 }]}
-            onPress={handleStopListening}
-          >
-            <Text style={styles.stopButtonText} numberOfLines={1}>
-              ⏹️ Detener
-            </Text>
-          </Pressable>
-        )}
+          {/* Main Control Action Row */}
+          <View style={styles.controlsRow}>
+            {voiceState === "IDLE" || voiceState === "ERROR" ? (
+              <Pressable
+                testID="btn-start-listening"
+                style={[styles.listenButton, { flex: 1 }]}
+                onPress={handleStartListening}
+              >
+                <Text style={styles.listenButtonText} numberOfLines={1}>
+                  🎙️ Dictar
+                </Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                testID="btn-stop-listening"
+                style={[styles.stopButton, { flex: 1 }]}
+                onPress={handleStopListening}
+              >
+                <Text style={styles.stopButtonText} numberOfLines={1}>
+                  ⏹️ Detener y Ver Resultado
+                </Text>
+              </Pressable>
+            )}
 
-        <Pressable
-          testID="btn-reset-voice-capture"
-          style={styles.resetControlBtn}
-          onPress={handleResetVoiceCapture}
-        >
-          <Text style={styles.resetControlBtnText} numberOfLines={1}>
-            🔄 Reiniciar
-          </Text>
-        </Pressable>
-
-        {onClose && (
-          <Pressable
-            testID="btn-close-voice-flow"
-            style={styles.cancelControlBtn}
-            onPress={() => {
-              if (voiceService) {
-                voiceService.cancel();
-              }
-              setVoiceState("IDLE");
-              onClose();
-            }}
-          >
-            <Text style={styles.cancelControlBtnText} numberOfLines={1}>
-              ✕ Salir
-            </Text>
-          </Pressable>
-        )}
-      </View>
-
-      {/* Visual Voice Commands Guide (Dynamic) */}
-      <View style={styles.guideContainer} testID="voice-commands-guide">
-        <View style={styles.guideHeaderRow}>
-          <Text style={styles.guideHeader}>
-            💡 Comandos de Voz Disponibles:
-          </Text>
-          {categories.length > 5 && (
             <Pressable
-              testID="btn-toggle-all-categories-help"
-              onPress={() => setShowAllHelpCategories((prev) => !prev)}
+              testID="btn-reset-voice-capture"
+              style={styles.resetControlBtn}
+              onPress={handleResetVoiceCapture}
             >
-              <Text style={styles.toggleHelpText}>
-                {showAllHelpCategories
-                  ? "Ver menos"
-                  : `Ver todas (${categories.length})`}
+              <Text style={styles.resetControlBtnText} numberOfLines={1}>
+                🔄 Limpiar
               </Text>
             </Pressable>
-          )}
-        </View>
 
-        <View style={styles.guideGrid}>
-          {/* Dynamic Categories */}
-          <View style={styles.guideRowColumn}>
-            <View style={styles.guideRowHeader}>
-              <Text style={styles.guideBadgeCat}>
-                📁 Categorías ({categories.length})
-              </Text>
-              <Text style={styles.guideSubtext}>
-                Comienza diciendo el comando de la categoría:
-              </Text>
-            </View>
-            <View
-              style={styles.catCommandsWrap}
-              testID="help-category-commands"
-            >
-              {(showAllHelpCategories
-                ? categories
-                : categories.slice(0, 5)
-              ).map((cat) => (
-                <View
-                  key={cat.id}
-                  style={[
-                    styles.catCommandChip,
-                    { borderColor: cat.color || "#38BDF8" },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.catDot,
-                      { backgroundColor: cat.color || "#38BDF8" },
-                    ]}
-                  />
-                  <Text style={styles.catCommandText}>
-                    {`"${cat.voice_command || cat.name.toLowerCase()}"`}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Dates & Times */}
-          <View style={styles.guideRow}>
-            <Text style={styles.guideBadgeDate}>📅 Fechas & Horas</Text>
-            <Text style={styles.guideText}>
-              Di <Text style={styles.boldCode}>{'"fecha hoy"'}</Text>,{" "}
-              <Text style={styles.boldCode}>{'"para el 6 del 10"'}</Text>,{" "}
-              <Text style={styles.boldCode}>{'"pasado mañana"'}</Text> o{" "}
-              <Text style={styles.boldCode}>{'"a las 16:00"'}</Text>
-            </Text>
-          </View>
-
-          {/* Task priority */}
-          <View style={styles.guideRow} testID="help-priority-command">
-            <Text style={styles.guideBadgeDate}>Prioridad de tareas</Text>
-            <Text style={styles.guideText}>
-              Solo para tareas, di{" "}
-              <Text style={styles.boldCode}>{'"prioridad alta"'}</Text>,{" "}
-              <Text style={styles.boldCode}>{'"prioridad media"'}</Text> o{" "}
-              <Text style={styles.boldCode}>{'"prioridad baja"'}</Text>.
-            </Text>
-          </View>
-
-          {/* Dynamic Tags */}
-          <View style={styles.guideRowColumn}>
-            <View style={styles.guideRowHeader}>
-              <Text style={styles.guideBadgeTag}>
-                🏷️ Etiquetas ({uniqueTags.length})
-              </Text>
-              <Text style={styles.guideSubtext}>
-                Di <Text style={styles.boldCode}>{'"etiquetas"'}</Text> seguido
-                de:
-              </Text>
-            </View>
-            <View style={styles.catCommandsWrap} testID="help-tag-commands">
-              {uniqueTags.length === 0 ? (
-                <Text style={styles.guideText}>
-                  Di{" "}
-                  <Text style={styles.boldCode}>{'"etiquetas urgente"'}</Text>
+            {onClose && (
+              <Pressable
+                testID="btn-close-voice-flow"
+                style={styles.cancelControlBtn}
+                onPress={() => {
+                  if (voiceService) {
+                    voiceService.cancel();
+                  }
+                  setVoiceState("IDLE");
+                  onClose();
+                }}
+              >
+                <Text style={styles.cancelControlBtnText} numberOfLines={1}>
+                  ✕ Salir
                 </Text>
-              ) : (
-                uniqueTags.map((tag) => (
-                  <View key={tag.id} style={styles.tagCommandChip}>
-                    <Text style={styles.tagCommandText}>{`#${tag.name}`}</Text>
-                  </View>
-                ))
+              </Pressable>
+            )}
+          </View>
+
+          {/* Live Dictation Display Box - Situated Prominently Above Guide */}
+          <View style={styles.liveDictationBox} testID="live-dictation-box">
+            <View style={styles.liveDictationHeaderRow}>
+              <Text style={styles.liveDictationHeaderTitle}>
+                🗣️ Lo que estás diciendo:
+              </Text>
+              {voiceState === "LISTENING" && (
+                <View style={styles.liveListeningBadge}>
+                  <View style={styles.pulsingDot} />
+                  <Text style={styles.liveListeningBadgeText}>EN DIRECTO</Text>
+                </View>
               )}
             </View>
+
+            <View style={styles.liveDictationContent}>
+              {transcript ? (
+                <Text style={styles.liveDictationText}>{transcript}</Text>
+              ) : voiceState === "LISTENING" ? (
+                <Text style={styles.liveDictationPlaceholderActive}>
+                  🎙️ Escuchando... Di tu comando (ej: "tarea fecha hoy contenido
+                  comprar pan")
+                </Text>
+              ) : (
+                <Text style={styles.liveDictationPlaceholder}>
+                  Pulsa "🎙️ Dictar" para hablar, o escribe directamente en la
+                  casilla inferior.
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.manualTranscriptRow}>
+              <TextInput
+                testID="input-transcript"
+                style={styles.transcriptInput}
+                placeholder="Escribe o edita el texto aquí..."
+                placeholderTextColor="#64748B"
+                value={transcript}
+                onChangeText={(text) => {
+                  transcriptRef.current = text;
+                  setTranscript(text);
+                }}
+              />
+              <Pressable
+                testID="btn-parse-transcript"
+                style={styles.parseTranscriptBtn}
+                onPress={() =>
+                  handleProcessTranscript(transcriptRef.current || transcript)
+                }
+              >
+                <Text style={styles.parseTranscriptBtnText} numberOfLines={1}>
+                  🔍 Procesar
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Mobile Keyboard Dictation Notice if WebSpeech is unsupported in Expo Go */}
+          {typeof window !== "undefined" &&
+            !(
+              "SpeechRecognition" in window ||
+              "webkitSpeechRecognition" in window
+            ) && (
+              <View
+                style={styles.mobileDictationHintBox}
+                testID="mobile-dictation-hint"
+              >
+                <Text style={styles.mobileDictationHintText}>
+                  💡{" "}
+                  <Text style={{ fontWeight: "700" }}>Dictado por Móvil:</Text>{" "}
+                  En Expo Go (iOS), toca la casilla superior de texto y presiona
+                  el ícono de micrófono 🎙️ en la barra espaciadora de tu teclado
+                  nativo para dictar con tu voz.
+                </Text>
+              </View>
+            )}
+
+          {/* Visual Voice Commands Guide (Dynamic) */}
+          <View style={styles.guideContainer} testID="voice-commands-guide">
+            <View style={styles.guideHeaderRow}>
+              <Text style={styles.guideHeader}>
+                💡 Comandos de Voz Disponibles:
+              </Text>
+              {categories.length > 5 && (
+                <Pressable
+                  testID="btn-toggle-all-categories-help"
+                  onPress={() => setShowAllHelpCategories((prev) => !prev)}
+                >
+                  <Text style={styles.toggleHelpText}>
+                    {showAllHelpCategories
+                      ? "Ver menos"
+                      : `Ver todas (${categories.length})`}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+
+            <View style={styles.guideGrid}>
+              {/* Dynamic Categories */}
+              <View style={styles.guideRowColumn}>
+                <View style={styles.guideRowHeader}>
+                  <Text style={styles.guideBadgeCat}>
+                    📁 Categorías ({categories.length})
+                  </Text>
+                  <Text style={styles.guideSubtext}>
+                    Comienza diciendo el comando de la categoría:
+                  </Text>
+                </View>
+                <View
+                  style={styles.catCommandsWrap}
+                  testID="help-category-commands"
+                >
+                  {(showAllHelpCategories
+                    ? categories
+                    : categories.slice(0, 5)
+                  ).map((cat) => (
+                    <View
+                      key={cat.id}
+                      style={[
+                        styles.catCommandChip,
+                        { borderColor: cat.color || "#38BDF8" },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.catDot,
+                          { backgroundColor: cat.color || "#38BDF8" },
+                        ]}
+                      />
+                      <Text style={styles.catCommandText}>
+                        {`"${cat.voice_command || cat.name.toLowerCase()}"`}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Dates & Times */}
+              <View style={styles.guideRow}>
+                <Text style={styles.guideBadgeDate}>📅 Fechas & Horas</Text>
+                <Text style={styles.guideText}>
+                  Di <Text style={styles.boldCode}>{'"fecha hoy"'}</Text>,{" "}
+                  <Text style={styles.boldCode}>{'"para el 6 del 10"'}</Text>,{" "}
+                  <Text style={styles.boldCode}>{'"pasado mañana"'}</Text> o{" "}
+                  <Text style={styles.boldCode}>{'"a las 16:00"'}</Text>
+                </Text>
+              </View>
+
+              {/* Task priority */}
+              <View style={styles.guideRow} testID="help-priority-command">
+                <Text style={styles.guideBadgeDate}>Prioridad de tareas</Text>
+                <Text style={styles.guideText}>
+                  Solo para tareas, di{" "}
+                  <Text style={styles.boldCode}>{'"prioridad alta"'}</Text>,{" "}
+                  <Text style={styles.boldCode}>{'"prioridad media"'}</Text> o{" "}
+                  <Text style={styles.boldCode}>{'"prioridad baja"'}</Text>.
+                </Text>
+              </View>
+
+              {/* Dynamic Tags */}
+              <View style={styles.guideRowColumn}>
+                <View style={styles.guideRowHeader}>
+                  <Text style={styles.guideBadgeTag}>
+                    🏷️ Etiquetas ({uniqueTags.length})
+                  </Text>
+                  <Text style={styles.guideSubtext}>
+                    Di <Text style={styles.boldCode}>{'"etiquetas"'}</Text>{" "}
+                    seguido de:
+                  </Text>
+                </View>
+                <View style={styles.catCommandsWrap} testID="help-tag-commands">
+                  {uniqueTags.length === 0 ? (
+                    <Text style={styles.guideText}>
+                      Di{" "}
+                      <Text style={styles.boldCode}>
+                        {'"etiquetas urgente"'}
+                      </Text>
+                    </Text>
+                  ) : (
+                    uniqueTags.map((tag) => (
+                      <View key={tag.id} style={styles.tagCommandChip}>
+                        <Text
+                          style={styles.tagCommandText}
+                        >{`#${tag.name}`}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              </View>
+            </View>
           </View>
         </View>
-      </View>
+      ) : (
+        /* SCREEN 2: RESULT SCREEN (PANTALLA APARTE TRAS DICTAR) */
+        <View style={styles.screenContainer}>
+          {/* Spoken Quote Box */}
+          {transcript ? (
+            <View style={styles.transcriptQuoteBox}>
+              <Text style={styles.transcriptQuoteLabel}>🗣️ Frase dictada:</Text>
+              <Text style={styles.transcriptQuoteText}>"{transcript}"</Text>
+            </View>
+          ) : null}
 
-      {/* Recognized Command Tokens Highlights */}
-      {parsedResult &&
-        parsedResult.tokens &&
-        parsedResult.tokens.length > 0 && (
-          <View
-            style={styles.tokensContainer}
-            testID="recognized-tokens-section"
-          >
-            <Text style={styles.tokensHeader}>
-              ✨ Comandos Reconocidos en la Voz:
-            </Text>
-            <View style={styles.tokensRow}>
-              {parsedResult.tokens.map((tok, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.tokenBadge,
-                    tok.type === "CATEGORY" && styles.tokenCategory,
-                    tok.type === "DATE" && styles.tokenDate,
-                    tok.type === "TAG" && styles.tokenTag,
-                    tok.type === "KEYWORD" && styles.tokenKeyword,
-                    tok.type === "CONTENT" && styles.tokenContent,
-                  ]}
-                >
-                  <Text style={styles.tokenLabel}>{tok.label}</Text>
-                  <Text style={styles.tokenText}>{`"${tok.text}"`}</Text>
+          {/* Recognized Command Tokens Highlights */}
+          {parsedResult &&
+            parsedResult.tokens &&
+            parsedResult.tokens.length > 0 && (
+              <View
+                style={styles.tokensContainer}
+                testID="recognized-tokens-section"
+              >
+                <Text style={styles.tokensHeader}>
+                  ✨ Comandos Reconocidos en la Voz:
+                </Text>
+                <View style={styles.tokensRow}>
+                  {parsedResult.tokens.map((tok, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.tokenBadge,
+                        tok.type === "CATEGORY" && styles.tokenCategory,
+                        tok.type === "DATE" && styles.tokenDate,
+                        tok.type === "TAG" && styles.tokenTag,
+                        tok.type === "KEYWORD" && styles.tokenKeyword,
+                        tok.type === "CONTENT" && styles.tokenContent,
+                      ]}
+                    >
+                      <Text style={styles.tokenLabel}>{tok.label}</Text>
+                      <Text style={styles.tokenText}>{`"${tok.text}"`}</Text>
+                    </View>
+                  ))}
                 </View>
+
+                {/* Quick Action Bar below tokens */}
+                <View
+                  style={styles.quickSaveTokensRow}
+                  testID="quick-save-tokens-row"
+                >
+                  <Pressable
+                    testID="btn-quick-save-tokens"
+                    style={[
+                      styles.quickSaveBtn,
+                      loading && styles.buttonDisabled,
+                    ]}
+                    disabled={loading}
+                    onPress={() =>
+                      saveParsedEntry(
+                        manualCategoryId,
+                        manualContent,
+                        buildOccurredAtIso() ?? parsedResult.occurredAt,
+                        parsedResult.tagIds || [],
+                        parsedResult.taskPriority ?? manualPriority,
+                      )
+                    }
+                  >
+                    <Text style={styles.quickSaveBtnText} numberOfLines={1}>
+                      💾 Guardar Entrada
+                    </Text>
+                  </Pressable>
+
+                  {onClose && (
+                    <Pressable
+                      testID="btn-quick-cancel-tokens"
+                      style={styles.quickCancelBtn}
+                      onPress={onClose}
+                    >
+                      <Text style={styles.quickCancelBtnText} numberOfLines={1}>
+                        ✕ Salir
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            )}
+
+          {/* Manual preview / correction form */}
+          <View style={styles.correctionContainer} testID="correction-section">
+            <Text style={styles.sectionTitle}>
+              {saveMode === "PREVIEW_BEFORE_SAVE"
+                ? "Previsualización antes de Guardar"
+                : "Corregir Captura Hablada"}
+            </Text>
+
+            {parsedResult?.occurredAt && (
+              <View style={styles.detectedDateBox} testID="detected-date-box">
+                <Text style={styles.detectedDateText}>
+                  📅 Fecha & Hora Detectada:{" "}
+                  {new Date(parsedResult.occurredAt).toLocaleString("es-ES", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+              </View>
+            )}
+
+            <Text style={styles.label}>Categoría Asignada</Text>
+            <View style={styles.chipsRow}>
+              {categories.map((cat) => (
+                <Pressable
+                  key={cat.id}
+                  testID={`cat-chip-${cat.id}`}
+                  style={[
+                    styles.chip,
+                    manualCategoryId === cat.id && styles.chipActive,
+                  ]}
+                  onPress={() => setManualCategoryId(cat.id)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      manualCategoryId === cat.id && styles.chipTextActive,
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                </Pressable>
               ))}
             </View>
 
-            {/* Quick Action Bar below tokens for no-scroll saving */}
-            <View
-              style={styles.quickSaveTokensRow}
-              testID="quick-save-tokens-row"
-            >
+            {categories.find((c) => c.id === manualCategoryId)?.kind ===
+              "TASK" && (
+              <>
+                <Text style={styles.label}>⚡ Prioridad de la Tarea</Text>
+                <View style={styles.chipsRow}>
+                  {(
+                    [
+                      {
+                        id: "HIGH",
+                        label: "🔴 Alta",
+                        testId: "voice-prio-high",
+                      },
+                      {
+                        id: "MEDIUM",
+                        label: "🟡 Media",
+                        testId: "voice-prio-med",
+                      },
+                      { id: "LOW", label: "🔵 Baja", testId: "voice-prio-low" },
+                    ] as const
+                  ).map((p) => (
+                    <Pressable
+                      key={p.id}
+                      testID={p.testId}
+                      style={[
+                        styles.chip,
+                        manualPriority === p.id && styles.chipActive,
+                      ]}
+                      onPress={() => setManualPriority(p.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          manualPriority === p.id && styles.chipTextActive,
+                        ]}
+                      >
+                        {p.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
+
+            <Text style={styles.label}>📅 Ajuste de Fecha y Hora</Text>
+            <View style={styles.datePresetRow}>
               <Pressable
-                testID="btn-quick-save-tokens"
-                style={[styles.quickSaveBtn, loading && styles.buttonDisabled]}
+                testID="btn-preset-date-today"
+                style={[
+                  styles.datePresetChip,
+                  manualDateStr === toLocalDateString() &&
+                    styles.datePresetChipActive,
+                ]}
+                onPress={() => setQuickDate(0)}
+              >
+                <Text
+                  style={[
+                    styles.datePresetChipText,
+                    manualDateStr === toLocalDateString() &&
+                      styles.datePresetChipTextActive,
+                  ]}
+                >
+                  Hoy
+                </Text>
+              </Pressable>
+
+              <Pressable
+                testID="btn-preset-date-tomorrow"
+                style={styles.datePresetChip}
+                onPress={() => setQuickDate(1)}
+              >
+                <Text style={styles.datePresetChipText}>Mañana</Text>
+              </Pressable>
+
+              <Pressable
+                testID="btn-preset-date-after-tomorrow"
+                style={styles.datePresetChip}
+                onPress={() => setQuickDate(2)}
+              >
+                <Text style={styles.datePresetChipText}>Pasado Mañana</Text>
+              </Pressable>
+
+              <Pressable
+                testID="btn-preset-date-clear"
+                style={styles.datePresetChip}
+                onPress={() => setQuickDate(null)}
+              >
+                <Text style={styles.datePresetChipText}>Sin Fecha</Text>
+              </Pressable>
+            </View>
+
+            {Platform.OS === "web" ? (
+              <View style={styles.dateTimeInputsRow}>
+                <View style={{ flex: 2 }}>
+                  <Text style={styles.subInputLabel}>
+                    📅 Fecha (Calendario):
+                  </Text>
+                  {React.createElement("input", {
+                    type: "date",
+                    value: manualDateStr,
+                    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                      setManualDateStr(e.target.value),
+                    style: {
+                      backgroundColor: "#0f172a",
+                      color: "#ffffff",
+                      border: "1px solid rgba(255, 255, 255, 0.2)",
+                      borderRadius: "8px",
+                      padding: "10px 14px",
+                      fontSize: "15px",
+                      fontFamily: "inherit",
+                      colorScheme: "dark",
+                      outline: "none",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      cursor: "pointer",
+                    },
+                  })}
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.subInputLabel}>⏰ Hora (Reloj):</Text>
+                  {React.createElement("input", {
+                    type: "time",
+                    value: manualTimeStr,
+                    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                      setManualTimeStr(e.target.value),
+                    style: {
+                      backgroundColor: "#0f172a",
+                      color: "#ffffff",
+                      border: "1px solid rgba(255, 255, 255, 0.2)",
+                      borderRadius: "8px",
+                      padding: "10px 14px",
+                      fontSize: "15px",
+                      fontFamily: "inherit",
+                      colorScheme: "dark",
+                      outline: "none",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      cursor: "pointer",
+                    },
+                  })}
+                </View>
+
+                <TextInput
+                  testID="input-manual-date"
+                  style={{ display: "none" }}
+                  value={manualDateStr}
+                  onChangeText={setManualDateStr}
+                />
+                <TextInput
+                  testID="input-manual-time"
+                  style={{ display: "none" }}
+                  value={manualTimeStr}
+                  onChangeText={setManualTimeStr}
+                />
+              </View>
+            ) : (
+              <View style={styles.dateTimeInputsRow}>
+                <View style={{ flex: 2 }}>
+                  <Text style={styles.subInputLabel}>Fecha (AAAA-MM-DD)</Text>
+                  <TextInput
+                    testID="input-manual-date"
+                    style={styles.input}
+                    value={manualDateStr}
+                    onChangeText={setManualDateStr}
+                    placeholder="AAAA-MM-DD"
+                    placeholderTextColor="#64748B"
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.subInputLabel}>Hora (HH:MM)</Text>
+                  <TextInput
+                    testID="input-manual-time"
+                    style={styles.input}
+                    value={manualTimeStr}
+                    onChangeText={setManualTimeStr}
+                    placeholder="16:00"
+                    placeholderTextColor="#64748B"
+                  />
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.label}>Título (Opcional)</Text>
+            <TextInput
+              testID="input-manual-title"
+              style={styles.input}
+              value={manualTitle}
+              onChangeText={setManualTitle}
+              placeholder="Título de la entrada o tarea..."
+              placeholderTextColor="#64748B"
+            />
+
+            <Text style={styles.label}>Contenido de la Entrada</Text>
+            <TextInput
+              testID="input-manual-content"
+              style={styles.inputArea}
+              multiline
+              value={manualContent}
+              onChangeText={setManualContent}
+              placeholder="Escribe aquí el contenido..."
+              placeholderTextColor="#64748B"
+            />
+
+            {/* Bottom Actions Row: Regrabar + Confirmar y Guardar + Salir */}
+            <View style={styles.actionsRow}>
+              <Pressable
+                testID="btn-reset-voice-capture"
+                accessibilityLabel="Regrabar"
+                style={styles.reRecordBtn}
+                onPress={handleResetVoiceCapture}
+              >
+                <Text style={styles.reRecordBtnText} numberOfLines={1}>
+                  🎙️ Regrabar
+                </Text>
+              </Pressable>
+
+              <Pressable
+                testID="btn-save-corrected-entry"
+                style={[styles.saveButton, loading && styles.buttonDisabled]}
                 disabled={loading}
                 onPress={() =>
                   saveParsedEntry(
                     manualCategoryId,
                     manualContent,
-                    buildOccurredAtIso() ?? parsedResult.occurredAt,
-                    parsedResult.tagIds || [],
-                    parsedResult.taskPriority ?? manualPriority,
+                    buildOccurredAtIso() ??
+                      (parsedResult ? parsedResult.occurredAt : null),
+                    parsedResult ? parsedResult.tagIds : [],
+                    parsedResult?.taskPriority ?? manualPriority,
                   )
                 }
               >
-                <Text style={styles.quickSaveBtnText} numberOfLines={1}>
-                  💾 Guardar Entrada
+                <Text style={styles.saveButtonText} numberOfLines={1}>
+                  💾 Confirmar y Guardar
                 </Text>
               </Pressable>
 
               {onClose && (
                 <Pressable
-                  testID="btn-quick-cancel-tokens"
-                  style={styles.quickCancelBtn}
+                  testID="btn-close-voice-flow"
+                  style={styles.cancelButton}
                   onPress={onClose}
                 >
-                  <Text style={styles.quickCancelBtnText} numberOfLines={1}>
+                  <Text style={styles.cancelButtonText} numberOfLines={1}>
                     ✕ Salir
                   </Text>
                 </Pressable>
               )}
             </View>
           </View>
-        )}
-
-      {/* Manual preview / correction */}
-      {(parsedResult || voiceState === "IDLE") && (
-        <View style={styles.correctionContainer} testID="correction-section">
-          <Text style={styles.sectionTitle}>
-            {saveMode === "PREVIEW_BEFORE_SAVE"
-              ? "Previsualización antes de Guardar"
-              : "Corregir Captura Hablada"}
-          </Text>
-
-          {parsedResult?.occurredAt && (
-            <View style={styles.detectedDateBox} testID="detected-date-box">
-              <Text style={styles.detectedDateText}>
-                📅 Fecha & Hora Detectada:{" "}
-                {new Date(parsedResult.occurredAt).toLocaleString("es-ES", {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
-            </View>
-          )}
-
-          <Text style={styles.label}>Categoría Asignada</Text>
-          <View style={styles.chipsRow}>
-            {categories.map((cat) => (
-              <Pressable
-                key={cat.id}
-                testID={`cat-chip-${cat.id}`}
-                style={[
-                  styles.chip,
-                  manualCategoryId === cat.id && styles.chipActive,
-                ]}
-                onPress={() => setManualCategoryId(cat.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    manualCategoryId === cat.id && styles.chipTextActive,
-                  ]}
-                >
-                  {cat.name}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {categories.find((c) => c.id === manualCategoryId)?.kind ===
-            "TASK" && (
-            <>
-              <Text style={styles.label}>⚡ Prioridad de la Tarea</Text>
-              <View style={styles.chipsRow}>
-                {(
-                  [
-                    { id: "HIGH", label: "🔴 Alta", testId: "voice-prio-high" },
-                    {
-                      id: "MEDIUM",
-                      label: "🟡 Media",
-                      testId: "voice-prio-med",
-                    },
-                    { id: "LOW", label: "🔵 Baja", testId: "voice-prio-low" },
-                  ] as const
-                ).map((p) => (
-                  <Pressable
-                    key={p.id}
-                    testID={p.testId}
-                    style={[
-                      styles.chip,
-                      manualPriority === p.id && styles.chipActive,
-                    ]}
-                    onPress={() => setManualPriority(p.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        manualPriority === p.id && styles.chipTextActive,
-                      ]}
-                    >
-                      {p.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          )}
-
-          <Text style={styles.label}>📅 Ajuste de Fecha y Hora</Text>
-          <View style={styles.datePresetRow}>
-            <Pressable
-              testID="btn-preset-date-today"
-              style={[
-                styles.datePresetChip,
-                manualDateStr === toLocalDateString() &&
-                  styles.datePresetChipActive,
-              ]}
-              onPress={() => setQuickDate(0)}
-            >
-              <Text
-                style={[
-                  styles.datePresetChipText,
-                  manualDateStr === toLocalDateString() &&
-                    styles.datePresetChipTextActive,
-                ]}
-              >
-                Hoy
-              </Text>
-            </Pressable>
-
-            <Pressable
-              testID="btn-preset-date-tomorrow"
-              style={styles.datePresetChip}
-              onPress={() => setQuickDate(1)}
-            >
-              <Text style={styles.datePresetChipText}>Mañana</Text>
-            </Pressable>
-
-            <Pressable
-              testID="btn-preset-date-after-tomorrow"
-              style={styles.datePresetChip}
-              onPress={() => setQuickDate(2)}
-            >
-              <Text style={styles.datePresetChipText}>Pasado Mañana</Text>
-            </Pressable>
-
-            <Pressable
-              testID="btn-preset-date-clear"
-              style={styles.datePresetChip}
-              onPress={() => setQuickDate(null)}
-            >
-              <Text style={styles.datePresetChipText}>Sin Fecha</Text>
-            </Pressable>
-          </View>
-
-          {Platform.OS === "web" ? (
-            <View style={styles.dateTimeInputsRow}>
-              <View style={{ flex: 2 }}>
-                <Text style={styles.subInputLabel}>📅 Fecha (Calendario):</Text>
-                {React.createElement("input", {
-                  type: "date",
-                  value: manualDateStr,
-                  onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-                    setManualDateStr(e.target.value),
-                  style: {
-                    backgroundColor: "#0f172a",
-                    color: "#ffffff",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    borderRadius: "8px",
-                    padding: "10px 14px",
-                    fontSize: "15px",
-                    fontFamily: "inherit",
-                    colorScheme: "dark",
-                    outline: "none",
-                    width: "100%",
-                    boxSizing: "border-box",
-                    cursor: "pointer",
-                  },
-                })}
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.subInputLabel}>⏰ Hora (Reloj):</Text>
-                {React.createElement("input", {
-                  type: "time",
-                  value: manualTimeStr,
-                  onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-                    setManualTimeStr(e.target.value),
-                  style: {
-                    backgroundColor: "#0f172a",
-                    color: "#ffffff",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    borderRadius: "8px",
-                    padding: "10px 14px",
-                    fontSize: "15px",
-                    fontFamily: "inherit",
-                    colorScheme: "dark",
-                    outline: "none",
-                    width: "100%",
-                    boxSizing: "border-box",
-                    cursor: "pointer",
-                  },
-                })}
-              </View>
-
-              {/* Hidden textinputs for testID compatibility */}
-              <TextInput
-                testID="input-manual-date"
-                style={{ display: "none" }}
-                value={manualDateStr}
-                onChangeText={setManualDateStr}
-              />
-              <TextInput
-                testID="input-manual-time"
-                style={{ display: "none" }}
-                value={manualTimeStr}
-                onChangeText={setManualTimeStr}
-              />
-            </View>
-          ) : (
-            <View style={styles.dateTimeInputsRow}>
-              <View style={{ flex: 2 }}>
-                <Text style={styles.subInputLabel}>Fecha (AAAA-MM-DD)</Text>
-                <TextInput
-                  testID="input-manual-date"
-                  style={styles.input}
-                  value={manualDateStr}
-                  onChangeText={setManualDateStr}
-                  placeholder="AAAA-MM-DD"
-                  placeholderTextColor="#64748B"
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.subInputLabel}>Hora (HH:MM)</Text>
-                <TextInput
-                  testID="input-manual-time"
-                  style={styles.input}
-                  value={manualTimeStr}
-                  onChangeText={setManualTimeStr}
-                  placeholder="16:00"
-                  placeholderTextColor="#64748B"
-                />
-              </View>
-            </View>
-          )}
-
-          <Text style={styles.label}>Título (Opcional)</Text>
-          <TextInput
-            testID="input-manual-title"
-            style={styles.input}
-            value={manualTitle}
-            onChangeText={setManualTitle}
-            placeholder="Título de la entrada o tarea..."
-            placeholderTextColor="#64748B"
-          />
-
-          <Text style={styles.label}>Contenido de la Entrada</Text>
-          <TextInput
-            testID="input-manual-content"
-            style={styles.inputArea}
-            multiline
-            value={manualContent}
-            onChangeText={setManualContent}
-            placeholder="Escribe aquí el contenido..."
-            placeholderTextColor="#64748B"
-          />
-
-          <View style={styles.actionsRow}>
-            <Pressable
-              testID="btn-save-corrected-entry"
-              style={[styles.saveButton, loading && styles.buttonDisabled]}
-              disabled={loading}
-              onPress={() =>
-                saveParsedEntry(
-                  manualCategoryId,
-                  manualContent,
-                  buildOccurredAtIso() ??
-                    (parsedResult ? parsedResult.occurredAt : null),
-                  parsedResult ? parsedResult.tagIds : [],
-                  parsedResult?.taskPriority ?? manualPriority,
-                )
-              }
-            >
-              <Text style={styles.saveButtonText} numberOfLines={1}>
-                💾 Confirmar y Guardar
-              </Text>
-            </Pressable>
-
-            {onClose && (
-              <Pressable style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText} numberOfLines={1}>
-                  ✕ Salir
-                </Text>
-              </Pressable>
-            )}
-          </View>
         </View>
       )}
-
-      {/* Transcript Input / Testing */}
-      <Text style={styles.label}>Transcripción Bruta de Voz</Text>
-      <TextInput
-        testID="input-transcript"
-        style={styles.input}
-        placeholder="Escribe o dicta el comando (ej: tarea fecha hoy contenido comprar pan etiquetas urgente)..."
-        placeholderTextColor="#64748B"
-        value={transcript}
-        onChangeText={setTranscript}
-      />
-
-      <Pressable
-        testID="btn-parse-transcript"
-        style={styles.secondaryButton}
-        onPress={() => handleProcessTranscript(transcript)}
-      >
-        <Text style={styles.secondaryButtonText}>
-          🔍 Re-procesar Transcripción
-        </Text>
-      </Pressable>
     </View>
   );
 }
@@ -1482,5 +1608,168 @@ const styles = StyleSheet.create({
   successText: {
     color: "#A7F3D0",
     fontSize: 14,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  stepBadge: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  stepBadgeText: {
+    color: "#38BDF8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  stepBadgeResult: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "#10B981",
+  },
+  stepBadgeTextResult: {
+    color: "#10B981",
+  },
+  screenContainer: {
+    width: "100%",
+  },
+  liveDictationBox: {
+    backgroundColor: "#0B132B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    gap: 10,
+  },
+  liveDictationHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  liveDictationHeaderTitle: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  liveListeningBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  pulsingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#EF4444",
+  },
+  liveListeningBadgeText: {
+    color: "#F87171",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  liveDictationContent: {
+    minHeight: 48,
+    justifyContent: "center",
+  },
+  liveDictationText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 22,
+  },
+  liveDictationPlaceholder: {
+    color: "#64748B",
+    fontSize: 13,
+    fontStyle: "italic",
+    lineHeight: 18,
+  },
+  liveDictationPlaceholderActive: {
+    color: "#38BDF8",
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 20,
+  },
+  manualTranscriptRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  transcriptInput: {
+    flex: 1,
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    color: "#F8FAFC",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 14,
+  },
+  parseTranscriptBtn: {
+    backgroundColor: "#1E293B",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  parseTranscriptBtnText: {
+    color: "#38BDF8",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  transcriptQuoteBox: {
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#38BDF8",
+  },
+  transcriptQuoteLabel: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  transcriptQuoteText: {
+    color: "#F8FAFC",
+    fontSize: 15,
+    fontWeight: "600",
+    fontStyle: "italic",
+  },
+  reRecordBtn: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reRecordBtnText: {
+    color: "#38BDF8",
+    fontSize: 13,
+    fontWeight: "bold",
   },
 });

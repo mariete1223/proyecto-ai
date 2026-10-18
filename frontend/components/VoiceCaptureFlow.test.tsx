@@ -304,4 +304,64 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     const chips = getAllByText("#Urgente");
     expect(chips.length).toBe(1);
   });
+
+  it("shows live dictation box prominently at the top in DICTATE step", async () => {
+    const { getByTestId, getByText } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    expect(getByText("Paso 1 de 2: Dictado")).toBeTruthy();
+    expect(getByTestId("live-dictation-box")).toBeTruthy();
+    expect(getByText("🗣️ Lo que estás diciendo:")).toBeTruthy();
+  });
+
+  it("transitions to separate review screen when dictation is parsed and allows Regrabar to return to dictation", async () => {
+    const { getByTestId, findByText, getByText, queryByTestId } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    // Initial step: DICTATE
+    expect(getByText("Paso 1 de 2: Dictado")).toBeTruthy();
+    expect(getByTestId("live-dictation-box")).toBeTruthy();
+    expect(queryByTestId("recognized-tokens-section")).toBeNull();
+
+    // Type dictation and process
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-transcript"),
+        "tarea fecha hoy contenido comprar fruta",
+      );
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-parse-transcript"));
+    });
+
+    // Step 2: RESULT / REVIEW
+    expect(await findByText("Paso 2 de 2: Revisión")).toBeTruthy();
+    expect(getByText("🗣️ Frase dictada:")).toBeTruthy();
+    expect(getByText('"tarea fecha hoy contenido comprar fruta"')).toBeTruthy();
+    expect(getByTestId("recognized-tokens-section")).toBeTruthy();
+    expect(getByTestId("correction-section")).toBeTruthy();
+    expect(getByText("🎙️ Regrabar")).toBeTruthy();
+
+    // Press Regrabar to return to step 1
+    await act(async () => {
+      fireEvent.press(getByText("🎙️ Regrabar"));
+    });
+
+    // Back to Step 1: DICTATE with empty transcript
+    expect(getByText("Paso 1 de 2: Dictado")).toBeTruthy();
+    expect(getByTestId("live-dictation-box")).toBeTruthy();
+    expect(getByTestId("input-transcript").props.value).toBe("");
+    expect(queryByTestId("recognized-tokens-section")).toBeNull();
+  });
 });
