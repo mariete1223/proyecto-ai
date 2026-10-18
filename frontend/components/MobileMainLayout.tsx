@@ -97,39 +97,8 @@ export function MobileMainLayout({
           </View>
         </View>
 
-        {/* Connection Dot & Stats */}
+        {/* Right Action Chips */}
         <View style={styles.headerRight}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.statusChip,
-              pressed && { opacity: 0.7 },
-            ]}
-            onPress={handleManualSync}
-            testID="btn-mobile-sync"
-          >
-            <View
-              style={[
-                styles.statusDot,
-                isSyncing
-                  ? styles.dotPending
-                  : isBackendConnected === true
-                    ? styles.dotConnected
-                    : isBackendConnected === false
-                      ? styles.dotDisconnected
-                      : styles.dotPending,
-              ]}
-            />
-            <Text style={styles.statusText}>
-              {isSyncing
-                ? "Sync..."
-                : isBackendConnected === true
-                  ? "Online"
-                  : isBackendConnected === false
-                    ? "Offline"
-                    : "..."}
-            </Text>
-          </Pressable>
-
           <Pressable
             style={[
               styles.authChip,

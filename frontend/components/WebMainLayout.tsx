@@ -128,43 +128,6 @@ export function WebMainLayout({
             </View>
           </View>
 
-          {/* Backend Status Indicator */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.statusIndicator,
-              pressed && { opacity: 0.7 },
-            ]}
-            onPress={() => {
-              checkBackendHealth(apiConfig).then((healthy) => {
-                setIsBackendConnected(healthy);
-              });
-              onSync?.();
-            }}
-            testID="btn-web-sync"
-          >
-            <View
-              style={[
-                styles.statusDot,
-                isSyncing
-                  ? styles.dotPending
-                  : isBackendConnected === true
-                    ? styles.dotConnected
-                    : isBackendConnected === false
-                      ? styles.dotDisconnected
-                      : styles.dotPending,
-              ]}
-            />
-            <Text style={styles.statusText}>
-              {isSyncing
-                ? "Sincronizando..."
-                : isBackendConnected === true
-                  ? "Backend Conectado 🔄"
-                  : isBackendConnected === false
-                    ? "Backend Desconectado ⚠️"
-                    : "Comprobando..."}
-            </Text>
-          </Pressable>
-
           {/* Guía Tutorial Button */}
           <Pressable
             style={({ pressed }) => [
