@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
     />
     <title>VoxDaily - Voice Journal & Calendar</title>
 
@@ -30,7 +30,10 @@
 
     <!-- The react-native-web recommended style reset -->
     <style id="expo-reset">
-      * {
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
         font-family:
           -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
           Arial, sans-serif;
@@ -38,17 +41,25 @@
       html,
       body {
         height: 100%;
+        width: 100%;
         margin: 0;
         padding: 0;
-        background-color: #0f172a;
+        background-color: #0f172a !important;
+        overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch;
       }
       body {
-        overflow: hidden;
+        overflow-x: hidden !important;
+        background-color: #0f172a !important;
       }
       #root {
         display: flex;
         height: 100%;
+        width: 100%;
+        max-width: 100vw;
+        overflow-x: hidden !important;
         flex: 1;
+        background-color: #0f172a !important;
       }
       input,
       select,

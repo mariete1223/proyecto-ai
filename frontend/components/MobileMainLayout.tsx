@@ -87,9 +87,13 @@ export function MobileMainLayout({
               accessibilityLabel="VoxDaily Icon"
             />
           </View>
-          <View>
-            <Text style={styles.headerTitle}>VoxDaily</Text>
-            <Text style={styles.headerSubtitle}>Voice Journal & Calendar</Text>
+          <View style={styles.titleColumn}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              VoxDaily
+            </Text>
+            <Text style={styles.headerSubtitle} numberOfLines={1}>
+              Voice Journal
+            </Text>
           </View>
         </View>
 
@@ -117,11 +121,11 @@ export function MobileMainLayout({
             />
             <Text style={styles.statusText}>
               {isSyncing
-                ? "Sincronizando..."
+                ? "Sync..."
                 : isBackendConnected === true
-                  ? "Conectado 🔄"
+                  ? "Online"
                   : isBackendConnected === false
-                    ? "Offline ⚠️"
+                    ? "Offline"
                     : "..."}
             </Text>
           </Pressable>
@@ -273,7 +277,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0f172a",
     width: "100%",
+    maxWidth: "100%",
     minHeight: "100%",
+    overflow: "hidden",
   },
   topHeader: {
     paddingTop:
@@ -282,63 +288,74 @@ const styles = StyleSheet.create({
           ? 52
           : 28
         : (RNStatusBar.currentHeight || 44) + 6,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
+    paddingBottom: 10,
+    paddingHorizontal: 12,
     backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.08)",
+    width: "100%",
+    maxWidth: "100%",
+    overflow: "hidden",
   },
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 7,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  titleColumn: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   logoBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 7,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
   logoImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 7,
   },
   headerTitle: {
     color: "#ffffff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
+    letterSpacing: 0.2,
   },
   headerSubtitle: {
     color: "#94a3b8",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "500",
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 5,
+    flexShrink: 0,
   },
   statusChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
     paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 14,
+    paddingHorizontal: 7,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.08)",
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   dotConnected: {
     backgroundColor: theme.colors.success,
@@ -351,8 +368,8 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: "#cbd5e1",
-    fontSize: 11,
-    fontWeight: "500",
+    fontSize: 10,
+    fontWeight: "600",
   },
   contentArea: {
     flex: 1,
