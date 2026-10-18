@@ -127,6 +127,7 @@ export function DateTimePicker({
     colorScheme: "dark",
     outline: "none",
     width: "100%",
+    minWidth: 0,
     maxWidth: "100%",
     boxSizing: "border-box",
     cursor: "pointer",
@@ -290,7 +291,9 @@ const styles = StyleSheet.create({
   },
   pickerField: {
     flex: 1,
-    minWidth: 130,
+    flexBasis: 130,
+    minWidth: 0,
+    maxWidth: "100%",
   },
   pickerSubLabel: {
     color: theme.colors.textSecondary,

@@ -896,7 +896,7 @@ export function VoiceCaptureFlow({
 
             {Platform.OS === "web" ? (
               <View style={styles.dateTimeInputsRow}>
-                <View style={{ flex: 2 }}>
+                <View style={{ flex: 2, flexBasis: 140, minWidth: 0, maxWidth: "100%" }}>
                   <Text style={styles.subInputLabel}>
                     📅 Fecha (Calendario):
                   </Text>
@@ -916,13 +916,14 @@ export function VoiceCaptureFlow({
                       colorScheme: "dark",
                       outline: "none",
                       width: "100%",
+                      minWidth: 0,
                       boxSizing: "border-box",
                       cursor: "pointer",
                     },
                   })}
                 </View>
 
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, flexBasis: 110, minWidth: 0, maxWidth: "100%" }}>
                   <Text style={styles.subInputLabel}>⏰ Hora (Reloj):</Text>
                   {React.createElement("input", {
                     type: "time",
@@ -940,6 +941,7 @@ export function VoiceCaptureFlow({
                       colorScheme: "dark",
                       outline: "none",
                       width: "100%",
+                      minWidth: 0,
                       boxSizing: "border-box",
                       cursor: "pointer",
                     },
@@ -1707,12 +1709,16 @@ const styles = StyleSheet.create({
   },
   manualTranscriptRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
-    alignItems: "center",
+    alignItems: "stretch",
     marginTop: 4,
+    width: "100%",
   },
   transcriptInput: {
     flex: 1,
+    minWidth: 150,
+    maxWidth: "100%",
     backgroundColor: "#0F172A",
     borderColor: "#334155",
     borderWidth: 1,
@@ -1723,6 +1729,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   parseTranscriptBtn: {
+    flexShrink: 0,
     backgroundColor: "#1E293B",
     borderColor: "#38BDF8",
     borderWidth: 1,

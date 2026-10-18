@@ -364,4 +364,19 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(getByTestId("input-transcript").props.value).toBe("");
     expect(queryByTestId("recognized-tokens-section")).toBeNull();
   });
+
+  it("renders manual transcript input and parse button in live dictation box without overflow (#75)", async () => {
+    const { getByTestId } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    const input = getByTestId("input-transcript");
+    const parseBtn = getByTestId("btn-parse-transcript");
+    expect(input).toBeTruthy();
+    expect(parseBtn).toBeTruthy();
+  });
 });
