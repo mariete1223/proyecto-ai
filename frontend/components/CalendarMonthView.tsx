@@ -543,7 +543,10 @@ export function CalendarMonthView({
             >
               {hasReminders && (
                 <Text
-                  style={styles.dayReminderBell}
+                  style={[
+                    styles.dayReminderBell,
+                    isToday && styles.dayReminderBellToday,
+                  ]}
                   testID={`day-has-reminder-${cell.dateStr}`}
                 >
                   🔔
@@ -1325,14 +1328,15 @@ const styles = StyleSheet.create({
   },
   emptyDayCell: {
     width: "14.28%",
-    height: 54,
+    height: 56,
   },
   dayCell: {
     width: "14.28%",
-    height: 54,
+    height: 56,
     borderColor: "#334155",
     borderWidth: 0.5,
-    padding: 4,
+    paddingHorizontal: 3,
+    paddingVertical: 3,
     alignItems: "center",
     position: "relative",
     overflow: "hidden",
@@ -1711,9 +1715,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 2,
     right: 2,
-    fontSize: 9,
-    lineHeight: 11,
+    fontSize: 8,
+    lineHeight: 10,
     zIndex: 2,
+  },
+  dayReminderBellToday: {
+    right: undefined,
+    left: 2,
   },
   todayPill: {
     backgroundColor: "#10B981",

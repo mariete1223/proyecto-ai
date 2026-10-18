@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
+import { StyleSheet } from "react-native";
 import { createLocalCategory } from "../db/categories";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
 import { createLocalEntry, listLocalEntries } from "../db/entries";
@@ -415,12 +416,29 @@ describe("CalendarMonthView Component (Task 35)", () => {
     const d = String(today.getDate()).padStart(2, "0");
     const todayStr = `${y}-${m}-${d}`;
 
+    // Reminder on today
     await createLocalEntry(db, userId, {
       category_id: catId,
       content: "Recordatorio importante para hoy",
       occurred_at: today.toISOString(),
       reminder_enabled: true,
       reminder_offset_minutes: 60,
+    });
+
+    // Reminder on another regular day in the current month (e.g. 1st of month if not today, or tomorrow)
+    const otherDay = new Date(today);
+    otherDay.setDate(today.getDate() === 1 ? 2 : 1);
+    const otherY = otherDay.getFullYear();
+    const otherM = String(otherDay.getMonth() + 1).padStart(2, "0");
+    const otherD = String(otherDay.getDate()).padStart(2, "0");
+    const otherDayStr = `${otherY}-${otherM}-${otherD}`;
+
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Recordatorio en otro día",
+      occurred_at: otherDay.toISOString(),
+      reminder_enabled: true,
+      reminder_offset_minutes: 30,
     });
 
     const { getByTestId, getByText } = await render(
@@ -432,6 +450,21 @@ describe("CalendarMonthView Component (Task 35)", () => {
       expect(getByTestId(`day-cell-${todayStr}`)).toBeTruthy();
       expect(getByTestId(`day-has-reminder-${todayStr}`)).toBeTruthy();
       expect(getByText("HOY")).toBeTruthy();
+
+      // Today cell deconflicts bell by positioning on top-left (left: 2)
+      const todayBellStyle = StyleSheet.flatten(
+        getByTestId(`day-has-reminder-${todayStr}`).props.style,
+      );
+      expect(todayBellStyle.left).toBe(2);
+      expect(todayBellStyle.right).toBeUndefined();
+
+      // Regular day positions bell on top-right (right: 2)
+      expect(getByTestId(`day-has-reminder-${otherDayStr}`)).toBeTruthy();
+      const regularBellStyle = StyleSheet.flatten(
+        getByTestId(`day-has-reminder-${otherDayStr}`).props.style,
+      );
+      expect(regularBellStyle.right).toBe(2);
+      expect(regularBellStyle.left).toBeUndefined();
     });
   });
 
