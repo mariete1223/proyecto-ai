@@ -5,6 +5,6 @@ describe("App", () => {
   it("renders the starter screen", async () => {
     const { getByText } = await render(<App />);
 
-    expect(getByText("VoxFlow")).toBeTruthy();
+    expect(getByText("VoxDaily")).toBeTruthy();
   });
 });

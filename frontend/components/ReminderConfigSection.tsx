@@ -75,7 +75,7 @@ export function ReminderConfigSection({
 
   const handleSendTestNotification = () => {
     const success = notificationService.sendNotification(
-      "🔔 Recordatorio de Prueba - VoxFlow",
+      "🔔 Recordatorio de Prueba - VoxDaily",
       "¡El sistema de notificaciones está configurado y funcionando perfectamente en tu navegador!",
     );
     if (success) {

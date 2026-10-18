@@ -77,11 +77,11 @@ export function MobileMainLayout({
       <View style={styles.topHeader}>
         <View style={styles.brandRow}>
           <View style={styles.logoBadge}>
-            <Text style={styles.logoBadgeText}>VF</Text>
+            <Text style={styles.logoBadgeText}>VD</Text>
           </View>
           <View>
-            <Text style={styles.headerTitle}>VoxFlow</Text>
-            <Text style={styles.headerSubtitle}>Smart Voice Hub</Text>
+            <Text style={styles.headerTitle}>VoxDaily</Text>
+            <Text style={styles.headerSubtitle}>Voice Journal & Calendar</Text>
           </View>
         </View>
 

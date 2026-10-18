@@ -1,7 +1,7 @@
 {
-  "name": "VoxFlow - Smart Voice Organizer",
-  "short_name": "VoxFlow",
-  "description": "Tu asistente inteligente de notas, tareas y calendario por voz con IA",
+  "name": "VoxDaily - Voice Journal & Calendar",
+  "short_name": "VoxDaily",
+  "description": "Tu diario personal y calendario inteligente por voz con IA",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

@@ -534,7 +534,7 @@ export default function App() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Iniciando VoxFlow Hub...</Text>
+        <Text style={styles.loadingText}>Iniciando VoxDaily Hub...</Text>
       </View>
     );
   }

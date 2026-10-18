@@ -1,5 +1,5 @@
 {
-  "name": "voxflow-frontend",
+  "name": "voxdaily-frontend",
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {

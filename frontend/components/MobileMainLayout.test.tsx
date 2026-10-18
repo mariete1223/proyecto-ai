@@ -24,7 +24,7 @@ describe("MobileMainLayout Component", () => {
 
     expect(getByTestId("mobile-main-layout")).toBeTruthy();
     expect(getByTestId("mobile-bottom-tab-bar")).toBeTruthy();
-    expect(getByText("VoxFlow")).toBeTruthy();
+    expect(getByText("VoxDaily")).toBeTruthy();
     expect(getByText("Contenido de Prueba")).toBeTruthy();
   });
 

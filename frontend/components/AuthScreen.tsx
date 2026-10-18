@@ -111,13 +111,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   { fontSize: isSmallScreen ? 18 : 22 },
                 ]}
               >
-                VF
+                VD
               </Text>
             </View>
             <Text
               style={[styles.brandTitle, { fontSize: isSmallScreen ? 22 : 28 }]}
             >
-              VoxFlow
+              VoxDaily
             </Text>
             <Text
               style={[
@@ -125,7 +125,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 { fontSize: isSmallScreen ? 13 : 15 },
               ]}
             >
-              Smart Voice Organizer
+              Voice Journal & Calendar
             </Text>
             <View style={styles.privacyPill}>
               <Text style={styles.privacyPillText}>
