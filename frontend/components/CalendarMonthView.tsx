@@ -50,6 +50,8 @@ function getEntryDateKey(iso?: string | null): string {
   return toLocalDateString(d);
 }
 
+export const MAX_VISIBLE_CALENDAR_DOTS = 2;
+
 export function CalendarMonthView({
   db,
   userId,
@@ -512,8 +514,11 @@ export function CalendarMonthView({
           }
 
           const dayEntries = entriesByDayMap.get(cell.dateStr) || [];
-          const visibleEntries = dayEntries.slice(0, 3);
-          const extraCount = dayEntries.length - 3;
+          const visibleEntries = dayEntries.slice(0, MAX_VISIBLE_CALENDAR_DOTS);
+          const extraCount = Math.max(
+            0,
+            dayEntries.length - MAX_VISIBLE_CALENDAR_DOTS,
+          );
           const hasReminders = dayEntries.some((e) => !!e.reminder_enabled);
           const isSelected = selectedDayEntries?.dateStr === cell.dateStr;
           const isToday = toLocalDateString() === cell.dateStr;
@@ -575,7 +580,12 @@ export function CalendarMonthView({
                 })}
 
                 {extraCount > 0 && (
-                  <Text style={styles.extraCountText}>{`+${extraCount}`}</Text>
+                  <Text
+                    style={styles.extraCountText}
+                    testID={`day-extra-count-${cell.dateStr}`}
+                  >
+                    {`+${extraCount}`}
+                  </Text>
                 )}
               </View>
             </Pressable>
@@ -1334,10 +1344,12 @@ const styles = StyleSheet.create({
   },
   badgesContainer: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 3,
     marginTop: 4,
-    justifyContent: "center",
+    maxWidth: "100%",
   },
   entryDot: {
     width: 7,
@@ -1348,6 +1360,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: "#38BDF8",
     fontWeight: "bold",
+    lineHeight: 11,
   },
   dayDetailBox: {
     backgroundColor: "#0F172A",

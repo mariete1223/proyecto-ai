@@ -79,14 +79,80 @@ describe("CalendarMonthView Component (Task 35)", () => {
     permSpy.mockRestore();
   });
 
-  it("handles day saturation (+1 indicator for >3 entries on same day)", async () => {
+  it("handles day saturation (+2 indicator for 4 entries on same day)", async () => {
     const { getByTestId, getByText } = await render(
       <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
     );
 
     await waitFor(() => {
       expect(getByTestId("day-cell-2026-09-15")).toBeTruthy();
-      expect(getByText("+1")).toBeTruthy();
+      expect(getByTestId("day-extra-count-2026-09-15")).toBeTruthy();
+      expect(getByText("+2")).toBeTruthy();
+    });
+  });
+
+  it("limits visible entry dots to 2 and shows correct +X indicator dynamically", async () => {
+    // Add 1 entry to Sept 10 (1 entry -> 1 dot, no extra count)
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Solo una entrada",
+      occurred_at: "2026-09-10T10:00:00Z",
+    });
+
+    // Add 2 entries to Sept 11 (2 entries -> 2 dots, no extra count)
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Entrada 1 en día 11",
+      occurred_at: "2026-09-11T10:00:00Z",
+    });
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Entrada 2 en día 11",
+      occurred_at: "2026-09-11T11:00:00Z",
+    });
+
+    // Add 3 entries to Sept 12 (3 entries -> 2 dots + +1)
+    for (let i = 1; i <= 3; i++) {
+      await createLocalEntry(db, userId, {
+        category_id: catId,
+        content: `Entrada ${i} en día 12`,
+        occurred_at: `2026-09-12T10:0${i}:00Z`,
+      });
+    }
+
+    // Add 5 entries to Sept 13 (5 entries -> 2 dots + +3)
+    for (let i = 1; i <= 5; i++) {
+      await createLocalEntry(db, userId, {
+        category_id: catId,
+        content: `Entrada ${i} en día 13`,
+        occurred_at: `2026-09-13T10:0${i}:00Z`,
+      });
+    }
+
+    const { getByTestId, queryByTestId } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
+    );
+
+    await waitFor(() => {
+      // 1 entry: day-cell-2026-09-10 should NOT have extra count badge
+      expect(getByTestId("day-cell-2026-09-10")).toBeTruthy();
+      expect(queryByTestId("day-extra-count-2026-09-10")).toBeNull();
+
+      // 2 entries: day-cell-2026-09-11 should NOT have extra count badge
+      expect(getByTestId("day-cell-2026-09-11")).toBeTruthy();
+      expect(queryByTestId("day-extra-count-2026-09-11")).toBeNull();
+
+      // 3 entries: day-cell-2026-09-12 should show +1
+      expect(getByTestId("day-extra-count-2026-09-12")).toBeTruthy();
+      expect(getByTestId("day-extra-count-2026-09-12").props.children).toBe(
+        "+1",
+      );
+
+      // 5 entries: day-cell-2026-09-13 should show +3
+      expect(getByTestId("day-extra-count-2026-09-13")).toBeTruthy();
+      expect(getByTestId("day-extra-count-2026-09-13").props.children).toBe(
+        "+3",
+      );
     });
   });
 
