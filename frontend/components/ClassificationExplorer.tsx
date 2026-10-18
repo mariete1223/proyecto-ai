@@ -1649,7 +1649,7 @@ const styles = StyleSheet.create({
   },
   searchInputExplorer: {
     flex: 1,
-    minWidth: 200,
+    minWidth: 140,
     backgroundColor: "#0F172A",
     borderColor: "#334155",
     borderWidth: 1,

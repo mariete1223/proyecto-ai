@@ -989,7 +989,7 @@ const styles = StyleSheet.create({
   },
   metaItemCard: {
     flex: 1,
-    minWidth: 200,
+    minWidth: 130,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
     borderColor: "rgba(51, 65, 85, 0.7)",
     borderWidth: 1,

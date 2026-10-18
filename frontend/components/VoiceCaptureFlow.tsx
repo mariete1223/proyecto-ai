@@ -1123,6 +1123,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 14,
     alignItems: "center",
+    flexWrap: "wrap",
   },
   listenButton: {
     backgroundColor: "#38BDF8",
@@ -1509,6 +1510,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     marginBottom: 10,
+    flexWrap: "wrap",
   },
   subInputLabel: {
     color: "#64748B",

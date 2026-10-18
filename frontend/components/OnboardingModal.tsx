@@ -268,10 +268,11 @@ const styles = StyleSheet.create({
   },
   cardSmall: {
     width: "100%",
-    maxWidth: 380,
+    maxWidth: "100%",
   },
   cardLarge: {
-    width: 460,
+    width: "100%",
+    maxWidth: 460,
   },
   header: {
     flexDirection: "row",

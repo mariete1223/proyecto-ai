@@ -970,8 +970,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(56, 189, 248, 0.35)",
     borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
+    padding: 16,
+    marginBottom: 20,
+    width: "100%",
+    maxWidth: "100%",
     ...theme.shadows.glow,
   },
   modalBannerHeader: {

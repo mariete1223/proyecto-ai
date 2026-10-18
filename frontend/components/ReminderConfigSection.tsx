@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
-    minWidth: 200,
+    minWidth: 140,
   },
   headerTitle: {
     color: theme.colors.textPrimary,
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   },
   permissionGrantedLeft: {
     flex: 1,
-    minWidth: 180,
+    minWidth: 120,
   },
   permissionGrantedText: {
     color: "#34d399",
@@ -789,7 +789,7 @@ const styles = StyleSheet.create({
     color: "#fbbf24",
     fontSize: 12,
     flex: 1,
-    minWidth: 180,
+    minWidth: 120,
   },
   permissionGrantBtn: {
     backgroundColor: theme.colors.warning,
