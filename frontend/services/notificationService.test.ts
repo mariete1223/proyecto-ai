@@ -216,4 +216,57 @@ describe("NotificationService", () => {
     );
     notificationService.cancelNotification(entry.id);
   });
+
+  it("includes ngrok-skip-browser-warning header in subscribeToWebPush fetch calls", async () => {
+    const fetchMock = jest.fn().mockImplementation((url: string) => {
+      if (url.includes("vapid-public-key")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              public_key:
+                "BCXORGkkwXpj8okl6qxaul0VBYjVImMdtfJAoqDPe0rEseOtAC737VWCauj9k9Mw1TU6oHNg4LrhXFDQihj4Vpw",
+            }),
+        });
+      }
+      if (url.includes("subscribe")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ success: true }),
+        });
+      }
+      return Promise.reject(new Error("Unknown url"));
+    });
+    Object.defineProperty(globalThis.navigator, "serviceWorker", {
+      value: {},
+      writable: true,
+      configurable: true,
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const mockSubscription = {
+      toJSON: () => ({
+        endpoint: "https://web.push.apple.com/test",
+        keys: { p256dh: "key1", auth: "auth1" },
+      }),
+    };
+    (notificationService as any).swRegistration = {
+      pushManager: {
+        getSubscription: jest.fn().mockResolvedValue(mockSubscription),
+      },
+    };
+
+    const res = await notificationService.subscribeToWebPush(
+      "https://test.ngrok-free.dev",
+      "test-token",
+    );
+    expect(res).toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [vapidCall, subCall] = fetchMock.mock.calls;
+    expect(vapidCall[1]?.headers?.["ngrok-skip-browser-warning"]).toBe("true");
+    expect(subCall[1]?.headers?.["ngrok-skip-browser-warning"]).toBe("true");
+  });
 });

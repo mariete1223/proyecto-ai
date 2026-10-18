@@ -150,7 +150,7 @@ class NotificationService {
     }
 
     if (
-      Platform.OS !== "web" ||
+      (Platform.OS !== "web" && typeof window === "undefined") ||
       typeof window === "undefined" ||
       !("serviceWorker" in navigator)
     ) {
@@ -169,6 +169,11 @@ class NotificationService {
       // 1. Obtener clave pública VAPID del backend
       const vapidRes = await fetch(
         `${targetBaseUrl}/api/v1/push/vapid-public-key`,
+        {
+          headers: {
+            "ngrok-skip-browser-warning": "true",
+          },
+        },
       );
       if (!vapidRes.ok) {
         console.warn(
@@ -217,6 +222,7 @@ class NotificationService {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${targetToken}`,
+          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify({
           endpoint,

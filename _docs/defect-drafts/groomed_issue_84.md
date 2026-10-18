@@ -1,24 +1,19 @@
 ## Goal
 
-Garantizar que las notificaciones de recordatorios y alertas se sincronicen de inmediato con el backend al crearse o modificarse en la aplicación (móvil PWA y web), y que el backend despache las alertas Web Push a Apple APNs con un TTL y una ventana de vigencia adecuados para despertar la pantalla de bloqueo en dispositivos iOS / móviles en segundo plano.
+Asegurar que todas las peticiones de Web Push y sincronización desde el cliente web/móvil hacia el túnel ngrok incorporen la cabecera `ngrok-skip-browser-warning: true`, y que el servidor backend ejecute el código actualizado con el TTL de 86400s y el worker de recordatorios activo, garantizando la entrega efectiva de notificaciones en reposo en iOS.
 
 ## Acceptance criteria
 
-- [ ] Al crear o modificar una entrada con `reminder_enabled = true` (vía captura de voz, formulario manual o calendario rápido), los cambios locales se sincronizan inmediatamente con el backend sin depender de una acción manual del usuario.
-- [ ] En `frontend/App.tsx`, `syncSilentlyInBackground` incluye `userToken` en sus dependencias de `useCallback` para evitar enviar peticiones de sincronización con tokens demo o desactualizados.
-- [ ] En `frontend/services/notificationService.ts`, al programar o actualizar un recordatorio, se asegura que el estado de suscripción Web Push esté sincronizado con el backend si los permisos de notificación están concedidos.
-- [ ] En `backend/app/core/vapid.py`, el `ttl` en la llamada a `webpush()` se configura en 86400 segundos (24 horas) para evitar que Apple APNs descarte los avisos cuando el dispositivo móvil esté en reposo o pantalla bloqueada.
-- [ ] En `backend/app/services/push_worker.py`, la ventana de tolerancia hacia el pasado para procesar recordatorios pendientes (`window_past`) se amplía de 5 minutos a 30 minutos para absorber la latencia de sincronización tras la salida del reposo.
-- [ ] En `backend/app/services/push_worker.py`, las entradas con recordatorio cuyo tiempo de aviso ya haya expirado por completo y no sean recurrentes se marcan con `reminder_enabled = False`, evitando que permanezcan como activas indefinidamente en la base de datos.
-- [ ] La suite completa de tests de frontend (`npm --prefix frontend run check`) y backend (`pytest`) pasa al 100% con tests de regresión que cubren el nuevo TTL y la sincronización de recordatorios.
+- [ ] En `frontend/services/notificationService.ts`, tanto la petición a `/api/v1/push/vapid-public-key` como a `/api/v1/push/subscribe` incluyen la cabecera `"ngrok-skip-browser-warning": "true"`.
+- [ ] El proceso backend FastAPI en el puerto 8000 se reinicia para cargar en memoria el código actualizado de `app/core/vapid.py` (TTL 86400) y `app/services/push_worker.py` (ventana de 30 minutos).
+- [ ] Se verifica mediante test unitario en `notificationService.test.ts` que las peticiones de suscripción Web Push envían la cabecera `ngrok-skip-browser-warning: true`.
+- [ ] Las suites completas de tests de frontend (`npm --prefix frontend run check`) y backend (`pytest`) pasan al 100%.
 
 ## Out of scope
 
-- [ ] Rediseño de los controles de selección de hora y antelación en el calendario o detalle (resuelto previamente en #72 y #76).
-- [ ] Notificaciones en navegadores legacy sin soporte nativo de Web Push / Service Workers (cubierto por degradación graciosa).
+- [ ] Reemplazo del proveedor de túnel ngrok por una infraestructura de dominio propio o Cloudflare Tunnels dedicada.
 
 ## Constraints
 
-- Cambios limitados a `frontend/App.tsx`, `frontend/services/notificationService.ts`, `frontend/components/CalendarMonthView.tsx`, `backend/app/core/vapid.py`, `backend/app/services/push_worker.py` y archivos de test asociados.
-- No modificar dependencias en `pyproject.toml` ni `package.json`.
-- Mantener compatibilidad total con iOS 16.4+ Web Push PWA y con las suscripciones push existentes en la base de datos.
+- Modificaciones acotadas a `frontend/services/notificationService.ts` y sus tests asociados.
+- Mantener compatibilidad con despliegues directos sin túnel o entornos locales.
