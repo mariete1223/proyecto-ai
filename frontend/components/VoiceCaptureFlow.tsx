@@ -334,6 +334,13 @@ export function VoiceCaptureFlow({
   const isManualSaveDisabled =
     loading || !manualCategoryId || !manualContent.trim();
 
+  const showLiveDictation =
+    voiceState === "LISTENING" ||
+    voiceState === "PROCESSING" ||
+    Boolean(transcript.trim());
+
+  const showSecondaryControls = Boolean(transcript.trim());
+
   const handleResetVoiceCapture = () => {
     if (voiceService) {
       voiceService.cancel();
@@ -362,28 +369,47 @@ export function VoiceCaptureFlow({
     <View style={styles.card} testID="voice-capture-flow">
       {/* Top Header with title and step indicator badge */}
       <View style={styles.headerRow}>
-        <Text style={styles.title}>
-          {currentStep === "DICTATE"
-            ? "Captura Hablada por Voz"
-            : "Resultado del Dictado"}
-        </Text>
-        <View
-          style={[
-            styles.stepBadge,
-            currentStep === "RESULT" && styles.stepBadgeResult,
-          ]}
-        >
-          <Text
+        <View style={styles.headerTitleGroup}>
+          <Text style={styles.title}>
+            {currentStep === "DICTATE"
+              ? "Captura Hablada por Voz"
+              : "Resultado del Dictado"}
+          </Text>
+          <View
             style={[
-              styles.stepBadgeText,
-              currentStep === "RESULT" && styles.stepBadgeTextResult,
+              styles.stepBadge,
+              currentStep === "RESULT" && styles.stepBadgeResult,
             ]}
           >
-            {currentStep === "DICTATE"
-              ? "Paso 1 de 2: Dictado"
-              : "Paso 2 de 2: Revisión"}
-          </Text>
+            <Text
+              style={[
+                styles.stepBadgeText,
+                currentStep === "RESULT" && styles.stepBadgeTextResult,
+              ]}
+            >
+              {currentStep === "DICTATE"
+                ? "Paso 1 de 2: Dictado"
+                : "Paso 2 de 2: Revisión"}
+            </Text>
+          </View>
         </View>
+
+        {onClose && (
+          <Pressable
+            testID="btn-header-close-voice"
+            accessibilityLabel="Salir"
+            style={styles.headerCloseButton}
+            onPress={() => {
+              if (voiceService) {
+                voiceService.cancel();
+              }
+              setVoiceState("IDLE");
+              onClose();
+            }}
+          >
+            <Text style={styles.headerCloseButtonText}>✕ Salir</Text>
+          </Pressable>
+        )}
       </View>
 
       {errorMessage && (
@@ -435,61 +461,75 @@ export function VoiceCaptureFlow({
             </View>
           )}
 
-          {/* Live Dictation Display Box - Situated Prominently Above Hero Controls */}
-          <View style={styles.liveDictationBox} testID="live-dictation-box">
-            <View style={styles.liveDictationHeaderRow}>
-              <Text style={styles.liveDictationHeaderTitle}>
-                🗣️ Lo que estás diciendo:
-              </Text>
-              {voiceState === "LISTENING" && (
-                <View style={styles.liveListeningBadge}>
-                  <View style={styles.pulsingDot} />
-                  <Text style={styles.liveListeningBadgeText}>EN DIRECTO</Text>
-                </View>
-              )}
-            </View>
+          {/* Live Dictation Display Box - Conditional (#80) */}
+          {showLiveDictation ? (
+            <View style={styles.liveDictationBox} testID="live-dictation-box">
+              <View style={styles.liveDictationHeaderRow}>
+                <Text style={styles.liveDictationHeaderTitle}>
+                  🗣️ Lo que estás diciendo:
+                </Text>
+                {voiceState === "LISTENING" && (
+                  <View style={styles.liveListeningBadge}>
+                    <View style={styles.pulsingDot} />
+                    <Text style={styles.liveListeningBadgeText}>
+                      EN DIRECTO
+                    </Text>
+                  </View>
+                )}
+              </View>
 
-            <View style={styles.liveDictationContent}>
-              {transcript ? (
-                <Text style={styles.liveDictationText}>{transcript}</Text>
-              ) : voiceState === "LISTENING" ? (
-                <Text style={styles.liveDictationPlaceholderActive}>
-                  🎙️ Escuchando... Di tu comando (ej: "tarea fecha hoy contenido
-                  comprar pan")
-                </Text>
-              ) : (
-                <Text style={styles.liveDictationPlaceholder}>
-                  Pulsa "Toca para Dictar" para hablar, o escribe directamente
-                  en la casilla inferior.
-                </Text>
-              )}
-            </View>
+              <View style={styles.liveDictationContent}>
+                {transcript ? (
+                  <Text style={styles.liveDictationText}>{transcript}</Text>
+                ) : voiceState === "LISTENING" ? (
+                  <Text style={styles.liveDictationPlaceholderActive}>
+                    🎙️ Escuchando... Di tu comando (ej: "tarea fecha hoy
+                    contenido comprar pan")
+                  </Text>
+                ) : (
+                  <Text style={styles.liveDictationPlaceholder}>
+                    Pulsa "Toca para Dictar" para hablar, o escribe directamente
+                    en la casilla inferior.
+                  </Text>
+                )}
+              </View>
 
-            <View style={styles.manualTranscriptRow}>
-              <TextInput
-                testID="input-transcript"
-                style={styles.transcriptInput}
-                placeholder="Escribe o edita el texto aquí..."
-                placeholderTextColor="#64748B"
-                value={transcript}
-                onChangeText={(text) => {
-                  transcriptRef.current = text;
-                  setTranscript(text);
-                }}
-              />
-              <Pressable
-                testID="btn-parse-transcript"
-                style={styles.parseTranscriptBtn}
-                onPress={() =>
-                  handleProcessTranscript(transcriptRef.current || transcript)
-                }
-              >
-                <Text style={styles.parseTranscriptBtnText} numberOfLines={1}>
-                  🔍 Procesar
-                </Text>
-              </Pressable>
+              <View style={styles.manualTranscriptRow}>
+                <TextInput
+                  testID="input-transcript"
+                  style={styles.transcriptInput}
+                  placeholder="Escribe o edita el texto aquí..."
+                  placeholderTextColor="#64748B"
+                  value={transcript}
+                  onChangeText={(text) => {
+                    transcriptRef.current = text;
+                    setTranscript(text);
+                  }}
+                />
+                <Pressable
+                  testID="btn-parse-transcript"
+                  style={styles.parseTranscriptBtn}
+                  onPress={() =>
+                    handleProcessTranscript(transcriptRef.current || transcript)
+                  }
+                >
+                  <Text style={styles.parseTranscriptBtnText} numberOfLines={1}>
+                    🔍 Procesar
+                  </Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
+          ) : (
+            <TextInput
+              testID="input-transcript"
+              style={{ width: 0, height: 0, opacity: 0, position: "absolute" }}
+              value={transcript}
+              onChangeText={(text) => {
+                transcriptRef.current = text;
+                setTranscript(text);
+              }}
+            />
+          )}
 
           {/* Hero Voice Dictation Button (#76) */}
           <View style={styles.heroButtonContainer}>
@@ -530,36 +570,41 @@ export function VoiceCaptureFlow({
             )}
           </View>
 
-          {/* Secondary Controls Row */}
-          <View style={styles.secondaryControlsRow}>
-            <Pressable
-              testID="btn-reset-voice-capture"
-              style={styles.resetControlBtn}
-              onPress={handleResetVoiceCapture}
+          {/* Secondary Controls Row - Visible only when already dictated (#80) */}
+          {showSecondaryControls && (
+            <View
+              style={styles.secondaryControlsRow}
+              testID="secondary-controls-row"
             >
-              <Text style={styles.resetControlBtnText} numberOfLines={1}>
-                🔄 Limpiar
-              </Text>
-            </Pressable>
-
-            {onClose && (
               <Pressable
-                testID="btn-close-voice-flow"
-                style={styles.cancelControlBtn}
-                onPress={() => {
-                  if (voiceService) {
-                    voiceService.cancel();
-                  }
-                  setVoiceState("IDLE");
-                  onClose();
-                }}
+                testID="btn-reset-voice-capture"
+                style={styles.resetControlBtn}
+                onPress={handleResetVoiceCapture}
               >
-                <Text style={styles.cancelControlBtnText} numberOfLines={1}>
-                  ✕ Salir
+                <Text style={styles.resetControlBtnText} numberOfLines={1}>
+                  🔄 Limpiar
                 </Text>
               </Pressable>
-            )}
-          </View>
+
+              {onClose && (
+                <Pressable
+                  testID="btn-close-voice-flow"
+                  style={styles.cancelControlBtn}
+                  onPress={() => {
+                    if (voiceService) {
+                      voiceService.cancel();
+                    }
+                    setVoiceState("IDLE");
+                    onClose();
+                  }}
+                >
+                  <Text style={styles.cancelControlBtnText} numberOfLines={1}>
+                    ✕ Salir
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          )}
 
           {/* Mobile Keyboard Dictation Notice if WebSpeech is unsupported in Expo Go */}
           {typeof window !== "undefined" &&
@@ -1128,7 +1173,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     color: "#F8FAFC",
-    marginBottom: 12,
   },
   statusBanner: {
     flexDirection: "row",
@@ -1775,6 +1819,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+  },
+  headerTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    flex: 1,
+  },
+  headerCloseButton: {
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    borderColor: "#EF4444",
+    borderWidth: 1.5,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+  },
+  headerCloseButtonText: {
+    color: "#EF4444",
+    fontSize: 14,
+    fontWeight: "bold",
   },
   stepBadge: {
     backgroundColor: "rgba(56, 189, 248, 0.15)",

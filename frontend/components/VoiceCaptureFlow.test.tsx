@@ -368,8 +368,8 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(chips.length).toBe(1);
   });
 
-  it("shows live dictation box prominently at the top in DICTATE step", async () => {
-    const { getByTestId, getByText } = await render(
+  it("shows live dictation box and secondary controls conditionally only when dictating or with text (#80)", async () => {
+    const { getByTestId, queryByTestId, getByText } = await render(
       <VoiceCaptureFlow
         db={db}
         userId={userId}
@@ -378,8 +378,22 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     );
 
     expect(getByText("Paso 1 de 2: Dictado")).toBeTruthy();
+    // In idle without text: box and secondary controls are hidden
+    expect(queryByTestId("live-dictation-box")).toBeNull();
+    expect(queryByTestId("secondary-controls-row")).toBeNull();
+
+    // When text is typed / dictated, box and secondary controls appear
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-transcript"),
+        "nota reunión con equipo",
+      );
+    });
+
     expect(getByTestId("live-dictation-box")).toBeTruthy();
     expect(getByText("🗣️ Lo que estás diciendo:")).toBeTruthy();
+    expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
+    expect(getByText("🔄 Limpiar")).toBeTruthy();
   });
 
   it("transitions to separate review screen when dictation is parsed and allows Regrabar to return to dictation", async () => {
@@ -391,9 +405,9 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       />,
     );
 
-    // Initial step: DICTATE
+    // Initial step: DICTATE - live dictation box is hidden in idle
     expect(getByText("Paso 1 de 2: Dictado")).toBeTruthy();
-    expect(getByTestId("live-dictation-box")).toBeTruthy();
+    expect(queryByTestId("live-dictation-box")).toBeNull();
     expect(queryByTestId("recognized-tokens-section")).toBeNull();
 
     // Type dictation and process
@@ -403,6 +417,8 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
         "tarea fecha hoy contenido comprar fruta",
       );
     });
+
+    expect(getByTestId("live-dictation-box")).toBeTruthy();
 
     await act(async () => {
       fireEvent.press(getByTestId("btn-parse-transcript"));
@@ -421,14 +437,14 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       fireEvent.press(getByText("🎙️ Regrabar"));
     });
 
-    // Back to Step 1: DICTATE with empty transcript
+    // Back to Step 1: DICTATE with empty transcript (idle state)
     expect(getByText("Paso 1 de 2: Dictado")).toBeTruthy();
-    expect(getByTestId("live-dictation-box")).toBeTruthy();
+    expect(queryByTestId("live-dictation-box")).toBeNull();
     expect(getByTestId("input-transcript").props.value).toBe("");
     expect(queryByTestId("recognized-tokens-section")).toBeNull();
   });
 
-  it("renders manual transcript input and parse button in live dictation box without overflow (#75)", async () => {
+  it("renders manual transcript input and parse button when dictation box is active (#75, #80)", async () => {
     const { getByTestId } = await render(
       <VoiceCaptureFlow
         db={db}
@@ -437,13 +453,18 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       />,
     );
 
+    // Enter text to activate dictation box
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-transcript"), "prueba de texto");
+    });
+
     const input = getByTestId("input-transcript");
     const parseBtn = getByTestId("btn-parse-transcript");
     expect(input).toBeTruthy();
     expect(parseBtn).toBeTruthy();
   });
 
-  it("renders prominent Hero Dictation button and secondary control buttons (#76)", async () => {
+  it("renders prominent Hero Dictation button and hides secondary controls until dictating (#76, #80)", async () => {
     const { getByTestId, getByText, queryByTestId } = await render(
       <VoiceCaptureFlow
         db={db}
@@ -461,8 +482,39 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     ).toBeTruthy();
     expect(queryByTestId("btn-stop-listening")).toBeNull();
 
-    // Secondary controls
+    // Secondary controls are hidden in IDLE before dictating
+    expect(queryByTestId("secondary-controls-row")).toBeNull();
+    expect(queryByTestId("btn-reset-voice-capture")).toBeNull();
+
+    // When text is dictated, secondary controls appear
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-transcript"), "alguna nota");
+    });
+
+    expect(getByTestId("secondary-controls-row")).toBeTruthy();
     expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
     expect(getByText("🔄 Limpiar")).toBeTruthy();
+  });
+
+  it("renders prominent red header close button when onClose prop is provided (#80)", async () => {
+    const onCloseMock = jest.fn();
+    const { getByTestId, getByText } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+        onClose={onCloseMock}
+      />,
+    );
+
+    const headerCloseBtn = getByTestId("btn-header-close-voice");
+    expect(headerCloseBtn).toBeTruthy();
+    expect(getByText("✕ Salir")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(headerCloseBtn);
+    });
+
+    expect(onCloseMock).toHaveBeenCalledTimes(1);
   });
 });
