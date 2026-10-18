@@ -10,55 +10,54 @@ last_seen: 2026-10-18
 
 ## Observed behaviour
 
-Al iniciar la aplicación y pulsar el botón `[ 🚀 Activar Notificaciones y Voz ]` en el banner inicial `StartupPermissionsPrompt`, la interfaz se queda congelada/bloqueada ("pillada"), cambiando el botón a estado `Configurando...` y deshabilitando tanto el botón principal como el botón secundario `[ Ahora no ]`, impidiendo al usuario interactuar, descartar el aviso o continuar usando la aplicación con normalidad.
+Al iniciar la aplicación y pulsar el botón `[ 🚀 Activar Notificaciones y Voz ]` en el banner inicial `StartupPermissionsPrompt`:
+1. El banner muestra el mensaje de éxito *"✅ ¡Permisos activados para avisos y voz!"*.
+2. Sin embargo, la pantalla permanece totalmente congelada (*freeze*): el usuario no puede hacer clic en ningún elemento de la interfaz (botones de navegación, pestañas, entradas, etc.) ni se recupera la respuesta táctil.
 
 ## Expected behaviour
 
 Al pulsar `[ 🚀 Activar Notificaciones y Voz ]`:
-1. Las llamadas a `notificationService.requestPermissions()` y `navigator.mediaDevices.getUserMedia()` deben ejecutarse con un límite de tiempo estricto (timeout de 4-5s) y de forma no bloqueante.
-2. Si el navegador no soporta Web Notifications (ej. Safari iOS en pestaña normal no añadida a pantalla de inicio), si los permisos están bloqueados en el sistema operativo, o si el diálogo nativo no responde, la UI nunca debe quedarse congelada.
-3. El botón `[ Ahora no ]` o un botón de cierre `✕` debe permanecer accesible para que el usuario pueda descartar el banner en cualquier momento.
-4. Tras completar o vencer el timeout, el banner debe descartarse automáticamente y registrar la preferencia en `localStorage` para no volver a bloquear la pantalla.
+1. La solicitud de permisos de notificaciones debe ejecutarse sin bloquear ni alterar la sesión de audio del sistema.
+2. No debe invocarse `navigator.mediaDevices.getUserMedia` en el inicio sin una grabación activa, ya que WebKit (Safari en iOS) bloquea el hilo de renderizado y el dispatch de eventos táctiles al inicializar y cerrar de inmediato sesiones de captura de audio hardware (`AVAudioSession`).
+3. El banner debe desaparecer de forma inmediata tras confirmar y la pantalla debe permanecer 100% interactiva en todo momento.
 
 ## Reproduction
 
-1. Abrir la aplicación en un navegador o dispositivo móvil (ej. Safari en iOS o Chrome) donde las notificaciones o el micrófono requieran confirmación o no estén en modo standalone.
-2. Observar el banner superior `StartupPermissionsPrompt`.
-3. Pulsar el botón `[ 🚀 Activar Notificaciones y Voz ]`.
-4. Observar que el botón pasa a `Configurando...`, ambos botones quedan en `disabled={true}`, y si el navegador no resuelve inmediatamente las promesas nativas o bloquea la segunda solicitud secuencial de permisos tras perder el gesto de usuario (user gesture activation), la UI queda permanentemente bloqueada sin posibilidad de cancelar.
+1. Abrir la aplicación en un dispositivo móvil con iOS (Safari o PWA).
+2. En el banner `StartupPermissionsPrompt`, pulsar `[ 🚀 Activar Notificaciones y Voz ]`.
+3. Conceder o gestionar el diálogo de permisos si aparece.
+4. Observar que aparece el cartel *"✅ ¡Permisos activados para avisos y voz!"*, pero la pantalla queda en estado freeze y no responde a ningún tap/click.
 
-Frequency: 100% reproducible cuando una promesa de permisos del navegador no retorna o tarda en responder.
+Frequency: 100% reproducible en Safari iOS cuando se invoca `getUserMedia` en el inicio.
 
 ## Environment
 
 - Client: Web / PWA móvil
-- Device / Browser: iPhone Safari / Navegador Web móvil
+- Device / Browser: iPhone Safari / iOS WebKit
 - Frontend Component: `frontend/components/StartupPermissionsPrompt.tsx`
 
 ## Evidence
 
-- Mensaje del usuario: *"le he dado a lo de activar las notificaciones y dictado de voz y se ha quedado pillado y no puedo tocar nada"*
+- Mensaje del usuario: *"Me pone que se han activado los permisos pero no me deja clickar nada se ha queado freeze la pantalla"*.
 - Código en `StartupPermissionsPrompt.tsx`:
-  - `handleGrantPermissions` ejecuta `setIsRequesting(true)`.
-  - Ambos botones tienen `disabled={isRequesting}`.
-  - Se ejecuta secuencialmente `await notificationService.requestPermissions()` y luego `await navigator.mediaDevices.getUserMedia({ audio: true })` sin timeout (`Promise.race`) ni fallback de seguridad si la promesa del navegador queda pendiente o se silencia.
+  - Se ejecuta `navigator.mediaDevices.getUserMedia({ audio: true })` y se detienen las pistas con `track.stop()`. En WebKit iOS, abrir y cerrar el dispositivo de audio hardware sin un `AudioContext` de streaming activo causa un bloqueo en el hilo de eventos de WebKit.
+  - La captura de voz en la app utiliza `SpeechRecognition` / `webkitSpeechRecognition` (en `VoiceRecognitionService`), que solicita sus propios permisos al empezar a grabar sin necesidad de llamar a `getUserMedia` preventivamente.
 
 ## Triage
 
 - Classification: `confirmed`
-- Impact: high (bloquea la interacción del usuario en la pantalla inicial).
+- Impact: high (bloquea la usabilidad de la aplicación en dispositivos móviles).
 - Facts:
-  - `handleGrantPermissions` no cuenta con timeout ante promesas de permisos que no resuelven.
-  - En WebKit / iOS Safari, solicitar `getUserMedia` tras un `await` pierde la activación transitoria de usuario (*user gesture*), lo que puede colgar o rechazar silenciosamente la llamada.
-  - Al estar deshabilitado `[ Ahora no ]` durante `isRequesting`, el usuario no tiene ninguna vía de escape si el navegador no devuelve el control.
+  - El mensaje *"✅ ¡Permisos activados para avisos y voz!"* se mostró con éxito, demostrando que `handleGrantPermissions` completó las llamadas iniciales.
+  - La congelación de la pantalla persiste tras mostrarse dicho mensaje.
+  - La invocación de `getUserMedia` y `track.stop()` en WebKit iOS es conocida por bloquear el despacho de eventos táctiles y congelar la vista web.
 - Hypotheses:
-  - Implementar un timeout de seguridad (ej. 4 segundos con `Promise.race`), desacoplar o paralelizar las peticiones de permisos, permitir descartar el banner en todo momento y no bloquear la interfaz resolverá completamente el problema.
+  - Eliminar la llamada preventiva a `getUserMedia` (innecesaria porque `SpeechRecognition` solicita el micro de forma nativa al pulsar el botón de dictar) y asegurar el cierre inmediato del banner resolverá de forma definitiva el freeze.
 - Missing information: Ninguna.
 - Possible duplicates checked:
-  - Issue #77: Feature original de solicitud de permisos (cerrada).
-  - Issue #60, #61, #62: Notificaciones push y permisos de background (cerradas).
-  - Ningún issue abierto ni previo reportando congelamiento de UI en `StartupPermissionsPrompt`.
+  - Reabierto sobre la huella idéntica en Issue #78.
 
 ## Publication history
 
-- 2026-10-18: Intake registrado como borrador local. Pendiente de publicación en GitHub.
+- 2026-10-18: Intake inicial registrado y publicado como Issue #78.
+- 2026-10-18: Reabierto tras evidenciarse que la pantalla sigue congelada tras mostrarse el mensaje de confirmación de permisos.
