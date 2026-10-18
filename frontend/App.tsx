@@ -80,7 +80,12 @@ const getBackendUrl = (): string => {
       }
       const savedBackend = window.localStorage?.getItem("custom_backend_url");
       if (savedBackend && savedBackend.trim()) {
-        return savedBackend.trim().replace(/\/+$/, "");
+        const clean = savedBackend.trim().replace(/\/+$/, "");
+        if (clean.includes("trycloudflare.com")) {
+          window.localStorage?.removeItem("custom_backend_url");
+        } else {
+          return clean;
+        }
       }
     } catch {
       // ignore
