@@ -66,6 +66,7 @@ def send_web_push_detail(
     subscription_info: dict[str, Any],
     data: dict[str, Any],
     subject: str = "mailto:soporte@proyecto-ai.com",
+    ttl: int = 86400,
 ) -> tuple[bool, bool]:
     """
     Send a Web Push notification to a browser push endpoint (APNs / FCM).
@@ -101,7 +102,7 @@ def send_web_push_detail(
             data=payload_str,
             vapid_private_key=str(key_path),
             vapid_claims=claims,
-            ttl=60,
+            ttl=ttl,
             headers=extra_headers,
         )
         status_code = getattr(resp, "status_code", 200)

@@ -388,6 +388,17 @@ class NotificationService {
       return;
     }
 
+    if (
+      (Platform.OS === "web" || typeof window !== "undefined") &&
+      this.getPermissionStatus() === "granted" &&
+      this.lastApiBaseUrl &&
+      this.lastToken
+    ) {
+      this.subscribeToWebPush(this.lastApiBaseUrl, this.lastToken).catch(
+        () => {},
+      );
+    }
+
     const offsets: number[] =
       entry.reminder_offsets_minutes &&
       entry.reminder_offsets_minutes.length > 0

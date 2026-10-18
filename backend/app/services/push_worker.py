@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 def check_and_send_due_reminders(db: Session) -> int:
     """Check database for due reminders and send Web Push notifications to active devices."""
     now = datetime.now(UTC)
-    # Window: due up to 30 seconds in future or within last 2 minutes
+    # Window: due up to 30 seconds in future or within last 30 minutes
     window_future = now + timedelta(seconds=30)
-    window_past = now - timedelta(minutes=5)
+    window_past = now - timedelta(minutes=30)
 
     stmt = select(Entry).where(
         Entry.reminder_enabled == True,  # noqa: E712
@@ -47,6 +47,50 @@ def check_and_send_due_reminders(db: Session) -> int:
             trigger_dt = trigger_dt.replace(tzinfo=UTC)
         else:
             trigger_dt = trigger_dt.astimezone(UTC)
+
+        # Si el recordatorio ya pasó hace más de 30 minutos (completamente vencido y no entregado):
+        if trigger_dt < window_past:
+            rec = entry.reminder_recurrence or "NONE"
+            if rec == "NONE":
+                entry.reminder_enabled = False
+                entry.updated_at = now
+                entry.version = (entry.version or 1) + 1
+            else:
+                delta: timedelta | None = None
+                hour_match = re.match(r"^EVERY_(\d+)_HOURS?$", rec)
+                if hour_match:
+                    delta = timedelta(hours=int(hour_match.group(1)))
+                elif rec == "DAILY":
+                    delta = timedelta(days=1)
+                elif rec == "WEEKLY":
+                    delta = timedelta(days=7)
+                elif rec == "MONTHLY":
+                    delta = timedelta(days=30)
+
+                if delta is not None:
+                    next_trigger = (entry.reminder_time or trigger_dt) + delta
+                    if entry.reminder_end_time is not None:
+                        end_dt = entry.reminder_end_time
+                        if end_dt.tzinfo is None:
+                            end_dt = end_dt.replace(tzinfo=UTC)
+                        else:
+                            end_dt = end_dt.astimezone(UTC)
+                        if next_trigger > end_dt:
+                            entry.reminder_enabled = False
+                        else:
+                            if entry.occurred_at is not None:
+                                entry.occurred_at = entry.occurred_at + delta
+                            entry.reminder_time = next_trigger
+                    else:
+                        if entry.occurred_at is not None:
+                            entry.occurred_at = entry.occurred_at + delta
+                        entry.reminder_time = next_trigger
+                else:
+                    entry.reminder_enabled = False
+
+                entry.updated_at = now
+                entry.version = (entry.version or 1) + 1
+            continue
 
         # Is it due?
         if window_past <= trigger_dt <= window_future:

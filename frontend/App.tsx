@@ -389,6 +389,9 @@ export default function App() {
   // No altera isSyncing visualmente ni dispara lastSyncTime a menos que lleguen cambios remotos nuevos del servidor.
   const syncSilentlyInBackground = useCallback(async () => {
     try {
+      if (authSession?.token) {
+        notificationService.setAuth(getBackendUrl(), authSession.token);
+      }
       const syncRes = await performSync(db, {
         apiBaseUrl: getBackendUrl(),
         token: userToken,
@@ -422,7 +425,7 @@ export default function App() {
     } catch {
       // Silencioso en background
     }
-  }, [db, userId]);
+  }, [db, userId, userToken, authSession]);
 
   useEffect(() => {
     let isMounted = true;

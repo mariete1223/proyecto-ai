@@ -277,6 +277,9 @@ def test_send_web_push_key_and_claims(
         assert hdrs.get("apns-push-type") == "alert"
         assert hdrs.get("Urgency") == "high"
 
+        # TTL must be 86400 (24 hours) for lock screen background delivery
+        assert kwargs.get("ttl") == 86400
+
 
 def test_transient_error_preserves_subscription(
     test_db_session: Session,
@@ -499,3 +502,73 @@ def test_check_and_send_due_reminders_hourly_cutoff_at_end_time(
     test_db_session.refresh(entry)
     # Should be disabled because next cycle (now + 4h) exceeds reminder_end_time (now + 2h)
     assert entry.reminder_enabled is False
+
+
+def test_push_worker_window_past_and_expiration(
+    test_db_session: Session,
+    test_user: User,
+    default_category: Category,
+) -> None:
+    """Test that reminders up to 30 min in past are processed, and reminders > 30 min are deactivated."""
+    from datetime import timedelta
+
+    now = datetime.now(UTC)
+
+    # 1. Entry due 15 minutes ago (within 30-min window)
+    due_entry = Entry(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        category_id=default_category.id,
+        content="Recordatorio reciente 15 min",
+        occurred_at=now - timedelta(minutes=15),
+        reminder_enabled=True,
+        reminder_time=now - timedelta(minutes=15),
+        reminder_recurrence="NONE",
+        created_at=now - timedelta(minutes=20),
+        updated_at=now - timedelta(minutes=20),
+        version=1,
+    )
+    # 2. Entry due 45 minutes ago (outside 30-min window -> expired)
+    expired_entry = Entry(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        category_id=default_category.id,
+        content="Recordatorio antiguo 45 min",
+        occurred_at=now - timedelta(minutes=45),
+        reminder_enabled=True,
+        reminder_time=now - timedelta(minutes=45),
+        reminder_recurrence="NONE",
+        created_at=now - timedelta(minutes=50),
+        updated_at=now - timedelta(minutes=50),
+        version=1,
+    )
+    test_db_session.add(due_entry)
+    test_db_session.add(expired_entry)
+
+    sub = PushSubscription(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        endpoint="https://web.push.apple.com/window-past-test",
+        p256dh="key_p256",
+        auth="auth_key",
+        created_at=now,
+        updated_at=now,
+    )
+    test_db_session.add(sub)
+    test_db_session.commit()
+
+    with patch(
+        "app.services.push_worker.send_web_push_detail", return_value=(True, False)
+    ) as mock_send:
+        sent = check_and_send_due_reminders(test_db_session)
+        assert sent == 1
+        assert mock_send.call_count == 1
+
+    test_db_session.refresh(due_entry)
+    test_db_session.refresh(expired_entry)
+
+    # due_entry was sent and deactivated (since NONE recurrence)
+    assert due_entry.reminder_enabled is False
+    # expired_entry was not sent but deactivated to avoid perpetual queries
+    assert expired_entry.reminder_enabled is False
+

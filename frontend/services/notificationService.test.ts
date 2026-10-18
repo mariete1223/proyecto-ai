@@ -187,4 +187,33 @@ describe("NotificationService", () => {
       notificationService.cancelNotification(entry.id);
     }).not.toThrow();
   });
+
+  it("triggers subscribeToWebPush when scheduling an enabled reminder if permission is granted", () => {
+    notificationService.setAuth("http://localhost:8000", "mock-token-xyz");
+    jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("granted");
+    const subSpy = jest
+      .spyOn(notificationService, "subscribeToWebPush")
+      .mockResolvedValue(true);
+
+    const entry = {
+      id: "webpush-sync-entry",
+      user_id: "user-1",
+      category_id: "cat-1",
+      content: "Recordatorio con push sync",
+      reminder_enabled: true,
+      reminder_time: new Date(Date.now() + 60000).toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      version: 1,
+    } as Entry;
+
+    notificationService.scheduleForEntry(entry);
+    expect(subSpy).toHaveBeenCalledWith(
+      "http://localhost:8000",
+      "mock-token-xyz",
+    );
+    notificationService.cancelNotification(entry.id);
+  });
 });
