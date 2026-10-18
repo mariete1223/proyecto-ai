@@ -70,9 +70,15 @@ def _create_sqlite_tables(engine: Any) -> None:
 
 app = FastAPI(title="Proyecto AI API", version="0.1.0", lifespan=lifespan)
 
+allowed_origins_env = os.environ.get("ALLOWED_ORIGINS")
+if allowed_origins_env and allowed_origins_env.strip():
+    allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+else:
+    allowed_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
