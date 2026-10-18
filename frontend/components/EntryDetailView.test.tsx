@@ -291,11 +291,7 @@ describe("EntryDetailView Component (Task 38)", () => {
     );
 
     const { queryByTestId, queryByText, findByTestId } = await render(
-      <EntryDetailView
-        db={db}
-        userId={userId}
-        entryId={alertEntry.id}
-      />,
+      <EntryDetailView db={db} userId={userId} entryId={alertEntry.id} />,
     );
 
     expect(await findByTestId("entry-detail-view")).toBeTruthy();

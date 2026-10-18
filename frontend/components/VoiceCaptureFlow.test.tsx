@@ -393,7 +393,9 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     const heroBtn = getByTestId("btn-start-listening");
     expect(heroBtn).toBeTruthy();
     expect(getByText("Toca para Dictar")).toBeTruthy();
-    expect(getByText("Presiona aquí y habla con comandos o texto libre")).toBeTruthy();
+    expect(
+      getByText("Presiona aquí y habla con comandos o texto libre"),
+    ).toBeTruthy();
     expect(queryByTestId("btn-stop-listening")).toBeNull();
 
     // Secondary controls

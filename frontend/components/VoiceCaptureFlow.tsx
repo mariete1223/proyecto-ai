@@ -453,8 +453,8 @@ export function VoiceCaptureFlow({
                 </Text>
               ) : (
                 <Text style={styles.liveDictationPlaceholder}>
-                  Pulsa "Toca para Dictar" para hablar, o escribe directamente en la
-                  casilla inferior.
+                  Pulsa "Toca para Dictar" para hablar, o escribe directamente
+                  en la casilla inferior.
                 </Text>
               )}
             </View>
@@ -512,7 +512,9 @@ export function VoiceCaptureFlow({
                 <View style={styles.heroButtonContent}>
                   <Text style={styles.heroButtonIcon}>⏹️</Text>
                   <View style={styles.heroButtonTextCol}>
-                    <Text style={styles.heroStopButtonTitle}>Detener y Procesar</Text>
+                    <Text style={styles.heroStopButtonTitle}>
+                      Detener y Procesar
+                    </Text>
                     <Text style={styles.heroStopButtonSubtitle}>
                       Toca para finalizar la grabación y ver el resultado
                     </Text>
@@ -911,7 +913,14 @@ export function VoiceCaptureFlow({
 
             {Platform.OS === "web" ? (
               <View style={styles.dateTimeInputsRow}>
-                <View style={{ flex: 2, flexBasis: 140, minWidth: 0, maxWidth: "100%" }}>
+                <View
+                  style={{
+                    flex: 2,
+                    flexBasis: 140,
+                    minWidth: 0,
+                    maxWidth: "100%",
+                  }}
+                >
                   <Text style={styles.subInputLabel}>
                     📅 Fecha (Calendario):
                   </Text>
@@ -938,7 +947,14 @@ export function VoiceCaptureFlow({
                   })}
                 </View>
 
-                <View style={{ flex: 1, flexBasis: 110, minWidth: 0, maxWidth: "100%" }}>
+                <View
+                  style={{
+                    flex: 1,
+                    flexBasis: 110,
+                    minWidth: 0,
+                    maxWidth: "100%",
+                  }}
+                >
                   <Text style={styles.subInputLabel}>⏰ Hora (Reloj):</Text>
                   {React.createElement("input", {
                     type: "time",
