@@ -9,8 +9,8 @@ describe("AuthScreen Component", () => {
     );
 
     expect(getByTestId("auth-screen")).toBeTruthy();
-    expect(getByText("Proyecto AI")).toBeTruthy();
-    expect(getByText("Personal Knowledge Hub")).toBeTruthy();
+    expect(getByText("VoxFlow")).toBeTruthy();
+    expect(getByText("Smart Voice Organizer")).toBeTruthy();
     expect(getByPlaceholderText("tu@email.com")).toBeTruthy();
     expect(getByPlaceholderText("Mínimo 8 caracteres")).toBeTruthy();
     expect(getByText("Acceder")).toBeTruthy();

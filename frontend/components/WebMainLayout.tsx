@@ -88,11 +88,11 @@ export function WebMainLayout({
         >
           <View style={styles.brandContainer}>
             <View style={styles.logoBadge}>
-              <Text style={styles.logoBadgeText}>AI</Text>
+              <Text style={styles.logoBadgeText}>VF</Text>
             </View>
             <View>
-              <Text style={styles.headerTitle}>Proyecto AI</Text>
-              <Text style={styles.headerSubtitle}>Personal Knowledge Hub</Text>
+              <Text style={styles.headerTitle}>VoxFlow</Text>
+              <Text style={styles.headerSubtitle}>Smart Voice Organizer</Text>
             </View>
           </View>
 

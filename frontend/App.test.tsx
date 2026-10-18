@@ -5,6 +5,6 @@ describe("App", () => {
   it("renders the starter screen", async () => {
     const { getByText } = await render(<App />);
 
-    expect(getByText("Proyecto AI")).toBeTruthy();
+    expect(getByText("VoxFlow")).toBeTruthy();
   });
 });

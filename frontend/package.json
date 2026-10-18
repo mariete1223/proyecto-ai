@@ -1,5 +1,5 @@
 {
-  "name": "proyecto-ai-frontend",
+  "name": "voxflow-frontend",
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {

@@ -23,7 +23,7 @@ describe("WebMainLayout Component (Task 42)", () => {
 
     await waitFor(() => {
       expect(getByTestId("web-main-layout")).toBeTruthy();
-      expect(getByText("Proyecto AI")).toBeTruthy();
+      expect(getByText("VoxFlow")).toBeTruthy();
       expect(getByTestId("web-quick-stats")).toBeTruthy();
       expect(getByText("42")).toBeTruthy();
       expect(getByText("5")).toBeTruthy();

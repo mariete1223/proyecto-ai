@@ -84,7 +84,7 @@ export function LlmBatchProcessor({
 
     const refDateStr = new Date().toISOString().split("T")[0];
 
-    return `Actúa como un asistente experto en estructuración de información personal para la aplicación Proyecto AI.
+    return `Actúa como un asistente experto en estructuración de información personal para la aplicación VoxFlow.
 
 Tu tarea es analizar el siguiente texto de escritura libre / diario del día y extraer TODAS las ideas, tareas, recuerdos o notas individuales en un array de objetos en formato JSON estricto.
 
