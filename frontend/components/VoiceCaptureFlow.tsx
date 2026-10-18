@@ -429,60 +429,7 @@ export function VoiceCaptureFlow({
             </View>
           )}
 
-          {/* Main Control Action Row */}
-          <View style={styles.controlsRow}>
-            {voiceState === "IDLE" || voiceState === "ERROR" ? (
-              <Pressable
-                testID="btn-start-listening"
-                style={[styles.listenButton, { flex: 1 }]}
-                onPress={handleStartListening}
-              >
-                <Text style={styles.listenButtonText} numberOfLines={1}>
-                  🎙️ Dictar
-                </Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                testID="btn-stop-listening"
-                style={[styles.stopButton, { flex: 1 }]}
-                onPress={handleStopListening}
-              >
-                <Text style={styles.stopButtonText} numberOfLines={1}>
-                  ⏹️ Detener y Ver Resultado
-                </Text>
-              </Pressable>
-            )}
-
-            <Pressable
-              testID="btn-reset-voice-capture"
-              style={styles.resetControlBtn}
-              onPress={handleResetVoiceCapture}
-            >
-              <Text style={styles.resetControlBtnText} numberOfLines={1}>
-                🔄 Limpiar
-              </Text>
-            </Pressable>
-
-            {onClose && (
-              <Pressable
-                testID="btn-close-voice-flow"
-                style={styles.cancelControlBtn}
-                onPress={() => {
-                  if (voiceService) {
-                    voiceService.cancel();
-                  }
-                  setVoiceState("IDLE");
-                  onClose();
-                }}
-              >
-                <Text style={styles.cancelControlBtnText} numberOfLines={1}>
-                  ✕ Salir
-                </Text>
-              </Pressable>
-            )}
-          </View>
-
-          {/* Live Dictation Display Box - Situated Prominently Above Guide */}
+          {/* Live Dictation Display Box - Situated Prominently Above Hero Controls */}
           <View style={styles.liveDictationBox} testID="live-dictation-box">
             <View style={styles.liveDictationHeaderRow}>
               <Text style={styles.liveDictationHeaderTitle}>
@@ -506,7 +453,7 @@ export function VoiceCaptureFlow({
                 </Text>
               ) : (
                 <Text style={styles.liveDictationPlaceholder}>
-                  Pulsa "🎙️ Dictar" para hablar, o escribe directamente en la
+                  Pulsa "Toca para Dictar" para hablar, o escribe directamente en la
                   casilla inferior.
                 </Text>
               )}
@@ -536,6 +483,74 @@ export function VoiceCaptureFlow({
                 </Text>
               </Pressable>
             </View>
+          </View>
+
+          {/* Hero Voice Dictation Button (#76) */}
+          <View style={styles.heroButtonContainer}>
+            {voiceState === "IDLE" || voiceState === "ERROR" ? (
+              <Pressable
+                testID="btn-start-listening"
+                style={styles.heroListenButton}
+                onPress={handleStartListening}
+              >
+                <View style={styles.heroButtonContent}>
+                  <Text style={styles.heroButtonIcon}>🎙️</Text>
+                  <View style={styles.heroButtonTextCol}>
+                    <Text style={styles.heroButtonTitle}>Toca para Dictar</Text>
+                    <Text style={styles.heroButtonSubtitle}>
+                      Presiona aquí y habla con comandos o texto libre
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            ) : (
+              <Pressable
+                testID="btn-stop-listening"
+                style={styles.heroStopButton}
+                onPress={handleStopListening}
+              >
+                <View style={styles.heroButtonContent}>
+                  <Text style={styles.heroButtonIcon}>⏹️</Text>
+                  <View style={styles.heroButtonTextCol}>
+                    <Text style={styles.heroStopButtonTitle}>Detener y Procesar</Text>
+                    <Text style={styles.heroStopButtonSubtitle}>
+                      Toca para finalizar la grabación y ver el resultado
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Secondary Controls Row */}
+          <View style={styles.secondaryControlsRow}>
+            <Pressable
+              testID="btn-reset-voice-capture"
+              style={styles.resetControlBtn}
+              onPress={handleResetVoiceCapture}
+            >
+              <Text style={styles.resetControlBtnText} numberOfLines={1}>
+                🔄 Limpiar
+              </Text>
+            </Pressable>
+
+            {onClose && (
+              <Pressable
+                testID="btn-close-voice-flow"
+                style={styles.cancelControlBtn}
+                onPress={() => {
+                  if (voiceService) {
+                    voiceService.cancel();
+                  }
+                  setVoiceState("IDLE");
+                  onClose();
+                }}
+              >
+                <Text style={styles.cancelControlBtnText} numberOfLines={1}>
+                  ✕ Salir
+                </Text>
+              </Pressable>
+            )}
           </View>
 
           {/* Mobile Keyboard Dictation Notice if WebSpeech is unsupported in Expo Go */}
@@ -1120,6 +1135,83 @@ const styles = StyleSheet.create({
     backgroundColor: "#EF4444",
     borderRadius: 3,
   },
+  heroButtonContainer: {
+    width: "100%",
+    marginBottom: 10,
+  },
+  heroListenButton: {
+    width: "100%",
+    backgroundColor: "#38BDF8",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  heroStopButton: {
+    width: "100%",
+    backgroundColor: "#EF4444",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  heroButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  heroButtonIcon: {
+    fontSize: 28,
+  },
+  heroButtonTextCol: {
+    alignItems: "flex-start",
+    flexShrink: 1,
+  },
+  heroButtonTitle: {
+    color: "#0F172A",
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  heroButtonSubtitle: {
+    color: "#0F172A",
+    fontSize: 11,
+    fontWeight: "600",
+    opacity: 0.85,
+    marginTop: 1,
+  },
+  heroStopButtonTitle: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  heroStopButtonSubtitle: {
+    color: "#FEE2E2",
+    fontSize: 11,
+    fontWeight: "600",
+    opacity: 0.9,
+    marginTop: 1,
+  },
+  secondaryControlsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+    width: "100%",
+  },
   controlsRow: {
     flexDirection: "row",
     gap: 8,
@@ -1156,34 +1248,36 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   resetControlBtn: {
-    backgroundColor: "rgba(245, 158, 11, 0.2)",
-    borderColor: "#F59E0B",
+    flex: 1,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "rgba(245, 158, 11, 0.6)",
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 10,
     paddingVertical: 10,
+    paddingHorizontal: 10,
     justifyContent: "center",
     alignItems: "center",
   },
   resetControlBtnText: {
     color: "#FBBF24",
     fontWeight: "700",
-    fontSize: 12,
+    fontSize: 13,
   },
   cancelControlBtn: {
-    backgroundColor: "rgba(239, 68, 68, 0.2)",
-    borderColor: "#EF4444",
+    flex: 1,
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "rgba(239, 68, 68, 0.6)",
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 10,
     paddingVertical: 10,
+    paddingHorizontal: 10,
     justifyContent: "center",
     alignItems: "center",
   },
   cancelControlBtnText: {
     color: "#F87171",
     fontWeight: "700",
-    fontSize: 12,
+    fontSize: 13,
   },
   mobileDictationHintBox: {
     backgroundColor: "rgba(56, 189, 248, 0.1)",
@@ -1691,9 +1785,9 @@ const styles = StyleSheet.create({
   },
   liveDictationText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600",
-    lineHeight: 22,
+    lineHeight: 24,
   },
   liveDictationPlaceholder: {
     color: "#64748B",

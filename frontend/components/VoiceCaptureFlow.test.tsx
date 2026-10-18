@@ -379,4 +379,25 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(input).toBeTruthy();
     expect(parseBtn).toBeTruthy();
   });
+
+  it("renders prominent Hero Dictation button and secondary control buttons (#76)", async () => {
+    const { getByTestId, getByText, queryByTestId } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    // Initial Hero Button in IDLE state
+    const heroBtn = getByTestId("btn-start-listening");
+    expect(heroBtn).toBeTruthy();
+    expect(getByText("Toca para Dictar")).toBeTruthy();
+    expect(getByText("Presiona aquí y habla con comandos o texto libre")).toBeTruthy();
+    expect(queryByTestId("btn-stop-listening")).toBeNull();
+
+    // Secondary controls
+    expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
+    expect(getByText("🔄 Limpiar")).toBeTruthy();
+  });
 });
