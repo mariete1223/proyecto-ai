@@ -37,9 +37,7 @@ describe("StartupPermissionsPrompt Component (#77, #78)", () => {
     );
 
     expect(getByTestId("startup-permissions-prompt-container")).toBeTruthy();
-    expect(
-      getByText("Activa las Notificaciones y el Dictado por Voz"),
-    ).toBeTruthy();
+    expect(getByText("Activa las Notificaciones de tus Alertas")).toBeTruthy();
     expect(getByTestId("btn-grant-startup-permissions")).toBeTruthy();
     expect(getByTestId("btn-dismiss-startup-permissions")).toBeTruthy();
     expect(getByTestId("btn-close-startup-permissions")).toBeTruthy();
@@ -66,9 +64,7 @@ describe("StartupPermissionsPrompt Component (#77, #78)", () => {
     });
 
     expect(requestNotifSpy).toHaveBeenCalled();
-    expect(
-      await findByText("✅ ¡Permisos activados para avisos y voz!"),
-    ).toBeTruthy();
+    expect(await findByText("✅ ¡Notificaciones activadas!")).toBeTruthy();
 
     await waitFor(
       () => {

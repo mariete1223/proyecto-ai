@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { notificationService } from "../services/notificationService";
 
 export const STARTUP_PERMS_STORAGE_KEY = "voxdaily_startup_perms_dismissed";
@@ -88,28 +88,7 @@ export function StartupPermissionsPrompt({
         // ignore
       }
 
-      // 2. Solicitar permiso de micrófono (getUserMedia) con timeout de seguridad (3.5s)
-      if (
-        Platform.OS === "web" &&
-        typeof navigator !== "undefined" &&
-        navigator.mediaDevices &&
-        typeof navigator.mediaDevices.getUserMedia === "function"
-      ) {
-        try {
-          const stream = await withTimeout(
-            navigator.mediaDevices.getUserMedia({ audio: true }),
-            3500,
-            null,
-          );
-          if (stream) {
-            stream.getTracks().forEach((track) => track.stop());
-          }
-        } catch {
-          // Si el usuario deniega micrófono individualmente, continuamos
-        }
-      }
-
-      // 3. Suscribir a Web Push si hay token y backend configurados
+      // 2. Suscribir a Web Push si hay token y backend configurados
       if (notifStatus === "granted" && backendUrl && token) {
         notificationService
           .subscribeToWebPush(backendUrl, token)
@@ -118,12 +97,12 @@ export function StartupPermissionsPrompt({
 
       saveDismissed();
 
-      setSuccessMessage("✅ ¡Permisos activados para avisos y voz!");
+      setSuccessMessage("✅ ¡Notificaciones activadas!");
       setTimeout(() => {
         setIsRequesting(false);
         setVisible(false);
         onComplete?.();
-      }, 1000);
+      }, 800);
     } catch {
       saveDismissed();
       setIsRequesting(false);
@@ -147,9 +126,9 @@ export function StartupPermissionsPrompt({
       <View style={styles.contentCol}>
         <View style={styles.headerRow}>
           <View style={styles.headerTitleWrap}>
-            <Text style={styles.iconHeading}>🔔 🎙️</Text>
+            <Text style={styles.iconHeading}>🔔</Text>
             <Text style={styles.titleText}>
-              Activa las Notificaciones y el Dictado por Voz
+              Activa las Notificaciones de tus Alertas
             </Text>
           </View>
           <Pressable
@@ -168,8 +147,9 @@ export function StartupPermissionsPrompt({
           </View>
         ) : (
           <Text style={styles.descriptionText}>
-            Para que suenen tus alertas a la hora exacta y puedas dictar
-            entradas rápidamente, permite los avisos y el acceso al micrófono.
+            Para que suenen tus avisos a la hora exacta, permite las
+            notificaciones del sistema. El micrófono se activará automáticamente
+            cuando pulses para dictar.
           </Text>
         )}
 
@@ -185,9 +165,7 @@ export function StartupPermissionsPrompt({
               onPress={handleGrantPermissions}
             >
               <Text style={styles.grantButtonText}>
-                {isRequesting
-                  ? "Configurando..."
-                  : "🚀 Activar Notificaciones y Voz"}
+                {isRequesting ? "Configurando..." : "🚀 Activar Notificaciones"}
               </Text>
             </Pressable>
 
