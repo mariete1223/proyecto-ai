@@ -427,27 +427,32 @@ export function VoiceCaptureFlow({
       {currentStep === "DICTATE" ? (
         /* SCREEN 1: DICTATE SCREEN */
         <View style={styles.screenContainer}>
-          {/* Recording Status Header Banner */}
-          <View
-            style={[
-              styles.statusBanner,
-              voiceState === "LISTENING" && styles.statusBannerActive,
-            ]}
-          >
+          {/* Status Header Banner - Only shown when not in idle ready state (#81) */}
+          {voiceState !== "IDLE" && (
             <View
               style={[
-                styles.statusDot,
-                voiceState === "LISTENING" && styles.statusDotActive,
+                styles.statusBanner,
+                voiceState === "LISTENING" && styles.statusBannerActive,
+                voiceState === "ERROR" && styles.statusBannerError,
               ]}
-            />
-            <Text style={styles.stateText}>
-              {voiceState === "LISTENING"
-                ? "🔴 GRABANDO VOZ... Habla tu comando o nota"
-                : voiceState === "PROCESSING"
-                  ? "⚡ Procesando voz..."
-                  : "Micrófono listo para dictado"}
-            </Text>
-          </View>
+              testID="voice-status-banner"
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  voiceState === "LISTENING" && styles.statusDotActive,
+                  voiceState === "ERROR" && styles.statusDotError,
+                ]}
+              />
+              <Text style={styles.stateText}>
+                {voiceState === "LISTENING"
+                  ? "🔴 GRABANDO VOZ... Habla tu comando o nota"
+                  : voiceState === "PROCESSING"
+                    ? "⚡ Procesando voz..."
+                    : "⚠️ Micrófono no disponible para dictado"}
+              </Text>
+            </View>
+          )}
 
           {/* Voice Wave Visualizer indicator */}
           {voiceState === "LISTENING" && (
@@ -1189,6 +1194,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(239, 68, 68, 0.15)",
     borderColor: "#EF4444",
   },
+  statusBannerError: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "#EF4444",
+  },
   statusDot: {
     width: 10,
     height: 10,
@@ -1196,6 +1205,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#94A3B8",
   },
   statusDotActive: {
+    backgroundColor: "#EF4444",
+  },
+  statusDotError: {
     backgroundColor: "#EF4444",
   },
   stateText: {

@@ -517,4 +517,18 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
 
     expect(onCloseMock).toHaveBeenCalledTimes(1);
   });
+
+  it("hides status banner in idle when microphone is ready and shows warning only if not ready (#81)", async () => {
+    const { queryByTestId, queryByText } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    // In idle ready state, no status banner is shown
+    expect(queryByTestId("voice-status-banner")).toBeNull();
+    expect(queryByText("Micrófono listo para dictado")).toBeNull();
+  });
 });
