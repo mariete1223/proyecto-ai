@@ -6,7 +6,7 @@ import {
   StartupPermissionsPrompt,
 } from "./StartupPermissionsPrompt";
 
-describe("StartupPermissionsPrompt Component (#77)", () => {
+describe("StartupPermissionsPrompt Component (#77, #78)", () => {
   const mockStorage: Record<string, string> = {};
 
   beforeAll(() => {
@@ -42,6 +42,7 @@ describe("StartupPermissionsPrompt Component (#77)", () => {
     ).toBeTruthy();
     expect(getByTestId("btn-grant-startup-permissions")).toBeTruthy();
     expect(getByTestId("btn-dismiss-startup-permissions")).toBeTruthy();
+    expect(getByTestId("btn-close-startup-permissions")).toBeTruthy();
   });
 
   it("handles user granting permissions", async () => {
@@ -91,6 +92,57 @@ describe("StartupPermissionsPrompt Component (#77)", () => {
 
     await act(async () => {
       fireEvent.press(getByTestId("btn-dismiss-startup-permissions"));
+    });
+
+    expect(queryByTestId("startup-permissions-prompt-container")).toBeNull();
+    expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    expect(mockStorage[STARTUP_PERMS_STORAGE_KEY]).toBe("true");
+  });
+
+  it("handles user dismissing via quick close '✕' button (#78)", async () => {
+    const onCompleteMock = jest.fn();
+
+    const { getByTestId, queryByTestId } = await render(
+      <StartupPermissionsPrompt
+        forceVisible={true}
+        onComplete={onCompleteMock}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-close-startup-permissions"));
+    });
+
+    expect(queryByTestId("startup-permissions-prompt-container")).toBeNull();
+    expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    expect(mockStorage[STARTUP_PERMS_STORAGE_KEY]).toBe("true");
+  });
+
+  it("allows dismissing with 'Ahora no' even when request is pending (#78)", async () => {
+    jest
+      .spyOn(notificationService, "requestPermissions")
+      .mockImplementation(() => new Promise(() => {})); // Never resolves
+
+    const onCompleteMock = jest.fn();
+
+    const { getByTestId, queryByTestId } = await render(
+      <StartupPermissionsPrompt
+        forceVisible={true}
+        onComplete={onCompleteMock}
+      />,
+    );
+
+    // Click grant -> becomes isRequesting
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-grant-startup-permissions"));
+    });
+
+    // Dismiss button must NOT be disabled and can be pressed
+    const dismissBtn = getByTestId("btn-dismiss-startup-permissions");
+    expect(dismissBtn.props.accessibilityState?.disabled).not.toBe(true);
+
+    await act(async () => {
+      fireEvent.press(dismissBtn);
     });
 
     expect(queryByTestId("startup-permissions-prompt-container")).toBeNull();

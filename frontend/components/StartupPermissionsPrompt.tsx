@@ -12,6 +12,19 @@ export interface StartupPermissionsPromptProps {
   forceVisible?: boolean;
 }
 
+export function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  fallbackValue: T,
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) =>
+      setTimeout(() => resolve(fallbackValue), timeoutMs),
+    ),
+  ]);
+}
+
 export function StartupPermissionsPrompt({
   backendUrl,
   token,
@@ -49,13 +62,33 @@ export function StartupPermissionsPrompt({
 
   if (!visible) return null;
 
+  const saveDismissed = () => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      try {
+        window.localStorage.setItem(STARTUP_PERMS_STORAGE_KEY, "true");
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   const handleGrantPermissions = async () => {
     setIsRequesting(true);
     try {
-      // 1. Solicitar notificaciones del navegador
-      const notifStatus = await notificationService.requestPermissions();
+      // 1. Solicitar notificaciones del navegador con timeout de seguridad (3.5s)
+      let notifStatus: "granted" | "denied" | "default" | "unsupported" =
+        "default";
+      try {
+        notifStatus = await withTimeout(
+          notificationService.requestPermissions(),
+          3500,
+          "default",
+        );
+      } catch {
+        // ignore
+      }
 
-      // 2. Solicitar permiso de micrófono (getUserMedia)
+      // 2. Solicitar permiso de micrófono (getUserMedia) con timeout de seguridad (3.5s)
       if (
         Platform.OS === "web" &&
         typeof navigator !== "undefined" &&
@@ -63,11 +96,14 @@ export function StartupPermissionsPrompt({
         typeof navigator.mediaDevices.getUserMedia === "function"
       ) {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-          });
-          // Detener inmediatamente para no mantener el indicador de grabación
-          stream.getTracks().forEach((track) => track.stop());
+          const stream = await withTimeout(
+            navigator.mediaDevices.getUserMedia({ audio: true }),
+            3500,
+            null,
+          );
+          if (stream) {
+            stream.getTracks().forEach((track) => track.stop());
+          }
         } catch {
           // Si el usuario deniega micrófono individualmente, continuamos
         }
@@ -80,35 +116,25 @@ export function StartupPermissionsPrompt({
           .catch(() => {});
       }
 
-      if (typeof window !== "undefined" && window.localStorage) {
-        try {
-          window.localStorage.setItem(STARTUP_PERMS_STORAGE_KEY, "true");
-        } catch {
-          // ignore
-        }
-      }
+      saveDismissed();
 
       setSuccessMessage("✅ ¡Permisos activados para avisos y voz!");
       setTimeout(() => {
+        setIsRequesting(false);
         setVisible(false);
         onComplete?.();
-      }, 1400);
+      }, 1000);
     } catch {
+      saveDismissed();
+      setIsRequesting(false);
       setVisible(false);
       onComplete?.();
-    } finally {
-      setIsRequesting(false);
     }
   };
 
   const handleDismiss = () => {
-    if (typeof window !== "undefined" && window.localStorage) {
-      try {
-        window.localStorage.setItem(STARTUP_PERMS_STORAGE_KEY, "true");
-      } catch {
-        // ignore
-      }
-    }
+    saveDismissed();
+    setIsRequesting(false);
     setVisible(false);
     onComplete?.();
   };
@@ -120,10 +146,20 @@ export function StartupPermissionsPrompt({
     >
       <View style={styles.contentCol}>
         <View style={styles.headerRow}>
-          <Text style={styles.iconHeading}>🔔 🎙️</Text>
-          <Text style={styles.titleText}>
-            Activa las Notificaciones y el Dictado por Voz
-          </Text>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.iconHeading}>🔔 🎙️</Text>
+            <Text style={styles.titleText}>
+              Activa las Notificaciones y el Dictado por Voz
+            </Text>
+          </View>
+          <Pressable
+            testID="btn-close-startup-permissions"
+            style={styles.closeIconButton}
+            onPress={handleDismiss}
+            accessibilityLabel="Cerrar aviso"
+          >
+            <Text style={styles.closeIconText}>✕</Text>
+          </Pressable>
         </View>
 
         {successMessage ? (
@@ -158,7 +194,6 @@ export function StartupPermissionsPrompt({
             <Pressable
               testID="btn-dismiss-startup-permissions"
               style={styles.dismissButton}
-              disabled={isRequesting}
               onPress={handleDismiss}
             >
               <Text style={styles.dismissButtonText}>Ahora no</Text>
@@ -191,8 +226,15 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
     marginBottom: 6,
+  },
+  headerTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    paddingRight: 8,
   },
   iconHeading: {
     fontSize: 20,
@@ -202,6 +244,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     flex: 1,
+  },
+  closeIconButton: {
+    padding: 4,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+  },
+  closeIconText: {
+    color: "#94A3B8",
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 14,
   },
   descriptionText: {
     color: "#94A3B8",
