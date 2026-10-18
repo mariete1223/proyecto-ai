@@ -148,7 +148,7 @@ def check_and_send_due_reminders(db: Session) -> int:
 
             # Advance recurrence or disable
             rec = entry.reminder_recurrence or "NONE"
-            delta: timedelta | None = None
+            delta = None
             hour_match = re.match(r"^EVERY_(\d+)_HOURS?$", rec)
             if hour_match:
                 hours = int(hour_match.group(1))

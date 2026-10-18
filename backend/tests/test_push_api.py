@@ -571,4 +571,3 @@ def test_push_worker_window_past_and_expiration(
     assert due_entry.reminder_enabled is False
     # expired_entry was not sent but deactivated to avoid perpetual queries
     assert expired_entry.reminder_enabled is False
-
