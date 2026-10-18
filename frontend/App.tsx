@@ -296,6 +296,12 @@ export default function App() {
         );
       }
     }
+
+    // 4. Limpiar atributos de tarea en entradas de categoría Alerta (avisos puntuales sin estado ni prioridad de tarea)
+    await database.runAsync(
+      `UPDATE entries SET task_status = NULL, task_priority = NULL, task_recurrence = NULL WHERE category_id = ? AND user_id = ?;`,
+      [CANONICAL_ALERTA_ID, uId],
+    );
   };
 
   const loadDatabaseState = useCallback(

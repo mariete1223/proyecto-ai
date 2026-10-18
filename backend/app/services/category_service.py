@@ -67,7 +67,7 @@ INITIAL_CATEGORIES: list[dict[str, Any]] = [
         "icon": "book-open",
     },
     {
-        "kind": CategoryKind.TASK,
+        "kind": CategoryKind.STANDARD,
         "name": "Alerta",
         "voice_command": "alerta",
         "description": "Categoría predeterminada para alertas y avisos puntuales",

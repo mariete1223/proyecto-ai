@@ -38,7 +38,7 @@ describe("Spoken Command Parser (voiceParser)", () => {
     {
       id: "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
       user_id: "user-1",
-      kind: "TASK",
+      kind: "STANDARD",
       name: "Alerta",
       name_normalized: "alerta",
       voice_command: "alerta",
@@ -873,6 +873,23 @@ describe("Spoken Command Parser (voiceParser)", () => {
       expect(result.reminderOffsetsMinutes).toEqual([0]);
       expect(result.content).toBe("comprar medicamentos");
       expect(result.occurredAt).toBeDefined();
+      expect(result.taskPriority).toBeNull();
+    });
+
+    it("does not assign task priority to Alerta even if priority words are spoken (#74)", () => {
+      const transcript =
+        "alerta comprar medicamentos a las 6 de la tarde con prioridad alta";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.taskPriority).toBeNull();
+      expect(result.reminderEnabled).toBe(true);
     });
 
     it("interprets 'alerta' with custom notification offset", () => {

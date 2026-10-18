@@ -549,7 +549,13 @@ export function parseSpokenCommand(
       type: "DATE",
       label: `Fecha: ${labelDate}${labelTime}`,
     });
-  } else if (matchedCategory && matchedCategory.kind === "TASK") {
+  } else if (
+    matchedCategory &&
+    (matchedCategory.kind === "TASK" ||
+      matchedCategory.name_normalized === "alerta" ||
+      matchedCategory.voice_command_normalized === "alerta" ||
+      matchedCategory.id === "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9")
+  ) {
     targetDate = new Date(refDate);
     occurredAt = targetDate.toISOString();
     tokens.push({

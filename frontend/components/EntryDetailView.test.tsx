@@ -270,4 +270,38 @@ describe("EntryDetailView Component (Task 38)", () => {
     expect(d.getHours()).toBe(18);
     expect(d.getMinutes()).toBe(30);
   });
+
+  it("does not render task status or priority badges for entries with non-TASK categories like Alerta (#74)", async () => {
+    const alertCat = await createLocalCategory(db, userId, {
+      name: "Alerta",
+      voice_command: "alerta",
+      kind: "STANDARD",
+    });
+
+    const alertEntry = await createLocalEntry(db, userId, {
+      category_id: alertCat.id,
+      content: "Tomar pastilla a las 18:30",
+      occurred_at: "2026-10-18T18:30:00Z",
+    });
+
+    // Simulate legacy SQLite row that had residual task_status or task_priority
+    await db.runAsync(
+      "UPDATE entries SET task_status = 'PENDING', task_priority = 'HIGH' WHERE id = ?;",
+      [alertEntry.id],
+    );
+
+    const { queryByTestId, queryByText, findByTestId } = await render(
+      <EntryDetailView
+        db={db}
+        userId={userId}
+        entryId={alertEntry.id}
+      />,
+    );
+
+    expect(await findByTestId("entry-detail-view")).toBeTruthy();
+    expect(queryByText("Alerta")).toBeTruthy();
+    expect(queryByTestId("detail-task-priority-badge")).toBeNull();
+    expect(queryByText("PENDING")).toBeNull();
+    expect(queryByText("🔴 Prioridad Alta")).toBeNull();
+  });
 });

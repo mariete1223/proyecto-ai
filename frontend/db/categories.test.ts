@@ -100,10 +100,35 @@ describe("Local Categories Storage Layer", () => {
 
     const alerta = categories.find((c) => c.name === "Alerta");
     expect(alerta).toBeDefined();
-    expect(alerta?.kind).toBe("TASK");
+    expect(alerta?.kind).toBe("STANDARD");
     expect(alerta?.voice_command).toBe("alerta");
     expect(alerta?.color).toBe("#EF4444");
     expect(alerta?.icon).toBe("bell");
+  });
+
+  it("heals existing Alerta category from TASK to STANDARD kind (#74)", async () => {
+    await createLocalCategory(db, "legacy-user", {
+      id: "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
+      name: "Alerta",
+      voice_command: "alerta",
+      kind: "TASK",
+    });
+
+    let cat = await getCategoryById(
+      db,
+      "legacy-user",
+      "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
+    );
+    expect(cat?.kind).toBe("TASK");
+
+    await ensureCanonicalCategories(db, "legacy-user");
+
+    cat = await getCategoryById(
+      db,
+      "legacy-user",
+      "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
+    );
+    expect(cat?.kind).toBe("STANDARD");
   });
 
   it("migrates existing users to add canonical Alerta category if missing and not deleted", async () => {

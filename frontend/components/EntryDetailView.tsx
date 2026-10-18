@@ -416,13 +416,13 @@ export function EntryDetailView({
               </Text>
             </View>
 
-            {entry.task_status && (
+            {entryCategory?.kind === "TASK" && entry.task_status && (
               <View style={styles.taskBadge}>
                 <Text style={styles.taskBadgeText}>{entry.task_status}</Text>
               </View>
             )}
 
-            {entry.task_priority && (
+            {entryCategory?.kind === "TASK" && entry.task_priority && (
               <View
                 testID="detail-task-priority-badge"
                 style={[

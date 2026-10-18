@@ -381,7 +381,7 @@ export const CANONICAL_CATEGORIES = {
     id: "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
     name: "Alerta",
     voice_command: "alerta",
-    kind: "TASK" as const,
+    kind: "STANDARD" as const,
     color: "#EF4444",
     icon: "bell",
   },
@@ -391,6 +391,12 @@ export async function ensureCanonicalCategories(
   database: DatabaseAdapter,
   uId: string,
 ): Promise<void> {
+  // Asegurar que la categoría canónica Alerta tenga kind: 'STANDARD' en bases de datos existentes
+  await database.runAsync(
+    `UPDATE categories SET kind = 'STANDARD' WHERE id = ?;`,
+    [CANONICAL_CATEGORIES.ALERTA.id],
+  );
+
   const existing = await listCategories(database, uId);
   const deletedCategoryTombstones = await database.getAllAsync<{
     entity_id: string;

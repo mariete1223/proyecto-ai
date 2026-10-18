@@ -226,7 +226,7 @@ def test_seed_initial_categories_is_idempotent(db_session: Session) -> None:
     assert "Captura" in names
 
     alerta_cat = next(c for c in all_categories if c.name == "Alerta")
-    assert alerta_cat.kind == CategoryKind.TASK
+    assert alerta_cat.kind == CategoryKind.STANDARD
     assert alerta_cat.voice_command == "alerta"
     assert alerta_cat.color == "#EF4444"
 
