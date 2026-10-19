@@ -504,27 +504,8 @@ export function VoiceCaptureFlow({
                     Transcripción en directo
                   </Text>
                 )}
-              </View>
 
-              <View style={styles.liveDictationContent}>
-                {transcript ? (
-                  <Text
-                    style={styles.liveDictationText}
-                    testID="live-dictation-text"
-                  >
-                    {transcript}
-                  </Text>
-                ) : voiceState === "LISTENING" ? (
-                  <Text style={styles.liveDictationPlaceholderActive}>
-                    🎙️ Habla ahora...
-                  </Text>
-                ) : (
-                  <Text style={styles.liveDictationPlaceholder}>
-                    Pulsa para hablar o escribe abajo
-                  </Text>
-                )}
-
-                {/* Real-time detected entity breakdown (#85) */}
+                {/* Real-time detected entity breakdown (#85, #95) */}
                 {liveParsed &&
                   (liveParsed.categoryName ||
                     liveParsed.occurredAt ||
@@ -1749,10 +1730,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.08)",
+    alignItems: "center",
   },
   liveEntityBadge: {
     backgroundColor: "rgba(56, 189, 248, 0.15)",

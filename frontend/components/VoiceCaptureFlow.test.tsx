@@ -390,11 +390,37 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     expect(getByTestId("live-dictation-box")).toBeTruthy();
-    expect(getByTestId("live-dictation-text")).toBeTruthy();
-    expect(getByText("nota reunión con equipo")).toBeTruthy();
+    expect(queryByTestId("live-dictation-text")).toBeNull();
+    expect(getByTestId("input-transcript").props.value).toBe(
+      "nota reunión con equipo",
+    );
     expect(getByTestId("live-parsed-entities")).toBeTruthy();
     expect(getByText("📁 Notas")).toBeTruthy();
     expect(queryByTestId("secondary-controls-row")).toBeNull();
+  });
+
+  it("simplifies dictation UI (#95): shows EN DIRECTO and TextInput directly without redundant text preview or 'Habla ahora...'", async () => {
+    const { getByTestId, queryByTestId, getByText, queryByText } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    // Initial state: start listening
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-start-listening"));
+    });
+
+    // Box appears with EN DIRECTO badge and input-transcript directly below
+    expect(getByTestId("live-dictation-box")).toBeTruthy();
+    expect(getByText("EN DIRECTO")).toBeTruthy();
+    expect(getByTestId("input-transcript")).toBeTruthy();
+
+    // Redundant text elements must not exist
+    expect(queryByTestId("live-dictation-text")).toBeNull();
+    expect(queryByText("🎙️ Habla ahora...")).toBeNull();
   });
 
   it("transitions to separate review screen when dictation is parsed and allows Regrabar to return to dictation", async () => {
