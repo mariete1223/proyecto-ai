@@ -30,6 +30,42 @@ export interface ParsedSpokenCommand {
 }
 
 const hourWordsMap: { [key: string]: number } = {
+  cero: 0,
+  una: 1,
+  un: 1,
+  uno: 1,
+  dos: 2,
+  tres: 3,
+  cuatro: 4,
+  cinco: 5,
+  seis: 6,
+  siete: 7,
+  ocho: 8,
+  nueve: 9,
+  diez: 10,
+  once: 11,
+  doce: 12,
+  trece: 13,
+  catorce: 14,
+  quince: 15,
+  dieciseis: 16,
+  dieciséis: 16,
+  diecisiete: 17,
+  dieciocho: 18,
+  diecinueve: 19,
+  veinte: 20,
+  veintiuno: 21,
+  veintidos: 22,
+  veintidós: 22,
+  veintitres: 23,
+  veintitrés: 23,
+};
+
+const minuteWordsMap: { [key: string]: number } = {
+  cero: 0,
+  enpunto: 0,
+  "en punto": 0,
+  uno: 1,
   una: 1,
   dos: 2,
   tres: 3,
@@ -42,19 +78,101 @@ const hourWordsMap: { [key: string]: number } = {
   diez: 10,
   once: 11,
   doce: 12,
-};
-
-const minuteWordsMap: { [key: string]: number } = {
-  media: 30,
-  cuarto: 15,
-  treinta: 30,
+  trece: 13,
+  catorce: 14,
   quince: 15,
+  cuarto: 15,
+  dieciseis: 16,
+  dieciséis: 16,
+  diecisiete: 17,
+  dieciocho: 18,
+  diecinueve: 19,
+  veinte: 20,
+  veintiuno: 21,
+  veintidos: 22,
+  veintidós: 22,
+  veintitres: 23,
+  veintitrés: 23,
+  veinticuatro: 24,
+  veinticinco: 25,
+  veintiseis: 26,
+  veintiséis: 26,
+  veintisiete: 27,
+  veintiocho: 28,
+  veintinueve: 29,
+  media: 30,
+  treinta: 30,
+  "treinta y uno": 31,
+  treintayuno: 31,
+  "treinta y dos": 32,
+  treintaydos: 32,
+  "treinta y tres": 33,
+  treintaytres: 33,
+  "treinta y cuatro": 34,
+  treintaycuatro: 34,
+  "treinta y cinco": 35,
+  treintaycinco: 35,
+  "treinta y seis": 36,
+  treintayseis: 36,
+  "treinta y siete": 37,
+  treintaysiete: 37,
+  "treinta y ocho": 38,
+  treintayocho: 38,
+  "treinta y nueve": 39,
+  treintaynueve: 39,
+  cuarenta: 40,
+  "cuarenta y uno": 41,
+  cuarentayuno: 41,
+  "cuarenta y dos": 42,
+  cuarentaydos: 42,
+  "cuarenta y tres": 43,
+  cuarentaytres: 43,
+  "cuarenta y cuatro": 44,
+  cuarentaycuatro: 44,
   "cuarenta y cinco": 45,
   cuarentaycinco: 45,
-  veinte: 20,
-  diez: 10,
-  cinco: 5,
+  "cuarenta y seis": 46,
+  cuarentayseis: 46,
+  "cuarenta y siete": 47,
+  cuarentaysiete: 47,
+  "cuarenta y ocho": 48,
+  cuarentayocho: 48,
+  "cuarenta y nueve": 49,
+  cuarentaynueve: 49,
+  cincuenta: 50,
+  "cincuenta y uno": 51,
+  cincuentayuno: 51,
+  "cincuenta y dos": 52,
+  cincuentaydos: 52,
+  "cincuenta y tres": 53,
+  cincuentaytres: 53,
+  "cincuenta y cuatro": 54,
+  cincuentaycuatro: 54,
+  "cincuenta y cinco": 55,
+  cincuentaycinco: 55,
+  "cincuenta y seis": 56,
+  cincuentayseis: 56,
+  "cincuenta y siete": 57,
+  cincuentaysiete: 57,
+  "cincuenta y ocho": 58,
+  cincuentayocho: 58,
+  "cincuenta y nueve": 59,
+  cincuentaynueve: 59,
 };
+
+const hourWordsPattern = Object.keys(hourWordsMap)
+  .sort((a, b) => b.length - a.length)
+  .join("|");
+
+const minuteWordsPattern = Object.keys(minuteWordsMap)
+  .sort((a, b) => b.length - a.length)
+  .join("|");
+
+const hourWords24Pattern =
+  "trece|catorce|quince|dieciseis|dieciséis|diecisiete|dieciocho|diecinueve|veinte|veintiuno|veintidos|veintidós|veintitres|veintitrés";
+
+const ampmPattern =
+  "(?:de\\s+la\\s+(?:tarde|noche|mañana|manana)|por\\s+la\\s+(?:tarde|noche|mañana|manana)|am|pm|hs|horas)";
 
 const spanishMonthsMap: { [key: string]: number } = {
   enero: 1,
@@ -245,7 +363,7 @@ export function parseSpokenCommand(
 
     // Check if text before category contains date/tag keywords or patterns
     const hasInfoBefore =
-      /(?:fecha|para|día|dia|hoy|mañana|manana|ayer|semana|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo|\d{1,2}\s*(?:del?|de|\/|-)\s*\d{1,2}|etiquetas?|tags?)/i.test(
+      /(?:fecha|para|día|dia|hoy|mañana|manana|ayer|semana|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo|\d{1,2}\s*(?:del?|de|\/|-)\s*\d{1,2}|a\s+las?|a\s+la|hora|etiquetas?|tags?)/i.test(
         beforeCategory,
       );
 
@@ -260,6 +378,13 @@ export function parseSpokenCommand(
     const firstWord = rawText.split(/[\s,.:;]+/)[0];
     errors.push(`Categoría no reconocida: "${firstWord}"`);
   }
+
+  const isAlertCategory = Boolean(
+    matchedCategory &&
+    (matchedCategory.name_normalized === "alerta" ||
+      matchedCategory.voice_command_normalized === "alerta" ||
+      matchedCategory.id === "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9"),
+  );
 
   // 2. Date & Time extraction (runs BEFORE Tag extraction)
   let targetDate: Date | null = null;
@@ -457,17 +582,60 @@ export function parseSpokenCommand(
     }
   }
 
-  // 2c. Time extraction ("a las 1600", "a las 16:00", "a las 4 de la tarde", "a las cuatro", "a las 5", "a las 9 y media")
-  const timeMatch = workingText.match(
-    /(?:\s|^|[,.:;])(?:a\s+las?|a\s+la)\s+(\d{1,2}:\d{2}|\d{4}|\d{1,2}|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)(?:\s+y\s+(media|cuarto|treinta|quince|veinte|diez|cinco|\d{1,2}))?(?:\s*(de\s+la\s+(?:tarde|noche|mañana|manana)|por\s+la\s+(?:tarde|noche|mañana|manana)|am|pm|hs|horas))?(?:[.,;:!?\s]|$)/i,
+  // 2c. Time extraction ("a las 1600", "a las 16:00", "a las 4 de la tarde", "a las cuatro", "a las 5", "a las 9 y media", "a las 17 18", "17 18")
+  const prefixedTimeRegex = new RegExp(
+    `(?:\\s|^|[,.:;])((?:(?:a\\s+las?|a\\s+la|para\\s+las?|para\\s+la|hacia\\s+las?|a\\s+eso\\s+de\\s+las?|hora)\\s+)(\\d{1,2}:\\d{2}|\\d{4}|\\d{1,2}|${hourWordsPattern})(?:(?:\\s*(?:y\\s+|\\s+))(\\d{1,2}|${minuteWordsPattern}))?(?:\\s*(${ampmPattern}))?)(?=[.,;:!?\\s]|$)`,
+    "i",
   );
 
-  let labelTime = "";
-  if (timeMatch && timeMatch[1]) {
-    const rawVal = timeMatch[1].toLowerCase().trim();
-    const modifier = timeMatch[2] ? timeMatch[2].toLowerCase().trim() : null;
-    const ampm = timeMatch[3] ? timeMatch[3].toLowerCase().trim() : null;
+  const colonTimeRegex = new RegExp(
+    `(?:\\s|^|[,.:;])((\\d{1,2}:\\d{2})(?:\\s*(${ampmPattern}))?)(?=[.,;:!?\\s]|$)`,
+    "i",
+  );
 
+  const directTimeRegex = isAlertCategory
+    ? new RegExp(
+        `(?:\\s|^|[,.:;])((\\d{1,2}|${hourWordsPattern})(?:(?:\\s*(?:y\\s+|\\s+))(\\d{1,2}|${minuteWordsPattern}))(?:\\s*(${ampmPattern}))?)(?=[.,;:!?\\s]|$)`,
+        "i",
+      )
+    : new RegExp(
+        `(?:\\s|^|[,.:;])((1[3-9]|2[0-3]|${hourWords24Pattern})(?:(?:\\s*(?:y\\s+|\\s+))(\\d{1,2}|${minuteWordsPattern}))(?:\\s*(${ampmPattern}))?)(?=[.,;:!?\\s]|$)`,
+        "i",
+      );
+
+  let timeMatch = workingText.match(prefixedTimeRegex);
+  let rawVal = "";
+  let modifier: string | null = null;
+  let ampm: string | null = null;
+  let matchedTimeStr = "";
+
+  if (timeMatch && timeMatch[1]) {
+    matchedTimeStr = timeMatch[1];
+    rawVal = timeMatch[2]?.toLowerCase().trim() ?? "";
+    modifier = timeMatch[3] ? timeMatch[3].toLowerCase().trim() : null;
+    ampm = timeMatch[4] ? timeMatch[4].toLowerCase().trim() : null;
+  } else {
+    const colonMatch = workingText.match(colonTimeRegex);
+    if (colonMatch && colonMatch[1]) {
+      timeMatch = colonMatch;
+      matchedTimeStr = colonMatch[1];
+      rawVal = colonMatch[2]?.toLowerCase().trim() ?? "";
+      modifier = null;
+      ampm = colonMatch[3] ? colonMatch[3].toLowerCase().trim() : null;
+    } else {
+      const directMatch = workingText.match(directTimeRegex);
+      if (directMatch && directMatch[1]) {
+        timeMatch = directMatch;
+        matchedTimeStr = directMatch[1];
+        rawVal = directMatch[2]?.toLowerCase().trim() ?? "";
+        modifier = directMatch[3] ? directMatch[3].toLowerCase().trim() : null;
+        ampm = directMatch[4] ? directMatch[4].toLowerCase().trim() : null;
+      }
+    }
+  }
+
+  let labelTime = "";
+  if (timeMatch && matchedTimeStr) {
     let hours = -1;
     let minutes = 0;
     let isExplicit24h = false;
@@ -488,8 +656,17 @@ export function parseSpokenCommand(
       isExplicit24h = true;
     } else if (hourWordsMap[rawVal] !== undefined) {
       hours = hourWordsMap[rawVal];
+      if (hours >= 13) {
+        isExplicit24h = true;
+      }
     } else if (!isNaN(parseInt(rawVal, 10))) {
       hours = parseInt(rawVal, 10);
+      if (rawVal.length === 2 && rawVal.startsWith("0")) {
+        isExplicit24h = true;
+      }
+      if (hours >= 13) {
+        isExplicit24h = true;
+      }
     }
 
     if (modifier) {
@@ -500,7 +677,7 @@ export function parseSpokenCommand(
       }
     }
 
-    if (hours >= 0 && hours <= 23) {
+    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes < 60) {
       if (ampm) {
         if (
           (ampm.includes("tarde") ||
@@ -528,7 +705,7 @@ export function parseSpokenCommand(
         hours += 12;
       }
 
-      if (hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
+      if (hours >= 0 && hours < 24) {
         if (!targetDate) {
           targetDate = new Date(refDate);
           labelDate = "Hoy";
@@ -537,8 +714,9 @@ export function parseSpokenCommand(
         const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
         labelTime = ` a las ${pad(hours)}:${pad(minutes)}`;
 
-        const matchIdx = timeMatch.index ?? 0;
-        const matchLen = timeMatch[0].length;
+        const matchIdx =
+          (timeMatch.index ?? 0) + timeMatch[0].indexOf(matchedTimeStr);
+        const matchLen = matchedTimeStr.length;
         workingText = (
           workingText.substring(0, matchIdx) +
           " " +
@@ -757,12 +935,6 @@ export function parseSpokenCommand(
     ).trim();
   }
 
-  const isAlertCategory =
-    matchedCategory &&
-    (matchedCategory.name_normalized === "alerta" ||
-      matchedCategory.voice_command_normalized === "alerta" ||
-      matchedCategory.id === "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9");
-
   if (isAlertCategory) {
     if (reminderEnabled === undefined) {
       reminderEnabled = true;
@@ -802,7 +974,7 @@ export function parseSpokenCommand(
 
   let content = workingText
     .replace(
-      /^(?:(?:para|con|a|en|de)[,.:;\s]*(?:la|el)?[,.:;\s]*(?:fecha|día|dia)[,.:;\s]*(?:de)?(?:[.,:\s]*hoy)?|para|fecha|etiquetas?|tags?|[a-z0-9_]*\s*de\s+la\s+(?:noche|tarde|mañana|manana)|de\s+la\s+(?:noche|tarde|mañana|manana))[,.:;\s]*/i,
+      /^(?:(?:para|con|a|en|de)[,.:;\s]*(?:la|el)?[,.:;\s]*(?:fecha|día|dia)[,.:;\s]*(?:de)?(?:[.,:\s]*hoy)?|para|fecha|a\s+las?|a\s+la|etiquetas?|tags?|[a-z0-9_]*\s*de\s+la\s+(?:noche|tarde|mañana|manana)|de\s+la\s+(?:noche|tarde|mañana|manana))[,.:;\s]*/i,
       "",
     )
     .replace(/^[,.:;\-\s?¿!¡]+|[,.:;\-\s?¿!¡]+$/g, "")

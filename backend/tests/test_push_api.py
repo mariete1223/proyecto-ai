@@ -656,11 +656,13 @@ def test_push_subscribe_duplicate_endpoint_concurrency(
     sub_id_1 = data1["subscription_id"]
 
     # Second subscribe call with updated keys (e.g. concurrent or repeated)
-    payload["keys"]["auth"] = "auth_key_updated"
-    payload["user_agent"] = "Mozilla/5.0 Test Browser 2"
-    res2 = client.post("/api/v1/push/subscribe", json=payload, headers=auth_headers)
+    payload2 = {
+        "endpoint": "https://web.push.apple.com/duplicate-test-endpoint",
+        "keys": {"p256dh": "p256dh_key_1", "auth": "auth_key_updated"},
+        "user_agent": "Mozilla/5.0 Test Browser 2",
+    }
+    res2 = client.post("/api/v1/push/subscribe", json=payload2, headers=auth_headers)
     assert res2.status_code == 200
     data2 = res2.json()
     assert data2["status"] == "ok"
     assert data2["subscription_id"] == sub_id_1
-

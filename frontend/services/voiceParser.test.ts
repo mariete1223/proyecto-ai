@@ -1100,4 +1100,153 @@ describe("Spoken Command Parser (voiceParser)", () => {
       expect(new Date(r.occurredAt!).getMinutes()).toBe(0);
     });
   });
+
+  describe("Issue #100: Time voice parsing with or without conjunction 'y' ('17 18', '17 y 18')", () => {
+    it("parses 'alerta a las 17 18 reunión con el equipo' without 'y'", () => {
+      const transcript = "alerta a las 17 18 reunión con el equipo";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.occurredAt).toBeDefined();
+      const d = new Date(result.occurredAt!);
+      expect(d.getHours()).toBe(17);
+      expect(d.getMinutes()).toBe(18);
+      expect(result.content).toBe("reunión con el equipo");
+      expect(result.reminderEnabled).toBe(true);
+      expect(result.reminderOffsetMinutes).toBe(0);
+    });
+
+    it("parses direct time 'alerta 17 18 reunión urgente' without 'a las' or 'y'", () => {
+      const transcript = "alerta 17 18 reunión urgente";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.occurredAt).toBeDefined();
+      const d = new Date(result.occurredAt!);
+      expect(d.getHours()).toBe(17);
+      expect(d.getMinutes()).toBe(18);
+      expect(result.content).toBe("reunión urgente");
+    });
+
+    it("parses 'alerta a las 17 y 18 reunión' with conjunction 'y'", () => {
+      const transcript = "alerta a las 17 y 18 reunión";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.occurredAt).toBeDefined();
+      const d = new Date(result.occurredAt!);
+      expect(d.getHours()).toBe(17);
+      expect(d.getMinutes()).toBe(18);
+      expect(result.content).toBe("reunión");
+    });
+
+    it("parses 'alerta 17 y 18 reunión' without 'a las'", () => {
+      const transcript = "alerta 17 y 18 reunión";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.occurredAt).toBeDefined();
+      const d = new Date(result.occurredAt!);
+      expect(d.getHours()).toBe(17);
+      expect(d.getMinutes()).toBe(18);
+      expect(result.content).toBe("reunión");
+    });
+
+    it("parses verbal time words 'a las diecisiete dieciocho reunión'", () => {
+      const transcript = "a las diecisiete dieciocho nota reunión";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Notas");
+      expect(result.occurredAt).toBeDefined();
+      const d = new Date(result.occurredAt!);
+      expect(d.getHours()).toBe(17);
+      expect(d.getMinutes()).toBe(18);
+      expect(result.content).toBe("reunión");
+    });
+
+    it("parses 'alerta diecisiete dieciocho reunión'", () => {
+      const transcript = "alerta diecisiete dieciocho reunión";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.occurredAt).toBeDefined();
+      const d = new Date(result.occurredAt!);
+      expect(d.getHours()).toBe(17);
+      expect(d.getMinutes()).toBe(18);
+      expect(result.content).toBe("reunión");
+    });
+
+    it("parses combined date and 24h direct time 'tarea para mañana 17 18 entregar informe'", () => {
+      const transcript = "tarea para mañana 17 18 entregar informe";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Tareas");
+      expect(result.occurredAt).toBeDefined();
+      const d = new Date(result.occurredAt!);
+      expect(d.getDate()).toBe(refDate.getDate() + 1);
+      expect(d.getHours()).toBe(17);
+      expect(d.getMinutes()).toBe(18);
+      expect(result.content).toBe("entregar informe");
+    });
+
+    it("parses colon format without prefix 'alerta 17:18 cita médica'", () => {
+      const transcript = "alerta 17:18 cita médica";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.categoryName).toBe("Alerta");
+      expect(result.occurredAt).toBeDefined();
+      const d = new Date(result.occurredAt!);
+      expect(d.getHours()).toBe(17);
+      expect(d.getMinutes()).toBe(18);
+      expect(result.content).toBe("cita médica");
+    });
+  });
 });
