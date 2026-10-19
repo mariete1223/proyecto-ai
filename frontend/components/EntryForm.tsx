@@ -15,6 +15,7 @@ import {
 import { DateTimePicker } from "./DateTimePicker";
 import { ReminderConfigSection } from "./ReminderConfigSection";
 import { notificationService } from "../services/notificationService";
+import { performSync } from "../services/syncEngine";
 
 export function isCategoryAlert(cat?: Category | null): boolean {
   if (!cat) return false;
@@ -29,10 +30,16 @@ export function isCategoryAlert(cat?: Category | null): boolean {
 export interface EntryFormProps {
   db: DatabaseAdapter;
   userId: string;
-  onSuccess?: (entryId: string) => void;
+  onSuccess?: (entryId: string) => void | Promise<void>;
+  apiConfig?: { baseUrl: string; token?: string };
 }
 
-export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
+export function EntryForm({
+  db,
+  userId,
+  onSuccess,
+  apiConfig,
+}: EntryFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
@@ -135,6 +142,14 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
       setOccurredAt(finalOccurredAt);
     }
 
+    const effectiveReminderEnabled = isAlertCategory ? true : reminderEnabled;
+    const effectiveOffset = isAlertCategory ? 0 : reminderOffsetMinutes;
+    const effectiveReminderTime = isAlertCategory
+      ? finalOccurredAt || new Date().toISOString()
+      : reminderTime.trim()
+        ? reminderTime.trim()
+        : null;
+
     setLoading(true);
     try {
       const entry = await createLocalEntry(db, userId, {
@@ -145,21 +160,38 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
         task_status: isTaskCategory ? taskStatus : null,
         task_recurrence: isTaskCategory ? taskRecurrence : null,
         task_priority: isTaskCategory ? taskPriority : null,
-        reminder_enabled: isAlertCategory ? true : reminderEnabled,
-        reminder_time: reminderTime.trim() ? reminderTime.trim() : null,
+        reminder_enabled: effectiveReminderEnabled,
+        reminder_time: effectiveReminderTime,
         reminder_end_time: reminderEndTime.trim()
           ? reminderEndTime.trim()
           : null,
         reminder_recurrence: reminderRecurrence,
-        reminder_offset_minutes: reminderOffsetMinutes,
-        reminder_offsets_minutes:
-          isAlertCategory || reminderEnabled ? [reminderOffsetMinutes] : null,
+        reminder_offset_minutes: effectiveOffset,
+        reminder_offsets_minutes: effectiveReminderEnabled
+          ? [effectiveOffset]
+          : null,
         tag_ids: selectedTagIds,
       });
 
       // Programar la notificación en el servicio
-      if (reminderEnabled) {
+      if (effectiveReminderEnabled) {
         notificationService.scheduleForEntry(entry);
+      }
+
+      // Sincronización garantizada e inmediata antes de cerrar
+      if (apiConfig?.baseUrl) {
+        try {
+          await performSync(db, {
+            apiBaseUrl: apiConfig.baseUrl,
+            token: apiConfig.token || "",
+            userId,
+          });
+        } catch (syncErr) {
+          console.warn(
+            "[EntryForm] Error en sincronización inmediata pre-cierre:",
+            syncErr,
+          );
+        }
       }
 
       setSuccessMessage("¡Entrada guardada correctamente!");
@@ -173,7 +205,7 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
       setReminderRecurrence("NONE");
       setSelectedTagIds([]);
       if (onSuccess) {
-        onSuccess(entry.id);
+        await onSuccess(entry.id);
       }
     } catch (err) {
       setErrorMessage((err as Error).message);
@@ -221,8 +253,7 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
                   if (!occurredAt) {
                     setOccurredAt(new Date().toISOString());
                   }
-                } else if (occurredAt) {
-                  setReminderEnabled(true);
+                } else {
                   setReminderOffsetMinutes(1440);
                 }
               }}
@@ -367,29 +398,40 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
         value={occurredAt}
         onChange={(val) => {
           setOccurredAt(val);
-          if (val && !reminderEnabled) {
-            const isAlert = isCategoryAlert(selectedCategory);
-            setReminderEnabled(true);
-            setReminderOffsetMinutes(isAlert ? 0 : 1440);
-          }
         }}
-        label="Fecha y Hora de la Entrada"
+        label={
+          isAlertCategory
+            ? "Hora y Fecha de la Alerta"
+            : "Fecha y Hora de la Entrada"
+        }
       />
 
-      {/* Recordatorios y Notificaciones */}
-      <ReminderConfigSection
-        enabled={reminderEnabled}
-        onEnabledChange={setReminderEnabled}
-        reminderTime={reminderTime}
-        onReminderTimeChange={setReminderTime}
-        reminderEndTime={reminderEndTime}
-        onReminderEndTimeChange={setReminderEndTime}
-        offsetMinutes={reminderOffsetMinutes}
-        onOffsetMinutesChange={setReminderOffsetMinutes}
-        recurrence={reminderRecurrence}
-        onRecurrenceChange={setReminderRecurrence}
-        occurredAt={occurredAt}
-      />
+      {/* Recordatorios y Notificaciones: Alerta tiene aviso automático sin casilla; resto con casilla manual */}
+      {isAlertCategory ? (
+        <View style={styles.alertNoticeBox} testID="alert-auto-reminder-notice">
+          <Text style={styles.alertNoticeTitle}>
+            🔔 Alarma automática a la hora exacta
+          </Text>
+          <Text style={styles.alertNoticeSubtext}>
+            Esta alerta sonará y enviará una notificación a tu dispositivo a la
+            hora indicada, sin necesidad de activar ninguna casilla.
+          </Text>
+        </View>
+      ) : (
+        <ReminderConfigSection
+          enabled={reminderEnabled}
+          onEnabledChange={setReminderEnabled}
+          reminderTime={reminderTime}
+          onReminderTimeChange={setReminderTime}
+          reminderEndTime={reminderEndTime}
+          onReminderEndTimeChange={setReminderEndTime}
+          offsetMinutes={reminderOffsetMinutes}
+          onOffsetMinutesChange={setReminderOffsetMinutes}
+          recurrence={reminderRecurrence}
+          onRecurrenceChange={setReminderRecurrence}
+          occurredAt={occurredAt}
+        />
+      )}
 
       {/* Tags Selection */}
       <Text style={styles.label}>Etiquetas (Opcional)</Text>
@@ -619,5 +661,24 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     marginBottom: 12,
+  },
+  alertNoticeBox: {
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderColor: "rgba(239, 68, 68, 0.35)",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 12,
+    gap: 4,
+  },
+  alertNoticeTitle: {
+    color: "#F87171",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  alertNoticeSubtext: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

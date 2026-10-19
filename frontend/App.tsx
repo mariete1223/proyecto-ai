@@ -601,11 +601,11 @@ export default function App() {
                 db={db}
                 userId={userId}
                 saveMode="PREVIEW_BEFORE_SAVE"
-                onEntryCreated={() => {
+                onEntryCreated={async () => {
+                  await loadDatabaseState(true);
                   setShowVoiceCaptureModal(false);
                   isFormOpenRef.current = false;
                   setActiveTab("CALENDAR");
-                  loadDatabaseState(true);
                 }}
                 onClose={() => setShowVoiceCaptureModal(false)}
               />
@@ -629,11 +629,12 @@ export default function App() {
               <EntryForm
                 db={db}
                 userId={userId}
-                onSuccess={() => {
+                apiConfig={{ baseUrl: getBackendUrl(), token: userToken }}
+                onSuccess={async () => {
+                  await loadDatabaseState(true);
                   setShowEntryFormModal(false);
                   isFormOpenRef.current = false;
                   setActiveTab("CALENDAR");
-                  loadDatabaseState(true);
                 }}
               />
             </View>
@@ -716,9 +717,9 @@ export default function App() {
             refreshSignal={lastSyncTime}
             onOpenManualForm={() => setShowEntryFormModal(true)}
             onOpenLlmImport={() => setActiveTab("LLM_IMPORT")}
-            onEntryCreated={() => {
+            onEntryCreated={async () => {
+              await loadDatabaseState(true);
               setActiveTab("CALENDAR");
-              loadDatabaseState(true);
             }}
           />
         )}

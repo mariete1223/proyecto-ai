@@ -35,7 +35,7 @@ export interface VoiceCaptureFlowProps {
   userId: string;
   defaultDate?: Date;
   saveMode?: SaveMode;
-  onEntryCreated?: (entryId: string) => void;
+  onEntryCreated?: (entryId: string) => void | Promise<void>;
   onClose?: () => void;
 }
 
@@ -350,7 +350,7 @@ export function VoiceCaptureFlow({
 
       setSuccessMessage("¡Entrada creada por voz correctamente!");
       if (onEntryCreated) {
-        onEntryCreated(entry.id);
+        await onEntryCreated(entry.id);
       }
     } catch (err) {
       setErrorMessage((err as Error).message);

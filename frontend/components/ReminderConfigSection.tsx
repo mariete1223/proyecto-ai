@@ -237,6 +237,7 @@ export function ReminderConfigSection({
           </Text>
         </View>
         <Pressable
+          testID="reminder-toggle-btn"
           style={[
             styles.toggleBtn,
             enabled ? styles.toggleBtnActive : styles.toggleBtnInactive,
