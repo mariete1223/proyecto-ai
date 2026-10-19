@@ -205,4 +205,137 @@ describe("LlmBatchProcessor Component", () => {
       );
     });
   });
+
+  describe("Voice dictation in Step 1", () => {
+    let mockSpeechInstance: any = null;
+
+    class MockSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onresult: any = null;
+      onerror: any = null;
+      onend: any = null;
+      start = jest.fn();
+      stop = jest.fn();
+
+      constructor() {
+        mockSpeechInstance = this;
+      }
+    }
+
+    beforeEach(() => {
+      mockSpeechInstance = null;
+      (window as any).SpeechRecognition = MockSpeechRecognition;
+    });
+
+    afterEach(() => {
+      delete (window as any).SpeechRecognition;
+      delete (window as any).webkitSpeechRecognition;
+    });
+
+    it("renders dictation button and toggles listening state", async () => {
+      const { getByTestId, queryByTestId, getByText } = await render(
+        <LlmBatchProcessor db={db} userId={userId} />,
+      );
+
+      const dictateBtn = getByTestId("btn-dictate-llm-note");
+      expect(getByText("🎙️ Dictar por Voz")).toBeTruthy();
+      expect(queryByTestId("llm-voice-listening-badge")).toBeNull();
+
+      // Start dictation
+      await act(async () => {
+        fireEvent.press(dictateBtn);
+      });
+
+      expect(getByText("⏹️ Detener Dictado")).toBeTruthy();
+      expect(getByTestId("llm-voice-listening-badge")).toBeTruthy();
+      expect(getByText("🔴 Escuchando... Habla ahora")).toBeTruthy();
+
+      // Stop dictation
+      await act(async () => {
+        fireEvent.press(dictateBtn);
+      });
+
+      expect(getByText("🎙️ Dictar por Voz")).toBeTruthy();
+      expect(queryByTestId("llm-voice-listening-badge")).toBeNull();
+    });
+
+    it("populates and appends transcribed text in real-time", async () => {
+      const { getByTestId } = await render(
+        <LlmBatchProcessor
+          db={db}
+          userId={userId}
+          initialText="Texto previo escrito manualmente."
+        />,
+      );
+
+      const inputArea = getByTestId("input-llm-raw-note");
+      expect(inputArea.props.value).toBe("Texto previo escrito manualmente.");
+
+      const dictateBtn = getByTestId("btn-dictate-llm-note");
+      await act(async () => {
+        fireEvent.press(dictateBtn);
+      });
+
+      expect(mockSpeechInstance).not.toBeNull();
+
+      // Simulate first phrase spoken
+      await act(async () => {
+        mockSpeechInstance.onresult({
+          results: [
+            {
+              isFinal: true,
+              0: {
+                transcript:
+                  "Hoy tuve una reunión con el equipo y acordamos la entrega para el martes.",
+              },
+            },
+          ],
+        });
+      });
+
+      expect(inputArea.props.value).toBe(
+        "Texto previo escrito manualmente.\nHoy tuve una reunión con el equipo y acordamos la entrega para el martes.",
+      );
+
+      // Stop dictation
+      await act(async () => {
+        fireEvent.press(dictateBtn);
+      });
+
+      // Clear button clears text
+      const clearBtn = getByTestId("btn-clear-llm-note");
+      await act(async () => {
+        fireEvent.press(clearBtn);
+      });
+
+      expect(inputArea.props.value).toBe("");
+    });
+
+    it("stops dictation automatically when switching tabs", async () => {
+      const { getByTestId, queryByTestId, getByText } = await render(
+        <LlmBatchProcessor db={db} userId={userId} />,
+      );
+
+      await act(async () => {
+        fireEvent.press(getByTestId("btn-dictate-llm-note"));
+      });
+
+      expect(getByText("⏹️ Detener Dictado")).toBeTruthy();
+
+      // Switch to Import tab
+      await act(async () => {
+        fireEvent.press(getByTestId("btn-tab-llm-import"));
+      });
+
+      // Switch back to Prompt tab
+      await act(async () => {
+        fireEvent.press(getByTestId("btn-tab-llm-prompt"));
+      });
+
+      expect(getByText("🎙️ Dictar por Voz")).toBeTruthy();
+      expect(queryByTestId("llm-voice-listening-badge")).toBeNull();
+    });
+  });
 });

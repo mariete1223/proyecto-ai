@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,10 @@ import { listCategories } from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
 import { createLocalEntry } from "../db/entries";
 import { listTags } from "../db/tags";
+import {
+  VoiceRecognitionService,
+  VoiceRecognitionState,
+} from "../services/voiceRecognition";
 import {
   Category,
   Entry,
@@ -61,12 +65,24 @@ export function LlmBatchProcessor({
   const [activeTab, setActiveTab] = useState<"PROMPT" | "IMPORT">("PROMPT");
   const [rawNoteText, setRawNoteText] = useState<string>(initialText);
   const [copiedSuccess, setCopiedSuccess] = useState<boolean>(false);
+  const [voiceState, setVoiceState] = useState<VoiceRecognitionState>("IDLE");
+  const voiceServiceRef = useRef<VoiceRecognitionService | null>(null);
+  const baseTextRef = useRef<string>("");
 
   const [jsonInput, setJsonInput] = useState<string>("");
   const [parsedItems, setParsedItems] = useState<PreparedImportItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    return () => {
+      if (voiceServiceRef.current) {
+        voiceServiceRef.current.cancel();
+        voiceServiceRef.current = null;
+      }
+    };
+  }, []);
 
   const buildLlmPrompt = async (): Promise<string> => {
     const categories = await listCategories(db, userId);
@@ -117,6 +133,45 @@ ${refDateStr}
 """
 ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
 """`;
+  };
+
+  const handleTabChange = (tab: "PROMPT" | "IMPORT") => {
+    if (voiceState === "LISTENING" && voiceServiceRef.current) {
+      voiceServiceRef.current.stopListening();
+    }
+    setActiveTab(tab);
+  };
+
+  const handleToggleDictation = async () => {
+    if (voiceState === "LISTENING") {
+      voiceServiceRef.current?.stopListening();
+      return;
+    }
+
+    setErrorMessage(null);
+    baseTextRef.current = rawNoteText;
+
+    const service = new VoiceRecognitionService({
+      onStateChange: (st) => setVoiceState(st),
+      onError: (err) => setErrorMessage(err),
+      onResult: (transcript) => {
+        const base = baseTextRef.current;
+        if (base && base.trim().length > 0) {
+          const sep =
+            base.endsWith("\n") || base.endsWith(" ")
+              ? ""
+              : base.endsWith(".") || base.endsWith("!") || base.endsWith("?")
+                ? "\n"
+                : " ";
+          setRawNoteText(`${base}${sep}${transcript}`);
+        } else {
+          setRawNoteText(transcript);
+        }
+      },
+    });
+
+    voiceServiceRef.current = service;
+    await service.startListening();
   };
 
   const handleCopyPrompt = async () => {
@@ -295,7 +350,12 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
           <Pressable
             testID="btn-close-llm-processor"
             style={styles.closeButton}
-            onPress={onClose}
+            onPress={() => {
+              if (voiceServiceRef.current) {
+                voiceServiceRef.current.cancel();
+              }
+              onClose();
+            }}
           >
             <Text style={styles.closeButtonText}>✕ Cerrar</Text>
           </Pressable>
@@ -315,7 +375,7 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
             styles.tabButton,
             activeTab === "PROMPT" && styles.activeTabButton,
           ]}
-          onPress={() => setActiveTab("PROMPT")}
+          onPress={() => handleTabChange("PROMPT")}
         >
           <Text
             style={[
@@ -332,7 +392,7 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
             styles.tabButton,
             activeTab === "IMPORT" && styles.activeTabButton,
           ]}
-          onPress={() => setActiveTab("IMPORT")}
+          onPress={() => handleTabChange("IMPORT")}
         >
           <Text
             style={[
@@ -359,9 +419,49 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
 
       {activeTab === "PROMPT" ? (
         <View style={styles.tabContent}>
-          <Text style={styles.label}>
-            Paso 1: Escribe o pega la nota libre a estructurar:
-          </Text>
+          <View style={styles.stepHeaderRow}>
+            <Text style={[styles.label, styles.stepHeaderLabel]}>
+              Paso 1: Escribe, pega o dicta la nota libre a estructurar:
+            </Text>
+            {rawNoteText.trim().length > 0 && (
+              <Pressable
+                testID="btn-clear-llm-note"
+                style={styles.clearNoteButton}
+                onPress={() => setRawNoteText("")}
+              >
+                <Text style={styles.clearNoteButtonText}>✕ Limpiar</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <View style={styles.voiceControlBar}>
+            <Pressable
+              testID="btn-dictate-llm-note"
+              style={[
+                styles.dictateButton,
+                voiceState === "LISTENING" && styles.dictateButtonActive,
+              ]}
+              onPress={handleToggleDictation}
+            >
+              <Text style={styles.dictateButtonText}>
+                {voiceState === "LISTENING"
+                  ? "⏹️ Detener Dictado"
+                  : "🎙️ Dictar por Voz"}
+              </Text>
+            </Pressable>
+
+            {voiceState === "LISTENING" && (
+              <View
+                testID="llm-voice-listening-badge"
+                style={styles.listeningBadge}
+              >
+                <Text style={styles.listeningBadgeText}>
+                  🔴 Escuchando... Habla ahora
+                </Text>
+              </View>
+            )}
+          </View>
+
           <TextInput
             testID="input-llm-raw-note"
             style={styles.textArea}
@@ -369,7 +469,7 @@ ${rawNoteText.trim() || "[Pega o escribe aquí tu nota libre del día]"}
             numberOfLines={6}
             value={rawNoteText}
             onChangeText={setRawNoteText}
-            placeholder="Pega aquí el diario o notas desestructuradas de tu día..."
+            placeholder="Pega aquí o pulsa '🎙️ Dictar por Voz' para hablar directamente..."
             placeholderTextColor="#64748b"
           />
 
@@ -570,11 +670,66 @@ const styles = StyleSheet.create({
   tabContent: {
     marginTop: 4,
   },
+  stepHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  clearNoteButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "#334155",
+    borderRadius: 6,
+  },
+  clearNoteButtonText: {
+    color: "#cbd5e1",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  voiceControlBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  dictateButton: {
+    backgroundColor: "#0284c7",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  dictateButtonActive: {
+    backgroundColor: "#dc2626",
+  },
+  dictateButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  listeningBadge: {
+    backgroundColor: "#450a0a",
+    borderColor: "#dc2626",
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  listeningBadgeText: {
+    color: "#fca5a5",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   label: {
     fontSize: 14,
     fontWeight: "600",
     color: "#e2e8f0",
     marginBottom: 8,
+  },
+  stepHeaderLabel: {
+    marginBottom: 0,
   },
   textArea: {
     backgroundColor: "#0f172a",
