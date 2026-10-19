@@ -604,6 +604,7 @@ export default function App() {
                 onEntryCreated={() => {
                   setShowVoiceCaptureModal(false);
                   isFormOpenRef.current = false;
+                  setActiveTab("CALENDAR");
                   loadDatabaseState(true);
                 }}
                 onClose={() => setShowVoiceCaptureModal(false)}
@@ -631,6 +632,7 @@ export default function App() {
                 onSuccess={() => {
                   setShowEntryFormModal(false);
                   isFormOpenRef.current = false;
+                  setActiveTab("CALENDAR");
                   loadDatabaseState(true);
                 }}
               />
@@ -714,7 +716,10 @@ export default function App() {
             refreshSignal={lastSyncTime}
             onOpenManualForm={() => setShowEntryFormModal(true)}
             onOpenLlmImport={() => setActiveTab("LLM_IMPORT")}
-            onEntryCreated={() => loadDatabaseState(true)}
+            onEntryCreated={() => {
+              setActiveTab("CALENDAR");
+              loadDatabaseState(true);
+            }}
           />
         )}
 
@@ -861,6 +866,7 @@ export default function App() {
   return (
     <WebMainLayout
       apiConfig={defaultApiConfig}
+      activeTab={activeTab === "VOICE_CAPTURE" ? "CALENDAR" : activeTab}
       onTabChange={handleTabChange}
       stats={{
         totalEntries: entries.length,

@@ -42,9 +42,10 @@ describe("CalendarMonthView Component (Task 35)", () => {
     }
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
     jest.restoreAllMocks();
+    await new Promise((r) => setTimeout(r, 70));
   });
 
   it("renders month title and day grid with entries and test notification button", async () => {
@@ -205,6 +206,44 @@ describe("CalendarMonthView Component (Task 35)", () => {
     expect(await findByTestId("day-detail-panel")).toBeTruthy();
     expect(getByText("Entradas del 2026-09-15")).toBeTruthy();
     expect(getByText("Entrada del día 15 #1")).toBeTruthy();
+  });
+
+  it("provides voice dictation option and unified close action in day detail (#87)", async () => {
+    const { getByTestId, findByTestId, getByText, queryByText } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("day-cell-2026-09-15")).toBeTruthy();
+    });
+
+    fireEvent.press(getByTestId("day-cell-2026-09-15"));
+    expect(await findByTestId("day-detail-panel")).toBeTruthy();
+
+    // Verify presence of Manual, Dictar, and a single Cerrar button
+    expect(getByTestId("btn-open-quick-add")).toBeTruthy();
+    expect(getByText("✍️ Manual")).toBeTruthy();
+    expect(getByTestId("btn-quick-voice-add")).toBeTruthy();
+    expect(getByText("🎙️ Dictar")).toBeTruthy();
+    expect(getByTestId("btn-close-day-detail")).toBeTruthy();
+    expect(getByText("✕ Cerrar")).toBeTruthy();
+
+    // Verify absence of confusing duplicate Cancelar button in the header (#87)
+    expect(queryByText("✕ Cancelar")).toBeNull();
+
+    // Open quick voice flow for the day
+    fireEvent.press(getByTestId("btn-quick-voice-add"));
+    expect(await findByTestId("quick-voice-card")).toBeTruthy();
+    expect(getByText(/Dictar para el 2026-09-15/)).toBeTruthy();
+
+    // Header still has only a single Cerrar button
+    expect(queryByText("✕ Cancelar")).toBeNull();
+
+    // Close day detail
+    fireEvent.press(getByTestId("btn-close-day-detail"));
+    await waitFor(() => {
+      expect(queryByText(/Entradas del 2026-09-15/)).toBeNull();
+    });
   });
 
   it("renders tags on entry cards in the day detail panel (#54)", async () => {
@@ -557,11 +596,9 @@ describe("CalendarMonthView Component (Task 35)", () => {
 
     fireEvent.press(getByTestId("btn-submit-quick-add"));
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 80));
+    await waitFor(() => {
+      expect(onEntryUpdatedMock).toHaveBeenCalled();
     });
-
-    expect(onEntryUpdatedMock).toHaveBeenCalled();
 
     const allEntries = await listLocalEntries(db, userId);
     expect(allEntries.some((e) => e.title === "Reunión de estrategia")).toBe(

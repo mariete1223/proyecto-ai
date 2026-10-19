@@ -30,6 +30,7 @@ import {
   toLocalDateString,
 } from "../types/domain";
 import { notificationService } from "../services/notificationService";
+import { VoiceCaptureFlow } from "./VoiceCaptureFlow";
 
 export interface CalendarMonthViewProps {
   db: DatabaseAdapter;
@@ -90,6 +91,7 @@ export function CalendarMonthView({
 
   // Inline Quick Add form for selected day
   const [showQuickAddForm, setShowQuickAddForm] = useState<boolean>(false);
+  const [showQuickVoice, setShowQuickVoice] = useState<boolean>(false);
   const [quickAddCatId, setQuickAddCatId] = useState<string>("");
   const [quickAddTitle, setQuickAddTitle] = useState<string>("");
   const [quickAddContent, setQuickAddContent] = useState<string>("");
@@ -410,11 +412,15 @@ export function CalendarMonthView({
   const prevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
     setSelectedDayEntries(null);
+    setShowQuickAddForm(false);
+    setShowQuickVoice(false);
   };
 
   const nextMonth = () => {
     setCurrentDate(new Date(year, month + 1, 1));
     setSelectedDayEntries(null);
+    setShowQuickAddForm(false);
+    setShowQuickVoice(false);
   };
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -538,6 +544,7 @@ export function CalendarMonthView({
                   items: dayEntries,
                 });
                 setShowQuickAddForm(false);
+                setShowQuickVoice(false);
                 setEditingReminderEntryId(null);
               }}
             >
@@ -614,17 +621,33 @@ export function CalendarMonthView({
             <View style={styles.detailHeaderActions}>
               <Pressable
                 testID="btn-open-quick-add"
-                style={styles.quickAddEntryBtn}
+                style={[
+                  styles.quickAddEntryBtn,
+                  showQuickAddForm && styles.quickAddEntryBtnActive,
+                ]}
                 onPress={() => {
+                  setShowQuickVoice(false);
                   setShowQuickAddForm((prev) => !prev);
                   if (categories.length > 0 && !quickAddCatId) {
                     setQuickAddCatId(categories[0].id);
                   }
                 }}
               >
-                <Text style={styles.quickAddEntryBtnText}>
-                  {showQuickAddForm ? "✕ Cancelar" : "➕ Nueva Entrada"}
-                </Text>
+                <Text style={styles.quickAddEntryBtnText}>✍️ Manual</Text>
+              </Pressable>
+
+              <Pressable
+                testID="btn-quick-voice-add"
+                style={[
+                  styles.quickAddVoiceBtn,
+                  showQuickVoice && styles.quickAddVoiceBtnActive,
+                ]}
+                onPress={() => {
+                  setShowQuickAddForm(false);
+                  setShowQuickVoice((prev) => !prev);
+                }}
+              >
+                <Text style={styles.quickAddVoiceBtnText}>🎙️ Dictar</Text>
               </Pressable>
 
               <Pressable
@@ -633,6 +656,7 @@ export function CalendarMonthView({
                 onPress={() => {
                   setSelectedDayEntries(null);
                   setShowQuickAddForm(false);
+                  setShowQuickVoice(false);
                   setEditingReminderEntryId(null);
                 }}
               >
@@ -645,6 +669,42 @@ export function CalendarMonthView({
           {reminderToastMessage && (
             <View style={styles.toastBanner} testID="calendar-toast-banner">
               <Text style={styles.toastBannerText}>{reminderToastMessage}</Text>
+            </View>
+          )}
+
+          {/* Quick Voice Entry for Selected Day */}
+          {showQuickVoice && (
+            <View style={styles.quickVoiceCard} testID="quick-voice-card">
+              <View style={styles.quickVoiceHeader}>
+                <Text style={styles.quickVoiceTitle}>
+                  🎙️ Dictar para el {selectedDayEntries.dateStr}
+                </Text>
+              </View>
+              <VoiceCaptureFlow
+                db={db}
+                userId={userId}
+                defaultDate={new Date(selectedDayEntries.dateStr + "T12:00:00")}
+                saveMode="PREVIEW_BEFORE_SAVE"
+                onEntryCreated={async () => {
+                  setShowQuickVoice(false);
+                  const updatedEntries = await listLocalEntries(db, userId);
+                  setEntries(updatedEntries);
+                  if (selectedDayEntries) {
+                    const dayItems = updatedEntries.filter(
+                      (e) =>
+                        getEntryDateKey(e.occurred_at) ===
+                        selectedDayEntries.dateStr,
+                    );
+                    setSelectedDayEntries({
+                      dateStr: selectedDayEntries.dateStr,
+                      items: dayItems,
+                    });
+                  }
+                  showToast("✨ ¡Entrada por voz guardada en este día!");
+                  onEntryUpdated?.();
+                }}
+                onClose={() => setShowQuickVoice(false)}
+              />
             </View>
           )}
 
@@ -1751,9 +1811,46 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
   },
+  quickAddEntryBtnActive: {
+    backgroundColor: "#0369A1",
+    borderColor: "#38BDF8",
+    borderWidth: 1,
+  },
   quickAddEntryBtnText: {
     color: "#FFFFFF",
     fontSize: 12,
+    fontWeight: "700",
+  },
+  quickAddVoiceBtn: {
+    backgroundColor: "#6366F1",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  quickAddVoiceBtnActive: {
+    backgroundColor: "#4F46E5",
+    borderColor: "#818CF8",
+    borderWidth: 1,
+  },
+  quickAddVoiceBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  quickVoiceCard: {
+    backgroundColor: "#1E293B",
+    borderColor: "#818CF8",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  quickVoiceHeader: {
+    marginBottom: 8,
+  },
+  quickVoiceTitle: {
+    color: "#818CF8",
+    fontSize: 14,
     fontWeight: "700",
   },
   toastBanner: {

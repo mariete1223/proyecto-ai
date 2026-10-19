@@ -17,6 +17,8 @@ const appLogo = require("../assets/logo-small.png");
 
 export interface WebMainLayoutProps {
   apiConfig: WebApiConfig;
+  activeTab?:
+    "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT";
   onTabChange?: (
     tab: "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT",
   ) => void;
@@ -36,6 +38,7 @@ export interface WebMainLayoutProps {
 
 export function WebMainLayout({
   apiConfig,
+  activeTab: activeTabProp,
   onTabChange,
   stats,
   onSync,
@@ -52,7 +55,13 @@ export function WebMainLayout({
 
   const [activeTab, setActiveTab] = useState<
     "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT"
-  >("CALENDAR");
+  >(activeTabProp || "CALENDAR");
+
+  useEffect(() => {
+    if (activeTabProp) {
+      setActiveTab(activeTabProp);
+    }
+  }, [activeTabProp]);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(
     null,
   );

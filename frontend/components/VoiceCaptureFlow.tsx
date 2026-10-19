@@ -33,6 +33,7 @@ import {
 export interface VoiceCaptureFlowProps {
   db: DatabaseAdapter;
   userId: string;
+  defaultDate?: Date;
   saveMode?: SaveMode;
   onEntryCreated?: (entryId: string) => void;
   onClose?: () => void;
@@ -41,6 +42,7 @@ export interface VoiceCaptureFlowProps {
 export function VoiceCaptureFlow({
   db,
   userId,
+  defaultDate,
   saveMode = "FAST_FORWARD",
   onEntryCreated,
   onClose,
@@ -71,7 +73,9 @@ export function VoiceCaptureFlow({
   const [manualTitle, setManualTitle] = useState<string>("");
   const [manualContent, setManualContent] = useState<string>("");
   const [manualCategoryId, setManualCategoryId] = useState<string>("");
-  const [manualDateStr, setManualDateStr] = useState<string>("");
+  const [manualDateStr, setManualDateStr] = useState<string>(
+    defaultDate ? toLocalDateString(defaultDate) : "",
+  );
   const [manualTimeStr, setManualTimeStr] = useState<string>("12:00");
   const [manualPriority, setManualPriority] = useState<TaskPriority>("MEDIUM");
 
@@ -124,11 +128,11 @@ export function VoiceCaptureFlow({
   const liveParsed = useMemo(() => {
     if (!transcript || !transcript.trim()) return null;
     try {
-      return parseSpokenCommand(transcript, categories, tags);
+      return parseSpokenCommand(transcript, categories, tags, defaultDate);
     } catch {
       return null;
     }
-  }, [transcript, categories, tags]);
+  }, [transcript, categories, tags, defaultDate]);
 
   const setQuickDate = (daysFromToday: number | null) => {
     if (daysFromToday === null) {
@@ -224,7 +228,17 @@ export function VoiceCaptureFlow({
 
     setTranscript(rawTranscript);
     transcriptRef.current = rawTranscript;
-    const parsed = parseSpokenCommand(rawTranscript, categories, tags);
+    const parsed = parseSpokenCommand(
+      rawTranscript,
+      categories,
+      tags,
+      defaultDate,
+    );
+
+    if (!parsed.occurredAt && defaultDate) {
+      const d = new Date(defaultDate);
+      parsed.occurredAt = d.toISOString();
+    }
     setParsedResult(parsed);
 
     if (parsed.occurredAt) {
@@ -234,7 +248,7 @@ export function VoiceCaptureFlow({
       const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
       setManualTimeStr(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
     } else {
-      setManualDateStr("");
+      setManualDateStr(defaultDate ? toLocalDateString(defaultDate) : "");
       setManualTimeStr("12:00");
     }
 
