@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { listCategories } from "../db/categories";
+import { CANONICAL_CATEGORIES, listCategories } from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
 import { createLocalEntry } from "../db/entries";
 import { listTags } from "../db/tags";
@@ -15,6 +15,16 @@ import {
 import { DateTimePicker } from "./DateTimePicker";
 import { ReminderConfigSection } from "./ReminderConfigSection";
 import { notificationService } from "../services/notificationService";
+
+export function isCategoryAlert(cat?: Category | null): boolean {
+  if (!cat) return false;
+  return (
+    cat.id === CANONICAL_CATEGORIES.ALERTA.id ||
+    cat.name_normalized === "alerta" ||
+    cat.voice_command_normalized === "alerta" ||
+    cat.name.toLowerCase() === "alerta"
+  );
+}
 
 export interface EntryFormProps {
   db: DatabaseAdapter;
@@ -66,7 +76,16 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
           setCategories(cats);
           setTags(tgs);
           if (cats.length > 0) {
-            setSelectedCategoryId((prev) => (prev ? prev : cats[0].id));
+            setSelectedCategoryId((prev) => {
+              const nextId = prev ? prev : cats[0].id;
+              const cat = cats.find((c) => c.id === nextId);
+              if (isCategoryAlert(cat)) {
+                setReminderEnabled(true);
+                setReminderOffsetMinutes(0);
+                setOccurredAt((cur) => (cur ? cur : new Date().toISOString()));
+              }
+              return nextId;
+            });
           }
         }
       } catch (err) {
@@ -82,7 +101,8 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
   }, [db, userId]);
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
-  const isTaskCategory = selectedCategory?.kind === "TASK";
+  const isAlertCategory = isCategoryAlert(selectedCategory);
+  const isTaskCategory = selectedCategory?.kind === "TASK" && !isAlertCategory;
 
   const toggleTag = (tagId: string) => {
     setSelectedTagIds((prev) =>
@@ -109,26 +129,31 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
       return;
     }
 
+    let finalOccurredAt = occurredAt.trim() ? occurredAt.trim() : null;
+    if (isAlertCategory && !finalOccurredAt) {
+      finalOccurredAt = new Date().toISOString();
+      setOccurredAt(finalOccurredAt);
+    }
+
     setLoading(true);
     try {
       const entry = await createLocalEntry(db, userId, {
         category_id: selectedCategoryId,
         title: title.trim() ? title.trim() : null,
         content,
-        occurred_at: occurredAt.trim() ? occurredAt.trim() : null,
+        occurred_at: finalOccurredAt,
         task_status: isTaskCategory ? taskStatus : null,
         task_recurrence: isTaskCategory ? taskRecurrence : null,
         task_priority: isTaskCategory ? taskPriority : null,
-        reminder_enabled: reminderEnabled,
+        reminder_enabled: isAlertCategory ? true : reminderEnabled,
         reminder_time: reminderTime.trim() ? reminderTime.trim() : null,
         reminder_end_time: reminderEndTime.trim()
           ? reminderEndTime.trim()
           : null,
         reminder_recurrence: reminderRecurrence,
         reminder_offset_minutes: reminderOffsetMinutes,
-        reminder_offsets_minutes: reminderEnabled
-          ? [reminderOffsetMinutes]
-          : null,
+        reminder_offsets_minutes:
+          isAlertCategory || reminderEnabled ? [reminderOffsetMinutes] : null,
         tag_ids: selectedTagIds,
       });
 
@@ -189,13 +214,13 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
               ]}
               onPress={() => {
                 setSelectedCategoryId(cat.id);
-                const isAlert =
-                  cat.name_normalized === "alerta" ||
-                  cat.voice_command_normalized === "alerta" ||
-                  cat.name.toLowerCase() === "alerta";
+                const isAlert = isCategoryAlert(cat);
                 if (isAlert) {
                   setReminderEnabled(true);
                   setReminderOffsetMinutes(0);
+                  if (!occurredAt) {
+                    setOccurredAt(new Date().toISOString());
+                  }
                 } else if (occurredAt) {
                   setReminderEnabled(true);
                   setReminderOffsetMinutes(1440);
@@ -343,10 +368,7 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
         onChange={(val) => {
           setOccurredAt(val);
           if (val && !reminderEnabled) {
-            const isAlert =
-              selectedCategory?.name_normalized === "alerta" ||
-              selectedCategory?.voice_command_normalized === "alerta" ||
-              selectedCategory?.name.toLowerCase() === "alerta";
+            const isAlert = isCategoryAlert(selectedCategory);
             setReminderEnabled(true);
             setReminderOffsetMinutes(isAlert ? 0 : 1440);
           }

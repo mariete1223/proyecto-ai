@@ -61,6 +61,8 @@ def _create_sqlite_tables(engine: Any) -> None:
             "ALTER TABLE entries ADD COLUMN reminder_end_time TIMESTAMP;",
             "ALTER TABLE entries ADD COLUMN reminder_recurrence VARCHAR(20);",
             "ALTER TABLE entries ADD COLUMN reminder_offset_minutes INTEGER DEFAULT 0;",
+            "UPDATE categories SET kind = 'STANDARD' WHERE id = 'c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9' OR lower(name) in ('alerta', 'alertas');",
+            "UPDATE entries SET task_status = NULL, task_priority = NULL, task_recurrence = NULL WHERE category_id = 'c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9' OR category_id IN (SELECT id FROM categories WHERE lower(name) in ('alerta', 'alertas'));",
         ]:
             try:
                 conn.exec_driver_sql(alter_stmt)

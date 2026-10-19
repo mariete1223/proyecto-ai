@@ -204,6 +204,25 @@ describe("Local Entries and Tasks Storage Layer", () => {
       expect(disabledEntry.reminder_enabled).toBe(false);
     });
 
+    it("automatically defaults occurred_at to now, sets reminder, and clears task fields for Alerta even with null occurred_at (#92)", async () => {
+      const alertaCat = await createLocalCategory(db, userId, {
+        name: "Alerta",
+        voice_command: "alerta",
+        kind: "TASK",
+      });
+
+      const entry = await createLocalEntry(db, userId, {
+        category_id: alertaCat.id,
+        content: "Alerta sin fecha explícita",
+      });
+
+      expect(entry.occurred_at).toBeTruthy();
+      expect(entry.reminder_enabled).toBe(true);
+      expect(entry.reminder_offset_minutes).toBe(0);
+      expect(entry.task_status).toBeNull();
+      expect(entry.task_priority).toBeNull();
+    });
+
     it("automatically sets reminder 1 day before (1440 min) for non-Alerta categories when occurred_at is set", async () => {
       // Tareas con fecha
       const taskWithDate = await createLocalEntry(db, userId, {

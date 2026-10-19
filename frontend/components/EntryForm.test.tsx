@@ -115,4 +115,61 @@ describe("EntryForm Component", () => {
     expect(queryByTestId("content-error-text")).toBeNull();
     expect(queryByTestId("submit-error-banner")).toBeNull();
   });
+
+  it("treats Alerta as non-task, hides task-options, and sets default alarm and occurredAt (#92)", async () => {
+    // Create an Alerta category with kind TASK to simulate legacy contaminated data
+    const alertaCat = await createLocalCategory(db, userId, {
+      name: "Alerta",
+      voice_command: "alerta",
+      kind: "TASK",
+    });
+
+    const { getByTestId, queryByTestId, findByTestId } = await render(
+      <EntryForm db={db} userId={userId} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId(`cat-chip-${alertaCat.id}`)).toBeTruthy();
+    });
+
+    // Selecting Alerta
+    await act(async () => {
+      fireEvent.press(getByTestId(`cat-chip-${alertaCat.id}`));
+    });
+
+    // 1. Task options should NOT be rendered for Alerta
+    expect(queryByTestId("task-options")).toBeNull();
+
+    // 2. Filling content and submitting
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-content"),
+        "Cita médica urgente mañana",
+      );
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-submit-entry"));
+    });
+
+    expect(await findByTestId("entry-form-success")).toBeTruthy();
+
+    // 3. Verify entry in SQLite has no task fields and has reminder enabled with occurred_at
+    const savedEntry = await db.getFirstAsync<{
+      category_id: string;
+      task_status: string | null;
+      task_priority: string | null;
+      reminder_enabled: number;
+      occurred_at: string | null;
+    }>(
+      `SELECT category_id, task_status, task_priority, reminder_enabled, occurred_at FROM entries WHERE category_id = ?;`,
+      [alertaCat.id],
+    );
+
+    expect(savedEntry).toBeTruthy();
+    expect(savedEntry?.task_status).toBeNull();
+    expect(savedEntry?.task_priority).toBeNull();
+    expect(savedEntry?.reminder_enabled).toBe(1);
+    expect(savedEntry?.occurred_at).toBeTruthy();
+  });
 });

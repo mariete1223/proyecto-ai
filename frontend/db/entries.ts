@@ -91,11 +91,17 @@ export async function createLocalEntry(
     throw new Error("Category not found.");
   }
 
+  const isAlertCategory =
+    category.id === CANONICAL_CATEGORIES.ALERTA.id ||
+    category.name_normalized === "alerta" ||
+    category.voice_command_normalized === "alerta" ||
+    category.name?.toLowerCase() === "alerta";
+
   let taskStatus = data.task_status ?? null;
   let taskRecurrence = data.task_recurrence ?? null;
   let taskPriority = data.task_priority ?? null;
 
-  if (category.kind === "TASK") {
+  if (category.kind === "TASK" && !isAlertCategory) {
     if (taskStatus === null && taskRecurrence === null) {
       taskStatus = "PENDING";
       taskRecurrence = "ONCE";
@@ -107,6 +113,10 @@ export async function createLocalEntry(
     if (!taskPriority) {
       taskPriority = "MEDIUM";
     }
+  } else if (isAlertCategory) {
+    taskStatus = null;
+    taskRecurrence = null;
+    taskPriority = null;
   } else {
     if (
       taskStatus !== null ||
@@ -122,51 +132,42 @@ export async function createLocalEntry(
   const id = data.id ?? generateUuid();
   const now = new Date().toISOString();
   const title = data.title ? data.title.trim() : null;
-  const occurredAt = data.occurred_at ?? null;
+  let occurredAt = data.occurred_at ?? null;
+  if (isAlertCategory && !occurredAt) {
+    occurredAt = now;
+  }
   const tagIds = Array.from(new Set(data.tag_ids ?? []));
-  const isAlertCategory =
-    category.id === CANONICAL_CATEGORIES.ALERTA.id ||
-    category.name_normalized === "alerta" ||
-    category.voice_command_normalized === "alerta";
 
   let reminderEnabled = data.reminder_enabled;
   let reminderOffsetMinutes = data.reminder_offset_minutes;
   let reminderOffsetsMinutes = data.reminder_offsets_minutes ?? null;
 
-  if (occurredAt) {
-    if (isAlertCategory) {
-      if (reminderEnabled === undefined || reminderEnabled === null) {
-        reminderEnabled = true;
-      }
-      if (
-        reminderOffsetMinutes === undefined ||
-        reminderOffsetMinutes === null
-      ) {
-        reminderOffsetMinutes =
-          reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
-            ? reminderOffsetsMinutes[0]
-            : 0;
-      }
-      if (reminderOffsetsMinutes === null && reminderEnabled) {
-        reminderOffsetsMinutes = [reminderOffsetMinutes ?? 0];
-      }
-    } else {
-      // Para cualquier otra categoría con fecha, el recordatorio por defecto es 1 día antes (1440 min)
-      if (reminderEnabled === undefined || reminderEnabled === null) {
-        reminderEnabled = true;
-      }
-      if (
-        reminderOffsetMinutes === undefined ||
-        reminderOffsetMinutes === null
-      ) {
-        reminderOffsetMinutes =
-          reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
-            ? reminderOffsetsMinutes[0]
-            : 1440;
-      }
-      if (reminderOffsetsMinutes === null && reminderEnabled) {
-        reminderOffsetsMinutes = [reminderOffsetMinutes ?? 1440];
-      }
+  if (isAlertCategory) {
+    if (reminderEnabled === undefined || reminderEnabled === null) {
+      reminderEnabled = true;
+    }
+    if (reminderOffsetMinutes === undefined || reminderOffsetMinutes === null) {
+      reminderOffsetMinutes =
+        reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
+          ? reminderOffsetsMinutes[0]
+          : 0;
+    }
+    if (reminderOffsetsMinutes === null && reminderEnabled) {
+      reminderOffsetsMinutes = [reminderOffsetMinutes ?? 0];
+    }
+  } else if (occurredAt) {
+    // Para cualquier otra categoría con fecha, el recordatorio por defecto es 1 día antes (1440 min)
+    if (reminderEnabled === undefined || reminderEnabled === null) {
+      reminderEnabled = true;
+    }
+    if (reminderOffsetMinutes === undefined || reminderOffsetMinutes === null) {
+      reminderOffsetMinutes =
+        reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
+          ? reminderOffsetsMinutes[0]
+          : 1440;
+    }
+    if (reminderOffsetsMinutes === null && reminderEnabled) {
+      reminderOffsetsMinutes = [reminderOffsetMinutes ?? 1440];
     }
   }
 
@@ -435,7 +436,13 @@ export async function updateLocalEntry(
       ? data.task_priority
       : (existing.task_priority ?? null);
 
-  if (category.kind === "TASK") {
+  const isAlertCategory =
+    category.id === CANONICAL_CATEGORIES.ALERTA.id ||
+    category.name_normalized === "alerta" ||
+    category.voice_command_normalized === "alerta" ||
+    category.name?.toLowerCase() === "alerta";
+
+  if (category.kind === "TASK" && !isAlertCategory) {
     if (taskStatus === null && taskRecurrence === null) {
       taskStatus = "PENDING";
       taskRecurrence = "ONCE";
