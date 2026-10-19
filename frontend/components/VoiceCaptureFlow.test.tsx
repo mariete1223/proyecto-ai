@@ -588,7 +588,13 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(queryByTestId("btn-quick-cancel-tokens")).toBeNull();
 
     // In bottom actions bar:
-    expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
+    const resetBtn = getByTestId("btn-reset-voice-capture");
+    expect(resetBtn).toBeTruthy();
+    expect(resetBtn.props.style).toEqual(
+      expect.objectContaining({
+        backgroundColor: "#0284C7",
+      }),
+    );
     expect(getByTestId("btn-save-corrected-entry")).toBeTruthy();
     expect(queryByTestId("btn-close-voice-flow")).toBeNull();
   });

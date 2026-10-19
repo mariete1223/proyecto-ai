@@ -1660,8 +1660,8 @@ const styles = StyleSheet.create({
   },
   quickRerecordBtn: {
     flex: 1,
-    backgroundColor: "rgba(99, 102, 241, 0.2)",
-    borderColor: "#6366F1",
+    backgroundColor: "#0284C7",
+    borderColor: "#0284C7",
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 12,
@@ -1670,7 +1670,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   quickRerecordBtnText: {
-    color: "#C7D2FE",
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "bold",
     textAlign: "center",
@@ -1933,8 +1933,8 @@ const styles = StyleSheet.create({
   },
   reRecordBtn: {
     flex: 1,
-    backgroundColor: "rgba(56, 189, 248, 0.15)",
-    borderColor: "#38BDF8",
+    backgroundColor: "#0284C7",
+    borderColor: "#0284C7",
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 12,
@@ -1943,7 +1943,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   reRecordBtnText: {
-    color: "#38BDF8",
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "bold",
     textAlign: "center",
