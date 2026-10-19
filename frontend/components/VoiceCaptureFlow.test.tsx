@@ -47,7 +47,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     expect(await findByTestId("voice-capture-success")).toBeTruthy();
@@ -77,7 +77,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     expect(await findByTestId("correction-section")).toBeTruthy();
@@ -124,7 +124,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
         );
       });
       await act(async () => {
-        fireEvent.press(getByTestId("btn-parse-transcript"));
+        fireEvent.press(getByTestId("btn-stop-listening"));
       });
 
       expect(await findByText(`Prioridad: ${displayedPriority}`)).toBeTruthy();
@@ -152,7 +152,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       );
     });
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     expect(await findByText("Prioridad: Baja")).toBeTruthy();
@@ -181,7 +181,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       );
     });
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     expect(await findByTestId("voice-capture-success")).toBeTruthy();
@@ -203,7 +203,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       );
     });
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     expect(await findByTestId("voice-capture-success")).toBeTruthy();
@@ -227,7 +227,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     await waitFor(() => {
@@ -278,7 +278,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     // Step 2: RESULT
@@ -335,7 +335,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     expect(getByTestId("correction-section")).toBeTruthy();
@@ -377,11 +377,11 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     );
 
     expect(getByText("Paso 1 de 2: Dictado")).toBeTruthy();
-    // In idle without text: box and secondary controls are hidden
+    // In idle without text: box is hidden
     expect(queryByTestId("live-dictation-box")).toBeNull();
     expect(queryByTestId("secondary-controls-row")).toBeNull();
 
-    // When text is typed / dictated, box and secondary controls appear
+    // When text is typed / dictated, box appears
     await act(async () => {
       fireEvent.changeText(
         getByTestId("input-transcript"),
@@ -394,8 +394,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(getByText("nota reunión con equipo")).toBeTruthy();
     expect(getByTestId("live-parsed-entities")).toBeTruthy();
     expect(getByText("📁 Notas")).toBeTruthy();
-    expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
-    expect(getByText("🔄 Limpiar")).toBeTruthy();
+    expect(queryByTestId("secondary-controls-row")).toBeNull();
   });
 
   it("transitions to separate review screen when dictation is parsed and allows Regrabar to return to dictation", async () => {
@@ -423,7 +422,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(getByTestId("live-dictation-box")).toBeTruthy();
 
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     expect(await findByText("Paso 2 de 2: Revisión")).toBeTruthy();
@@ -446,7 +445,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
   });
 
   it("renders manual transcript input and parse button when dictation box is active (#75, #80)", async () => {
-    const { getByTestId } = await render(
+    const { getByTestId, queryByTestId } = await render(
       <VoiceCaptureFlow
         db={db}
         userId={userId}
@@ -460,12 +459,12 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     const input = getByTestId("input-transcript");
-    const parseBtn = getByTestId("btn-parse-transcript");
     expect(input).toBeTruthy();
-    expect(parseBtn).toBeTruthy();
+    expect(queryByTestId("btn-parse-transcript")).toBeNull();
+    expect(getByTestId("btn-stop-listening")).toBeTruthy();
   });
 
-  it("renders prominent Hero Dictation button and hides secondary controls until dictating (#76, #80)", async () => {
+  it("renders prominent Hero Dictation button first and omits removed secondary controls (#76, #89)", async () => {
     const { getByTestId, getByText, queryByTestId } = await render(
       <VoiceCaptureFlow
         db={db}
@@ -474,7 +473,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       />,
     );
 
-    // Initial Hero Button in IDLE state
+    // Initial Hero Button in IDLE state at top
     const heroBtn = getByTestId("btn-start-listening");
     expect(heroBtn).toBeTruthy();
     expect(getByText("Toca para Dictar")).toBeTruthy();
@@ -483,18 +482,18 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     ).toBeTruthy();
     expect(queryByTestId("btn-stop-listening")).toBeNull();
 
-    // Secondary controls are hidden in IDLE before dictating
+    // Secondary controls are removed completely (#89)
     expect(queryByTestId("secondary-controls-row")).toBeNull();
     expect(queryByTestId("btn-reset-voice-capture")).toBeNull();
 
-    // When text is dictated, secondary controls appear
+    // When text is dictated, Detener y Procesar button appears and secondary controls remain absent
     await act(async () => {
       fireEvent.changeText(getByTestId("input-transcript"), "alguna nota");
     });
 
-    expect(getByTestId("secondary-controls-row")).toBeTruthy();
-    expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
-    expect(getByText("🔄 Limpiar")).toBeTruthy();
+    expect(getByTestId("btn-stop-listening")).toBeTruthy();
+    expect(getByText("Detener y Procesar")).toBeTruthy();
+    expect(queryByTestId("secondary-controls-row")).toBeNull();
   });
 
   it("renders clean header without redundant title and without duplicate Salir button (#85)", async () => {
@@ -545,7 +544,7 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     await act(async () => {
-      fireEvent.press(getByTestId("btn-parse-transcript"));
+      fireEvent.press(getByTestId("btn-stop-listening"));
     });
 
     expect(await findByText("Paso 2 de 2: Revisión")).toBeTruthy();
@@ -559,5 +558,47 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
     expect(getByTestId("btn-save-corrected-entry")).toBeTruthy();
     expect(queryByTestId("btn-close-voice-flow")).toBeNull();
+  });
+
+  it("simplifies dictate screen: hero button first, no status banner, no redundant parse button, no secondary controls (#89)", async () => {
+    const { getByTestId, queryByTestId, getByText, queryByText } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+      />,
+    );
+
+    // Initial state: Hero button 'Toca para Dictar' is rendered at the top
+    expect(getByTestId("btn-start-listening")).toBeTruthy();
+    expect(getByText("Toca para Dictar")).toBeTruthy();
+    expect(queryByTestId("btn-stop-listening")).toBeNull();
+
+    // No 'GRABANDO VOZ...' banner or status banner
+    expect(queryByTestId("voice-status-banner")).toBeNull();
+    expect(queryByText(/GRABANDO VOZ/i)).toBeNull();
+
+    // No secondary controls row (Limpiar / Salir)
+    expect(queryByTestId("secondary-controls-row")).toBeNull();
+    expect(queryByText("🔄 Limpiar")).toBeNull();
+
+    // When text is entered / spoken:
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-transcript"),
+        "alerta cita medica",
+      );
+    });
+
+    // Hero button changes to 'Detener y Procesar'
+    expect(getByTestId("btn-stop-listening")).toBeTruthy();
+    expect(getByText("Detener y Procesar")).toBeTruthy();
+
+    // Still no status banner, no redundant parse button next to transcript, no secondary controls
+    expect(queryByTestId("voice-status-banner")).toBeNull();
+    expect(queryByText(/GRABANDO VOZ/i)).toBeNull();
+    expect(queryByTestId("btn-parse-transcript")).toBeNull();
+    expect(queryByTestId("secondary-controls-row")).toBeNull();
+    expect(queryByText("🔄 Limpiar")).toBeNull();
   });
 });

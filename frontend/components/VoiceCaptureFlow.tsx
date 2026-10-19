@@ -215,7 +215,7 @@ export function VoiceCaptureFlow({
       handleProcessTranscript(currentTranscript);
     } else {
       setErrorMessage(
-        "No se detectó voz del micrófono. Puedes escribir el comando o frase manualmente en la casilla de dictado y pulsar Procesar.",
+        "No se detectó voz del micrófono. Pulsa para dictar o escribe en la casilla y pulsa Detener y Procesar.",
       );
     }
   };
@@ -370,8 +370,6 @@ export function VoiceCaptureFlow({
     voiceState === "PROCESSING" ||
     Boolean(transcript.trim());
 
-  const showSecondaryControls = Boolean(transcript.trim());
-
   const handleResetVoiceCapture = () => {
     if (voiceService) {
       voiceService.cancel();
@@ -439,32 +437,44 @@ export function VoiceCaptureFlow({
       {currentStep === "DICTATE" ? (
         /* SCREEN 1: DICTATE SCREEN */
         <View style={styles.screenContainer}>
-          {/* Status Header Banner - Only shown when not in idle ready state (#81) */}
-          {voiceState !== "IDLE" && (
-            <View
-              style={[
-                styles.statusBanner,
-                voiceState === "LISTENING" && styles.statusBannerActive,
-                voiceState === "ERROR" && styles.statusBannerError,
-              ]}
-              testID="voice-status-banner"
-            >
-              <View
-                style={[
-                  styles.statusDot,
-                  voiceState === "LISTENING" && styles.statusDotActive,
-                  voiceState === "ERROR" && styles.statusDotError,
-                ]}
-              />
-              <Text style={styles.stateText}>
-                {voiceState === "LISTENING"
-                  ? "🔴 GRABANDO VOZ... Habla tu comando o nota"
-                  : voiceState === "PROCESSING"
-                    ? "⚡ Procesando voz..."
-                    : "⚠️ Micrófono no disponible para dictado"}
-              </Text>
-            </View>
-          )}
+          {/* Hero Voice Dictation Button - Rendered first (#89) */}
+          <View style={styles.heroButtonContainer}>
+            {voiceState === "LISTENING" || Boolean(transcript.trim()) ? (
+              <Pressable
+                testID="btn-stop-listening"
+                style={styles.heroStopButton}
+                onPress={handleStopListening}
+              >
+                <View style={styles.heroButtonContent}>
+                  <Text style={styles.heroButtonIcon}>⏹️</Text>
+                  <View style={styles.heroButtonTextCol}>
+                    <Text style={styles.heroStopButtonTitle}>
+                      Detener y Procesar
+                    </Text>
+                    <Text style={styles.heroStopButtonSubtitle}>
+                      Toca para finalizar la grabación y ver el resultado
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            ) : (
+              <Pressable
+                testID="btn-start-listening"
+                style={styles.heroListenButton}
+                onPress={handleStartListening}
+              >
+                <View style={styles.heroButtonContent}>
+                  <Text style={styles.heroButtonIcon}>🎙️</Text>
+                  <View style={styles.heroButtonTextCol}>
+                    <Text style={styles.heroButtonTitle}>Toca para Dictar</Text>
+                    <Text style={styles.heroButtonSubtitle}>
+                      Presiona aquí y habla con comandos o texto libre
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            )}
+          </View>
 
           {/* Voice Wave Visualizer indicator */}
           {voiceState === "LISTENING" && (
@@ -478,7 +488,7 @@ export function VoiceCaptureFlow({
             </View>
           )}
 
-          {/* Live Dictation Display Box - Simplified and Real-Time (#85) */}
+          {/* Live Dictation Display Box - Simplified and Real-Time (#85, #89) */}
           {showLiveDictation ? (
             <View style={styles.liveDictationBox} testID="live-dictation-box">
               <View style={styles.liveDictationHeaderRow}>
@@ -562,17 +572,6 @@ export function VoiceCaptureFlow({
                     setTranscript(text);
                   }}
                 />
-                <Pressable
-                  testID="btn-parse-transcript"
-                  style={styles.parseTranscriptBtn}
-                  onPress={() =>
-                    handleProcessTranscript(transcriptRef.current || transcript)
-                  }
-                >
-                  <Text style={styles.parseTranscriptBtnText} numberOfLines={1}>
-                    🔍 Procesar
-                  </Text>
-                </Pressable>
               </View>
             </View>
           ) : (
@@ -585,81 +584,6 @@ export function VoiceCaptureFlow({
                 setTranscript(text);
               }}
             />
-          )}
-
-          {/* Hero Voice Dictation Button (#76) */}
-          <View style={styles.heroButtonContainer}>
-            {voiceState === "IDLE" || voiceState === "ERROR" ? (
-              <Pressable
-                testID="btn-start-listening"
-                style={styles.heroListenButton}
-                onPress={handleStartListening}
-              >
-                <View style={styles.heroButtonContent}>
-                  <Text style={styles.heroButtonIcon}>🎙️</Text>
-                  <View style={styles.heroButtonTextCol}>
-                    <Text style={styles.heroButtonTitle}>Toca para Dictar</Text>
-                    <Text style={styles.heroButtonSubtitle}>
-                      Presiona aquí y habla con comandos o texto libre
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            ) : (
-              <Pressable
-                testID="btn-stop-listening"
-                style={styles.heroStopButton}
-                onPress={handleStopListening}
-              >
-                <View style={styles.heroButtonContent}>
-                  <Text style={styles.heroButtonIcon}>⏹️</Text>
-                  <View style={styles.heroButtonTextCol}>
-                    <Text style={styles.heroStopButtonTitle}>
-                      Detener y Procesar
-                    </Text>
-                    <Text style={styles.heroStopButtonSubtitle}>
-                      Toca para finalizar la grabación y ver el resultado
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            )}
-          </View>
-
-          {/* Secondary Controls Row - Visible only when already dictated (#80) */}
-          {showSecondaryControls && (
-            <View
-              style={styles.secondaryControlsRow}
-              testID="secondary-controls-row"
-            >
-              <Pressable
-                testID="btn-reset-voice-capture"
-                style={styles.resetControlBtn}
-                onPress={handleResetVoiceCapture}
-              >
-                <Text style={styles.resetControlBtnText} numberOfLines={1}>
-                  🔄 Limpiar
-                </Text>
-              </Pressable>
-
-              {onClose && (
-                <Pressable
-                  testID="btn-close-voice-flow"
-                  style={styles.cancelControlBtn}
-                  onPress={() => {
-                    if (voiceService) {
-                      voiceService.cancel();
-                    }
-                    setVoiceState("IDLE");
-                    onClose();
-                  }}
-                >
-                  <Text style={styles.cancelControlBtnText} numberOfLines={1}>
-                    ✕ Salir
-                  </Text>
-                </Pressable>
-              )}
-            </View>
           )}
 
           {/* Mobile Keyboard Dictation Notice if WebSpeech is unsupported in Expo Go */}
@@ -1205,42 +1129,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#F8FAFC",
   },
-  statusBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "#0F172A",
-    borderColor: "#334155",
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 14,
-  },
-  statusBannerActive: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "#EF4444",
-  },
-  statusBannerError: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "#EF4444",
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#94A3B8",
-  },
-  statusDotActive: {
-    backgroundColor: "#EF4444",
-  },
-  statusDotError: {
-    backgroundColor: "#EF4444",
-  },
-  stateText: {
-    fontSize: 14,
-    color: "#F8FAFC",
-    fontWeight: "600",
-  },
   waveVisualizer: {
     flexDirection: "row",
     alignItems: "center",
@@ -1327,12 +1215,6 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     marginTop: 1,
   },
-  secondaryControlsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 16,
-    width: "100%",
-  },
   controlsRow: {
     flexDirection: "row",
     gap: 8,
@@ -1367,38 +1249,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "bold",
     textAlign: "center",
-  },
-  resetControlBtn: {
-    flex: 1,
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-    borderColor: "rgba(245, 158, 11, 0.6)",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  resetControlBtnText: {
-    color: "#FBBF24",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  cancelControlBtn: {
-    flex: 1,
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "rgba(239, 68, 68, 0.6)",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cancelControlBtnText: {
-    color: "#F87171",
-    fontWeight: "700",
-    fontSize: 13,
   },
   mobileDictationHintBox: {
     backgroundColor: "rgba(56, 189, 248, 0.1)",
@@ -1994,22 +1844,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
     fontSize: 14,
-  },
-  parseTranscriptBtn: {
-    flexShrink: 0,
-    backgroundColor: "#1E293B",
-    borderColor: "#38BDF8",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  parseTranscriptBtnText: {
-    color: "#38BDF8",
-    fontSize: 13,
-    fontWeight: "700",
   },
   transcriptQuoteBox: {
     backgroundColor: "#0F172A",
