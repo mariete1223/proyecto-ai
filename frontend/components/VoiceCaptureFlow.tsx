@@ -838,19 +838,19 @@ export function VoiceCaptureFlow({
                   ))}
                 </View>
 
-                {/* Quick Action Bar below tokens */}
+                {/* Quick Action Bar below tokens: Regrabar + Guardar en paralelo (#88) */}
                 <View
                   style={styles.quickSaveTokensRow}
                   testID="quick-save-tokens-row"
                 >
                   <Pressable
                     testID="btn-quick-rerecord"
-                    accessibilityLabel="Repetir Dictado"
+                    accessibilityLabel="Regrabar"
                     style={styles.quickRerecordBtn}
                     onPress={handleResetVoiceCapture}
                   >
                     <Text style={styles.quickRerecordBtnText} numberOfLines={1}>
-                      🎙️ Repetir Dictado
+                      🎙️ Regrabar
                     </Text>
                   </Pressable>
 
@@ -872,23 +872,10 @@ export function VoiceCaptureFlow({
                       )
                     }
                   >
-                    <Text style={styles.quickSaveBtnText}>
+                    <Text style={styles.quickSaveBtnText} numberOfLines={1}>
                       💾 Guardar Entrada
                     </Text>
                   </Pressable>
-
-                  {onClose && (
-                    <Pressable
-                      testID="btn-quick-cancel-tokens"
-                      accessibilityLabel="Salir"
-                      style={styles.quickCancelBtn}
-                      onPress={onClose}
-                    >
-                      <Text style={styles.quickCancelBtnText} numberOfLines={1}>
-                        ✕ Salir
-                      </Text>
-                    </Pressable>
-                  )}
                 </View>
               </View>
             )}
@@ -1161,7 +1148,7 @@ export function VoiceCaptureFlow({
               placeholderTextColor="#64748B"
             />
 
-            {/* Bottom Actions Row: Regrabar + Confirmar y Guardar + Salir */}
+            {/* Bottom Actions Row: Regrabar + Confirmar y Guardar en paralelo (#88) */}
             <View style={styles.actionsRow}>
               <Pressable
                 testID="btn-reset-voice-capture"
@@ -1197,18 +1184,6 @@ export function VoiceCaptureFlow({
                   💾 Confirmar y Guardar
                 </Text>
               </Pressable>
-
-              {onClose && (
-                <Pressable
-                  testID="btn-close-voice-flow"
-                  style={styles.cancelButton}
-                  onPress={onClose}
-                >
-                  <Text style={styles.cancelButtonText} numberOfLines={1}>
-                    ✕ Salir
-                  </Text>
-                </Pressable>
-              )}
             </View>
           </View>
         </View>
@@ -1762,19 +1737,18 @@ const styles = StyleSheet.create({
   },
   quickSaveTokensRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 10,
     marginTop: 12,
+    width: "100%",
   },
   quickRerecordBtn: {
-    flexGrow: 1,
-    flexBasis: "100%",
+    flex: 1,
     backgroundColor: "rgba(99, 102, 241, 0.2)",
     borderColor: "#6366F1",
     borderWidth: 1,
     borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1785,12 +1759,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   quickSaveBtn: {
-    flexGrow: 2,
-    flexBasis: 140,
-    minWidth: 140,
+    flex: 1,
     backgroundColor: "#10B981",
     borderRadius: 8,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
@@ -1801,35 +1773,18 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
   },
-  quickCancelBtn: {
-    flexGrow: 1,
-    flexBasis: 90,
-    backgroundColor: "rgba(239, 68, 68, 0.2)",
-    borderColor: "#EF4444",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickCancelBtnText: {
-    color: "#F87171",
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "center",
-  },
   actionsRow: {
     flexDirection: "row",
     gap: 10,
     marginTop: 16,
+    width: "100%",
   },
   saveButton: {
     flex: 1,
     backgroundColor: "#10B981",
     borderRadius: 8,
     paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1837,22 +1792,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "bold",
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: "rgba(239, 68, 68, 0.2)",
-    borderColor: "#EF4444",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelButtonText: {
-    color: "#F87171",
-    fontSize: 13,
-    fontWeight: "600",
+    textAlign: "center",
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -2094,12 +2034,13 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   reRecordBtn: {
+    flex: 1,
     backgroundColor: "rgba(56, 189, 248, 0.15)",
     borderColor: "#38BDF8",
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2107,5 +2048,6 @@ const styles = StyleSheet.create({
     color: "#38BDF8",
     fontSize: 13,
     fontWeight: "bold",
+    textAlign: "center",
   },
 });

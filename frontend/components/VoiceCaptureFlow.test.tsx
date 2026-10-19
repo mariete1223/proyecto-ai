@@ -295,7 +295,6 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     // Verify quick re-record button is present and functional
     const quickRerecordBtn = getByTestId("btn-quick-rerecord");
     expect(quickRerecordBtn).toBeTruthy();
-    expect(getByText("🎙️ Repetir Dictado")).toBeTruthy();
 
     await act(async () => {
       fireEvent.press(quickRerecordBtn);
@@ -427,17 +426,16 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       fireEvent.press(getByTestId("btn-parse-transcript"));
     });
 
-    // Step 2: RESULT / REVIEW
     expect(await findByText("Paso 2 de 2: Revisión")).toBeTruthy();
     expect(getByText("🗣️ Frase dictada:")).toBeTruthy();
     expect(getByText('"tarea fecha hoy contenido comprar fruta"')).toBeTruthy();
     expect(getByTestId("recognized-tokens-section")).toBeTruthy();
     expect(getByTestId("correction-section")).toBeTruthy();
-    expect(getByText("🎙️ Regrabar")).toBeTruthy();
+    expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
 
     // Press Regrabar to return to step 1
     await act(async () => {
-      fireEvent.press(getByText("🎙️ Regrabar"));
+      fireEvent.press(getByTestId("btn-reset-voice-capture"));
     });
 
     // Back to Step 1: DICTATE with empty transcript (idle state)
@@ -526,5 +524,40 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     // In idle ready state, no status banner is shown
     expect(queryByTestId("voice-status-banner")).toBeNull();
     expect(queryByText("Micrófono listo para dictado")).toBeNull();
+  });
+
+  it("renders Regrabar and Guardar side by side and removes Cancel button from action rows (#88)", async () => {
+    const onCloseMock = jest.fn();
+    const { getByTestId, findByText, queryByTestId } = await render(
+      <VoiceCaptureFlow
+        db={db}
+        userId={userId}
+        saveMode="PREVIEW_BEFORE_SAVE"
+        onClose={onCloseMock}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-transcript"),
+        "nota contenido prueba botones",
+      );
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-parse-transcript"));
+    });
+
+    expect(await findByText("Paso 2 de 2: Revisión")).toBeTruthy();
+
+    // In quick tokens bar:
+    expect(getByTestId("btn-quick-rerecord")).toBeTruthy();
+    expect(getByTestId("btn-quick-save-tokens")).toBeTruthy();
+    expect(queryByTestId("btn-quick-cancel-tokens")).toBeNull();
+
+    // In bottom actions bar:
+    expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
+    expect(getByTestId("btn-save-corrected-entry")).toBeTruthy();
+    expect(queryByTestId("btn-close-voice-flow")).toBeNull();
   });
 });
