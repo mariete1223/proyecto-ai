@@ -391,7 +391,10 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     });
 
     expect(getByTestId("live-dictation-box")).toBeTruthy();
-    expect(getByText("🗣️ Lo que estás diciendo:")).toBeTruthy();
+    expect(getByTestId("live-dictation-text")).toBeTruthy();
+    expect(getByText("nota reunión con equipo")).toBeTruthy();
+    expect(getByTestId("live-parsed-entities")).toBeTruthy();
+    expect(getByText("📁 Notas")).toBeTruthy();
     expect(getByTestId("btn-reset-voice-capture")).toBeTruthy();
     expect(getByText("🔄 Limpiar")).toBeTruthy();
   });
@@ -496,26 +499,19 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(getByText("🔄 Limpiar")).toBeTruthy();
   });
 
-  it("renders prominent red header close button when onClose prop is provided (#80)", async () => {
-    const onCloseMock = jest.fn();
-    const { getByTestId, getByText } = await render(
+  it("renders clean header without redundant title and without duplicate Salir button (#85)", async () => {
+    const { queryByText, queryByTestId, getByText } = await render(
       <VoiceCaptureFlow
         db={db}
         userId={userId}
         saveMode="PREVIEW_BEFORE_SAVE"
-        onClose={onCloseMock}
       />,
     );
 
-    const headerCloseBtn = getByTestId("btn-header-close-voice");
-    expect(headerCloseBtn).toBeTruthy();
-    expect(getByText("✕ Salir")).toBeTruthy();
-
-    await act(async () => {
-      fireEvent.press(headerCloseBtn);
-    });
-
-    expect(onCloseMock).toHaveBeenCalledTimes(1);
+    expect(getByText("Paso 1 de 2: Dictado")).toBeTruthy();
+    expect(queryByText("Captura Hablada por Voz")).toBeNull();
+    expect(queryByTestId("btn-header-close-voice")).toBeNull();
+    expect(queryByText("✕ Salir")).toBeNull();
   });
 
   it("hides status banner in idle when microphone is ready and shows warning only if not ready (#81)", async () => {

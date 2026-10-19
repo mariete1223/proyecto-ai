@@ -23,9 +23,18 @@ describe("MobileMainLayout Component", () => {
     );
 
     expect(getByTestId("mobile-main-layout")).toBeTruthy();
-    expect(getByTestId("mobile-bottom-tab-bar")).toBeTruthy();
+    const bottomBar = getByTestId("mobile-bottom-tab-bar");
+    expect(bottomBar).toBeTruthy();
     expect(getByText("VoxDaily")).toBeTruthy();
     expect(getByText("Contenido de Prueba")).toBeTruthy();
+
+    const style = Array.isArray(bottomBar.props.style)
+      ? Object.assign({}, ...bottomBar.props.style)
+      : bottomBar.props.style;
+    expect(style.bottom).toBe(0);
+    expect(style.left).toBe(0);
+    expect(style.right).toBe(0);
+    expect(style.zIndex).toBe(100);
   });
 
   it("handles tab clicks on bottom navigation bar", async () => {

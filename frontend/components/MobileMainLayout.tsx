@@ -72,8 +72,16 @@ export function MobileMainLayout({
     onSync?.();
   };
 
+  const webContainerStyle =
+    Platform.OS === "web"
+      ? ({ minHeight: "100dvh", height: "100dvh" } as any)
+      : undefined;
+
   return (
-    <View style={styles.container} testID="mobile-main-layout">
+    <View
+      style={[styles.container, webContainerStyle]}
+      testID="mobile-main-layout"
+    >
       <StatusBar style="light" />
 
       {/* Mobile Top Bar */}
@@ -351,7 +359,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   bottomTabBar: {
-    position: "absolute",
+    position: (Platform.OS === "web" ? "fixed" : "absolute") as any,
     bottom: 0,
     left: 0,
     right: 0,
@@ -362,7 +370,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingBottom: isIosDevice ? 22 : 6,
+    paddingBottom: isIosDevice ? 24 : 6,
+    zIndex: 100,
     elevation: 8,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: -3 },

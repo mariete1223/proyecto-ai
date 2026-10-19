@@ -113,6 +113,23 @@ export function VoiceCaptureFlow({
     });
   }, [tags]);
 
+  useEffect(() => {
+    return () => {
+      if (voiceService) {
+        voiceService.cancel();
+      }
+    };
+  }, [voiceService]);
+
+  const liveParsed = useMemo(() => {
+    if (!transcript || !transcript.trim()) return null;
+    try {
+      return parseSpokenCommand(transcript, categories, tags);
+    } catch {
+      return null;
+    }
+  }, [transcript, categories, tags]);
+
   const setQuickDate = (daysFromToday: number | null) => {
     if (daysFromToday === null) {
       setManualDateStr("");
@@ -367,14 +384,12 @@ export function VoiceCaptureFlow({
 
   return (
     <View style={styles.card} testID="voice-capture-flow">
-      {/* Top Header with title and step indicator badge */}
+      {/* Top Header with title and step indicator badge (#85) */}
       <View style={styles.headerRow}>
         <View style={styles.headerTitleGroup}>
-          <Text style={styles.title}>
-            {currentStep === "DICTATE"
-              ? "Captura Hablada por Voz"
-              : "Resultado del Dictado"}
-          </Text>
+          {currentStep === "RESULT" && (
+            <Text style={styles.title}>Resultado del Dictado</Text>
+          )}
           <View
             style={[
               styles.stepBadge,
@@ -393,23 +408,6 @@ export function VoiceCaptureFlow({
             </Text>
           </View>
         </View>
-
-        {onClose && (
-          <Pressable
-            testID="btn-header-close-voice"
-            accessibilityLabel="Salir"
-            style={styles.headerCloseButton}
-            onPress={() => {
-              if (voiceService) {
-                voiceService.cancel();
-              }
-              setVoiceState("IDLE");
-              onClose();
-            }}
-          >
-            <Text style={styles.headerCloseButtonText}>✕ Salir</Text>
-          </Pressable>
-        )}
       </View>
 
       {errorMessage && (
@@ -466,37 +464,76 @@ export function VoiceCaptureFlow({
             </View>
           )}
 
-          {/* Live Dictation Display Box - Conditional (#80) */}
+          {/* Live Dictation Display Box - Simplified and Real-Time (#85) */}
           {showLiveDictation ? (
             <View style={styles.liveDictationBox} testID="live-dictation-box">
               <View style={styles.liveDictationHeaderRow}>
-                <Text style={styles.liveDictationHeaderTitle}>
-                  🗣️ Lo que estás diciendo:
-                </Text>
-                {voiceState === "LISTENING" && (
+                {voiceState === "LISTENING" ? (
                   <View style={styles.liveListeningBadge}>
                     <View style={styles.pulsingDot} />
                     <Text style={styles.liveListeningBadgeText}>
                       EN DIRECTO
                     </Text>
                   </View>
+                ) : (
+                  <Text style={styles.liveDictationSubtleLabel}>
+                    Transcripción en directo
+                  </Text>
                 )}
               </View>
 
               <View style={styles.liveDictationContent}>
                 {transcript ? (
-                  <Text style={styles.liveDictationText}>{transcript}</Text>
+                  <Text
+                    style={styles.liveDictationText}
+                    testID="live-dictation-text"
+                  >
+                    {transcript}
+                  </Text>
                 ) : voiceState === "LISTENING" ? (
                   <Text style={styles.liveDictationPlaceholderActive}>
-                    🎙️ Escuchando... Di tu comando (ej: "tarea fecha hoy
-                    contenido comprar pan")
+                    🎙️ Habla ahora...
                   </Text>
                 ) : (
                   <Text style={styles.liveDictationPlaceholder}>
-                    Pulsa "Toca para Dictar" para hablar, o escribe directamente
-                    en la casilla inferior.
+                    Pulsa para hablar o escribe abajo
                   </Text>
                 )}
+
+                {/* Real-time detected entity breakdown (#85) */}
+                {liveParsed &&
+                  (liveParsed.categoryName ||
+                    liveParsed.occurredAt ||
+                    (liveParsed.tagNames &&
+                      liveParsed.tagNames.length > 0)) && (
+                    <View
+                      style={styles.liveParsedEntitiesRow}
+                      testID="live-parsed-entities"
+                    >
+                      {liveParsed.categoryName && (
+                        <View style={styles.liveEntityBadge}>
+                          <Text style={styles.liveEntityBadgeText}>
+                            📁 {liveParsed.categoryName}
+                          </Text>
+                        </View>
+                      )}
+                      {liveParsed.occurredAt && (
+                        <View style={styles.liveEntityBadge}>
+                          <Text style={styles.liveEntityBadgeText}>
+                            📅 {liveParsed.occurredAt.split("T")[0]}
+                          </Text>
+                        </View>
+                      )}
+                      {liveParsed.tagNames &&
+                        liveParsed.tagNames.map((tag) => (
+                          <View key={tag} style={styles.liveEntityTagBadge}>
+                            <Text style={styles.liveEntityTagBadgeText}>
+                              #{tag}
+                            </Text>
+                          </View>
+                        ))}
+                    </View>
+                  )}
               </View>
 
               <View style={styles.manualTranscriptRow}>
@@ -1898,6 +1935,46 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  liveDictationSubtleLabel: {
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  liveParsedEntitiesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
+  },
+  liveEntityBadge: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.4)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  liveEntityBadgeText: {
+    color: "#38bdf8",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  liveEntityTagBadge: {
+    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.4)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  liveEntityTagBadgeText: {
+    color: "#c084fc",
+    fontSize: 11,
+    fontWeight: "600",
   },
   liveListeningBadge: {
     flexDirection: "row",
