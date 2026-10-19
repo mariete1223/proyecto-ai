@@ -36,6 +36,7 @@ Frequency: 100% reproducible al cerrar la aplicación inmediatamente tras guarda
 ## Evidence
 
 - Mensaje del usuario: "las notificaciones con la app abierta me van, sigue fallando cuando esta cerrada".
+- Confirmación adicional del usuario: "El test del web push si funciona porque me esta llegando". Esto confirma que la infraestructura de Web Push hacia Apple APNs y el Service Worker en iOS funcionan perfectamente y pueden despertar el teléfono y la pantalla de bloqueo.
 - Base de datos `backend/app.db`: `SELECT id, title, reminder_enabled, reminder_time FROM entries WHERE reminder_enabled = 1` devuelve lista vacía `[]`.
 - Las entradas creadas en la PWA se guardan en el almacenamiento local, pero la sincronización HTTP (`POST /api/v1/sync/push`) se lanza de forma asíncrona desasociada al guardar. Al cerrar la app de inmediato, iOS suspende la ejecución JavaScript de WebKit antes de que la entrada sea persistida en `backend/app.db`, impidiendo que `push_worker.py` la detecte para despacharla a APNs.
 - Adicionalmente, en `EntryForm.tsx:161`, la condición `if (reminderEnabled)` omite `notificationService.scheduleForEntry` si la categoría es Alerta pero el estado local booleano `reminderEnabled` no fue conmutado explícitamente.
