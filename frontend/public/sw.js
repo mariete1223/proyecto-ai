@@ -20,20 +20,46 @@ self.addEventListener("push", (event) => {
     }
   }
 
+  const entryId =
+    data.entry_id ||
+    (data.tag && data.tag.startsWith("entry-reminder-")
+      ? data.tag.replace(/^entry-reminder-/, "")
+      : null);
+
   const title = data.title || "🔔 Recordatorio de Proyecto AI";
+  const tag = data.tag || "agenda-reminder";
   const options = {
     body: data.body || "Tienes un evento o tarea programada.",
     icon: "/favicon.ico",
     badge: "/favicon.ico",
     vibrate: [200, 100, 200],
-    tag: data.tag || "agenda-reminder",
+    tag: tag,
     renotify: true,
     data: {
       url: data.url || "/",
+      entryId: entryId,
     },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  const broadcastPromise = self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((clientList) => {
+      for (const client of clientList) {
+        client.postMessage({
+          type: "PUSH_DELIVERED",
+          tag: tag,
+          entryId: entryId,
+        });
+      }
+    })
+    .catch(() => {});
+
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      broadcastPromise,
+    ]),
+  );
 });
 
 // Handle clicking on a notification

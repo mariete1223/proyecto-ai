@@ -46,10 +46,79 @@ class NotificationService {
   private swRegistration: any = null;
   private lastApiBaseUrl: string | null = null;
   private lastToken: string | null = null;
+  private readonly STORAGE_KEY = "agenda_notified_reminders";
   private notifiedEntryIds: Set<string> = new Set();
+
+  constructor() {
+    this.notifiedEntryIds = this.loadNotifiedHistory();
+    this.setupServiceWorkerListener();
+  }
+
+  private loadNotifiedHistory(): Set<string> {
+    const set = new Set<string>();
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const raw = window.localStorage.getItem(this.STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            for (const id of parsed) {
+              if (typeof id === "string") set.add(id);
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return set;
+  }
+
+  private persistNotifiedHistory(): void {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const items = Array.from(this.notifiedEntryIds).slice(-200);
+        window.localStorage.setItem(this.STORAGE_KEY, JSON.stringify(items));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private setupServiceWorkerListener(): void {
+    if (
+      Platform.OS === "web" &&
+      typeof navigator !== "undefined" &&
+      "serviceWorker" in navigator
+    ) {
+      try {
+        navigator.serviceWorker.addEventListener("message", (event) => {
+          if (event.data?.type === "PUSH_DELIVERED") {
+            if (event.data.tag) {
+              this.notifiedEntryIds.add(event.data.tag);
+            }
+            if (event.data.entryId) {
+              this.notifiedEntryIds.add(event.data.entryId);
+              this.notifiedEntryIds.add(`entry-reminder-${event.data.entryId}`);
+            }
+            this.persistNotifiedHistory();
+          }
+        });
+      } catch {
+        // ignore
+      }
+    }
+  }
 
   public clearNotifiedHistory(): void {
     this.notifiedEntryIds.clear();
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem(this.STORAGE_KEY);
+      }
+    } catch {
+      // ignore
+    }
   }
 
   public setAuth(apiBaseUrl?: string | null, token?: string | null): void {
@@ -330,6 +399,7 @@ class NotificationService {
     body: string,
     icon?: string,
     playSound: boolean = true,
+    tag?: string,
   ): boolean {
     if (playSound) {
       this.playChimeSound();
@@ -338,6 +408,8 @@ class NotificationService {
     if (!this.isSupported() || Notification.permission !== "granted") {
       return false;
     }
+
+    const notifTag = tag || "agenda-reminder";
 
     try {
       // 1. Prefer Service Worker registration (critical for mobile PWA & Android/iOS)
@@ -350,7 +422,7 @@ class NotificationService {
           icon: icon || "/favicon.ico",
           badge: "/favicon.ico",
           vibrate: [200, 100, 200],
-          tag: "agenda-reminder",
+          tag: notifTag,
           renotify: true,
         });
         return true;
@@ -361,6 +433,7 @@ class NotificationService {
         body,
         icon: icon || "/favicon.ico",
         badge: "/favicon.ico",
+        tag: notifTag,
       });
 
       // Optional: focus window on click
@@ -449,7 +522,12 @@ class NotificationService {
       const diffMs = targetDate.getTime() - now.getTime();
 
       const reminderKey = `${entry.id}-${offsetMins}-${targetDate.toISOString()}`;
-      if (this.notifiedEntryIds.has(reminderKey)) {
+      const entryTag = `entry-reminder-${entry.id}`;
+      if (
+        this.notifiedEntryIds.has(reminderKey) ||
+        this.notifiedEntryIds.has(entry.id) ||
+        this.notifiedEntryIds.has(entryTag)
+      ) {
         continue;
       }
 
@@ -461,12 +539,40 @@ class NotificationService {
         const notifBody = `${prefix}${entry.content.trim().substring(0, 120)}`;
 
         const timerId = window.setTimeout(() => {
-          if (this.notifiedEntryIds.has(reminderKey)) {
+          if (
+            this.notifiedEntryIds.has(reminderKey) ||
+            this.notifiedEntryIds.has(entry.id) ||
+            this.notifiedEntryIds.has(entryTag)
+          ) {
             return;
           }
           this.notifiedEntryIds.add(reminderKey);
+          this.notifiedEntryIds.add(entryTag);
+          this.persistNotifiedHistory();
 
-          this.sendNotification(`🔔 ${notifTitle}`, notifBody);
+          // Comprobación de suspensión en segundo plano:
+          // Si el temporizador ejecuta con retraso (> 5000ms después de targetDate), significa que la app
+          // estuvo suspendida en background o el teléfono estuvo bloqueado, por lo que el backend
+          // (push_worker.py) ya entregó la notificación remota Web Push a la pantalla de bloqueo.
+          // En tal caso se descarta la notificación local para no duplicarla al entrar a la app.
+          const elapsedLateMs = Date.now() - targetDate!.getTime();
+          if (elapsedLateMs > 5000) {
+            if (
+              entry.reminder_recurrence &&
+              entry.reminder_recurrence !== "NONE"
+            ) {
+              this.scheduleNextRecurrence(entry, targetDate!);
+            }
+            return;
+          }
+
+          this.sendNotification(
+            `🔔 ${notifTitle}`,
+            notifBody,
+            undefined,
+            true,
+            entryTag,
+          );
 
           // Si es recurrente, re-programar para el próximo ciclo
           if (

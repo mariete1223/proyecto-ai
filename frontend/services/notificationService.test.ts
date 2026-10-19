@@ -269,4 +269,161 @@ describe("NotificationService", () => {
     expect(vapidCall[1]?.headers?.["ngrok-skip-browser-warning"]).toBe("true");
     expect(subCall[1]?.headers?.["ngrok-skip-browser-warning"]).toBe("true");
   });
+
+  describe("Issue #90: Duplicate notification prevention on app open/resume", () => {
+    let mockStorage: Record<string, string> = {};
+
+    beforeEach(() => {
+      mockStorage = {};
+      const storageMock = {
+        getItem: (k: string) => mockStorage[k] || null,
+        setItem: (k: string, v: string) => {
+          mockStorage[k] = v;
+        },
+        removeItem: (k: string) => {
+          delete mockStorage[k];
+        },
+        clear: () => {
+          mockStorage = {};
+        },
+      };
+      Object.defineProperty(window, "localStorage", {
+        value: storageMock,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    it("fires sendNotification with entryTag when timer executes on time (<= 5000ms delay)", () => {
+      const sendSpy = jest
+        .spyOn(notificationService, "sendNotification")
+        .mockReturnValue(true);
+      const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+
+      const entry = {
+        id: "on-time-entry-1",
+        user_id: "user-1",
+        category_id: "cat-1",
+        title: "Reunión puntual",
+        content: "Reunión puntual en sala",
+        reminder_enabled: true,
+        reminder_time: new Date(Date.now() + 1000).toISOString(),
+        reminder_offset_minutes: 0,
+        reminder_recurrence: "NONE",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      notificationService.scheduleForEntry(entry);
+
+      expect(setTimeoutSpy).toHaveBeenCalled();
+      const callback = setTimeoutSpy.mock.calls[
+        setTimeoutSpy.mock.calls.length - 1
+      ][0] as () => void;
+
+      // Cancel the scheduled timer before running the callback to prevent leaks after test teardown
+      notificationService.cancelNotification(entry.id);
+
+      // Executing callback immediately (within 0-100ms of schedule, so elapsed <= 5000ms)
+      callback();
+
+      expect(sendSpy).toHaveBeenCalledWith(
+        "🔔 Reunión puntual",
+        expect.stringContaining("Reunión puntual"),
+        undefined,
+        true,
+        "entry-reminder-on-time-entry-1",
+      );
+
+      notificationService.clearNotifiedHistory();
+    });
+
+    it("discards local notification when timer callback fires late (> 5000ms delay due to background sleep)", () => {
+      const sendSpy = jest
+        .spyOn(notificationService, "sendNotification")
+        .mockReturnValue(true);
+      const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+
+      const entry = {
+        id: "late-suspended-entry-1",
+        user_id: "user-1",
+        category_id: "cat-1",
+        title: "Aviso entregado en lock screen",
+        content: "Aviso entregado en lock screen por Web Push",
+        reminder_enabled: true,
+        reminder_time: new Date(Date.now() + 2000).toISOString(),
+        reminder_offset_minutes: 0,
+        reminder_recurrence: "NONE",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      notificationService.scheduleForEntry(entry);
+
+      expect(setTimeoutSpy).toHaveBeenCalled();
+      const callback = setTimeoutSpy.mock.calls[
+        setTimeoutSpy.mock.calls.length - 1
+      ][0] as () => void;
+
+      // Cancel scheduled timer to prevent leak
+      notificationService.cancelNotification(entry.id);
+
+      // Simulate device being asleep/backgrounded: timer fires 15 seconds after targetDate
+      const realNow = Date.now;
+      jest
+        .spyOn(Date, "now")
+        .mockReturnValue(new Date(entry.reminder_time!).getTime() + 15000);
+
+      callback();
+
+      // sendNotification should NOT be called because it was delayed > 5000ms
+      expect(sendSpy).not.toHaveBeenCalled();
+
+      Date.now = realNow;
+      notificationService.clearNotifiedHistory();
+    });
+
+    it("persists notified reminders to localStorage and skips already notified entries", () => {
+      notificationService.clearNotifiedHistory();
+      const sendSpy = jest
+        .spyOn(notificationService, "sendNotification")
+        .mockReturnValue(true);
+
+      const entry = {
+        id: "already-notified-entry",
+        user_id: "user-1",
+        category_id: "cat-1",
+        title: "Recordatorio ya recibido",
+        content: "Recordatorio ya recibido",
+        reminder_enabled: true,
+        reminder_time: new Date(Date.now() + 1000).toISOString(),
+        reminder_offset_minutes: 0,
+        reminder_recurrence: "NONE",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      // Seed localStorage
+      window.localStorage.setItem(
+        "agenda_notified_reminders",
+        JSON.stringify(["entry-reminder-already-notified-entry"]),
+      );
+
+      // Re-initialize notificationService internal history
+      (notificationService as any).notifiedEntryIds = (
+        notificationService as any
+      ).loadNotifiedHistory();
+
+      notificationService.scheduleForEntry(entry);
+
+      // Since it was already notified, no timer should have fired sendNotification
+      expect(sendSpy).not.toHaveBeenCalled();
+
+      notificationService.cancelNotification(entry.id);
+      notificationService.clearNotifiedHistory();
+    });
+  });
 });

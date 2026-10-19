@@ -131,6 +131,7 @@ def check_and_send_due_reminders(db: Session) -> int:
                         "title": notif_title,
                         "body": notif_body,
                         "tag": f"entry-reminder-{entry.id}",
+                        "entry_id": entry.id,
                         "url": "/",
                     },
                 )
