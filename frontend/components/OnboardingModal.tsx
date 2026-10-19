@@ -24,8 +24,17 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     icon: "🎤",
     title: "Captura rápida con tu voz",
     description:
-      "Dicta libremente lo que necesitas registrar. El sistema interpreta en lenguaje natural si es una tarea, nota o evento, detectando fechas, horas y etiquetas.",
+      "Dicta libremente lo que necesitas registrar. El sistema interpreta en lenguaje natural si es una tarea, nota o evento, detectando fechas, horas y etiquetas. Recuerda que puedes crear todas las categorías y etiquetas que necesites a tu medida.",
     tip: "💡 Prueba diciendo: 'tarea comprar pan para mañana con prioridad alta'",
+  },
+  {
+    badge: "🏷️ CATEGORÍAS Y ETIQUETAS",
+    badgeColor: "#EC4899",
+    icon: "🏷️",
+    title: "Crea las categorías y etiquetas que necesites",
+    description:
+      "Organiza tu información a tu manera: puedes crear tantas categorías y etiquetas como necesites. Personalízalas con tus propios colores, nombres y comandos de voz únicos para dictar.",
+    tip: "💡 Gestiona y añade tus categorías y etiquetas en cualquier momento desde la pestaña 'Explorador'.",
   },
   {
     badge: "📅 CALENDARIO Y AGENDA",

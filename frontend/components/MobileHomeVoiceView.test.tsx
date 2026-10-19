@@ -34,6 +34,11 @@ describe("MobileHomeVoiceView Component", () => {
 
     expect(getByTestId("mobile-home-voice-view")).toBeTruthy();
     expect(getByTestId("btn-big-mic-start")).toBeTruthy();
+    expect(
+      queryByText(
+        /puedes crear todas las categorías y etiquetas que necesites/i,
+      ),
+    ).toBeTruthy();
 
     fireEvent.press(getByTestId("btn-mobile-manual-entry"));
     expect(onOpenManualForm).toHaveBeenCalled();

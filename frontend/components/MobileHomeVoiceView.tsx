@@ -69,8 +69,9 @@ export function MobileHomeVoiceView({
         <View style={styles.heroSection}>
           <Text style={styles.heroTitle}>Dictado y Captura de Voz</Text>
           <Text style={styles.heroSubtitle}>
-            Presiona el micrófono en grande para grabar tu voz o usa la chuleta
-            de comandos abajo.
+            Presiona el micrófono en grande para grabar tu voz. Recuerda que
+            puedes crear todas las categorías y etiquetas que necesites para
+            organizarte a tu medida.
           </Text>
 
           {/* Big Mic Button */}
@@ -172,6 +173,13 @@ export function MobileHomeVoiceView({
                   <Text style={styles.fullPhraseTitle}>Ejemplo de frase:</Text>
                   <Text style={styles.fullPhraseCode}>
                     "nota reunión de equipo mañana a las diez #urgente"
+                  </Text>
+                </View>
+
+                <View style={styles.cheatsheetHintBox}>
+                  <Text style={styles.cheatsheetHintText}>
+                    ✨ Puedes crear las categorías y etiquetas que necesites
+                    desde la pestaña "Explorador".
                   </Text>
                 </View>
               </View>
@@ -453,5 +461,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: "italic",
     lineHeight: 18,
+  },
+  cheatsheetHintBox: {
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    borderColor: "rgba(56, 189, 248, 0.25)",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+  },
+  cheatsheetHintText: {
+    color: "#38bdf8",
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
+    fontWeight: "500",
   },
 });

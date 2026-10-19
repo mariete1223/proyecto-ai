@@ -43,34 +43,46 @@ describe("OnboardingModal Component (#66)", () => {
     expect(getByTestId("onboarding-step-title").props.children).toBe(
       "Captura rápida con tu voz",
     );
+    expect(getByTestId("onboarding-step-desc").props.children).toContain(
+      "crear todas las categorías y etiquetas que necesites",
+    );
     expect(getByTestId("btn-skip-onboarding")).toBeTruthy();
     expect(getByTestId("btn-next-onboarding")).toBeTruthy();
   });
 
-  it("navigates forward through all 4 steps and displays finish button on step 4", async () => {
+  it("navigates forward through all 5 steps and displays finish button on step 5", async () => {
     const onCloseMock = jest.fn();
     const { getByTestId, queryByTestId, getByText } = await render(
       <OnboardingModal visible={true} onClose={onCloseMock} userId={userId} />,
     );
 
-    // Step 0: Dictado
+    // Step 0: Dictado inteligente
     expect(getByText("🎙️ DICTADO INTELIGENTE")).toBeTruthy();
     expect(queryByTestId("btn-prev-onboarding")).toBeNull();
 
-    // Go to Step 1: Calendario
+    // Go to Step 1: Categorías y Etiquetas
     fireEvent.press(getByTestId("btn-next-onboarding"));
     await waitFor(() => {
-      expect(getByText("📅 CALENDARIO Y AGENDA")).toBeTruthy();
+      expect(getByText("🏷️ CATEGORÍAS Y ETIQUETAS")).toBeTruthy();
+      expect(
+        getByText("Crea las categorías y etiquetas que necesites"),
+      ).toBeTruthy();
       expect(getByTestId("btn-prev-onboarding")).toBeTruthy();
     });
 
-    // Go to Step 2: Tareas
+    // Go to Step 2: Calendario y Agenda
+    fireEvent.press(getByTestId("btn-next-onboarding"));
+    await waitFor(() => {
+      expect(getByText("📅 CALENDARIO Y AGENDA")).toBeTruthy();
+    });
+
+    // Go to Step 3: Tareas y Prioridades
     fireEvent.press(getByTestId("btn-next-onboarding"));
     await waitFor(() => {
       expect(getByText("✅ TAREAS Y PRIORIDADES")).toBeTruthy();
     });
 
-    // Go to Step 3: Avisos (final step)
+    // Go to Step 4: Avisos y Notificaciones (final step)
     fireEvent.press(getByTestId("btn-next-onboarding"));
     await waitFor(() => {
       expect(getByText("🔔 AVISOS Y NOTIFICACIONES")).toBeTruthy();
@@ -95,7 +107,7 @@ describe("OnboardingModal Component (#66)", () => {
     // Go to Step 1
     fireEvent.press(getByTestId("btn-next-onboarding"));
     await waitFor(() => {
-      expect(getByText("📅 CALENDARIO Y AGENDA")).toBeTruthy();
+      expect(getByText("🏷️ CATEGORÍAS Y ETIQUETAS")).toBeTruthy();
     });
 
     // Go back to Step 0
@@ -111,7 +123,12 @@ describe("OnboardingModal Component (#66)", () => {
       <OnboardingModal visible={true} onClose={onCloseMock} userId={userId} />,
     );
 
-    fireEvent.press(getByTestId("pagination-dot-2"));
+    fireEvent.press(getByTestId("pagination-dot-1"));
+    await waitFor(() => {
+      expect(getByText("🏷️ CATEGORÍAS Y ETIQUETAS")).toBeTruthy();
+    });
+
+    fireEvent.press(getByTestId("pagination-dot-3"));
     await waitFor(() => {
       expect(getByText("✅ TAREAS Y PRIORIDADES")).toBeTruthy();
     });

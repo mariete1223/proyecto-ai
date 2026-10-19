@@ -1,7 +1,7 @@
 {
   "name": "VoxDaily - Voice Journal & Calendar",
   "short_name": "VoxDaily",
-  "description": "Tu diario personal y calendario inteligente por voz con IA",
+  "description": "Tu diario personal y calendario inteligente por voz con IA. Crea todas las categorías y etiquetas que necesites para organizar tu vida a tu medida.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
