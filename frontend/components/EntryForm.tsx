@@ -44,6 +44,7 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
 
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [contentError, setContentError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -93,6 +94,7 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
 
   const handleSubmit = async () => {
     setErrorMessage(null);
+    setContentError(null);
     setSuccessMessage(null);
 
     if (!selectedCategoryId) {
@@ -101,7 +103,9 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
     }
 
     if (!content.trim()) {
-      setErrorMessage("El contenido no puede estar vacío.");
+      const msg = "El contenido no puede estar vacío.";
+      setErrorMessage(msg);
+      setContentError(msg);
       return;
     }
 
@@ -315,13 +319,22 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
       <Text style={styles.label}>Contenido</Text>
       <TextInput
         testID="input-content"
-        style={styles.inputArea}
+        style={[styles.inputArea, contentError ? styles.inputError : null]}
         placeholder="Escribe el contenido..."
         placeholderTextColor="#64748B"
         multiline
         value={content}
-        onChangeText={setContent}
+        onChangeText={(val) => {
+          setContent(val);
+          if (contentError) setContentError(null);
+          if (errorMessage) setErrorMessage(null);
+        }}
       />
+      {contentError ? (
+        <Text style={styles.fieldErrorText} testID="content-error-text">
+          ⚠️ {contentError}
+        </Text>
+      ) : null}
 
       {/* Occurred At Date Selection */}
       <DateTimePicker
@@ -383,6 +396,11 @@ export function EntryForm({ db, userId, onSuccess }: EntryFormProps) {
       </View>
 
       {/* Submit Button */}
+      {errorMessage ? (
+        <View style={styles.submitErrorBanner} testID="submit-error-banner">
+          <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
+        </View>
+      ) : null}
       <Pressable
         testID="btn-submit-entry"
         style={[styles.button, loading && styles.buttonDisabled]}
@@ -560,5 +578,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     fontWeight: "500",
+  },
+  inputError: {
+    borderColor: "#EF4444",
+    borderWidth: 1.5,
+  },
+  fieldErrorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  submitErrorBanner: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
   },
 });

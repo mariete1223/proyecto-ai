@@ -82,4 +82,37 @@ describe("EntryForm Component", () => {
     expect(await findByTestId("entry-form-success")).toBeTruthy();
     expect(onSuccessMock).toHaveBeenCalledTimes(1);
   });
+
+  it("shows inline error text, error styling on input-content, and submit-error-banner when content is empty (#91)", async () => {
+    const { getByTestId, queryByTestId } = await render(
+      <EntryForm db={db} userId={userId} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("entry-form-container")).toBeTruthy();
+    });
+
+    expect(queryByTestId("content-error-text")).toBeNull();
+    expect(queryByTestId("submit-error-banner")).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-submit-entry"));
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("content-error-text")).toBeTruthy();
+      expect(getByTestId("submit-error-banner")).toBeTruthy();
+    });
+
+    // Verify typing into input-content clears the error reactively
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-content"),
+        "Contenido de prueba ahora completo",
+      );
+    });
+
+    expect(queryByTestId("content-error-text")).toBeNull();
+    expect(queryByTestId("submit-error-banner")).toBeNull();
+  });
 });
