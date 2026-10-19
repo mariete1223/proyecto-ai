@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
@@ -99,7 +100,21 @@ def subscribe_push(
         db.add(new_sub)
         sub_id = str(new_id)
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = db.execute(stmt).scalar_one_or_none()
+        if existing is not None:
+            existing.p256dh = data.keys.p256dh
+            existing.auth = data.keys.auth
+            existing.user_agent = data.user_agent
+            existing.updated_at = now
+            sub_id = str(existing.id)
+            db.commit()
+        else:
+            raise
+
     logger.info(
         "Suscripción Push registrada para usuario %s: %s", current_user.id, sub_id
     )

@@ -85,7 +85,7 @@ def send_web_push_detail(
         except Exception as exc:
             logger.warning("No se pudo escribir la clave VAPID en disco: %s", exc)
 
-    payload_str = json.dumps(data)
+    payload_str = json.dumps(data, default=str)
     claims: dict[str, Any] = {
         "sub": subject,
     }

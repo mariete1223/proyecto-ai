@@ -571,3 +571,96 @@ def test_push_worker_window_past_and_expiration(
     assert due_entry.reminder_enabled is False
     # expired_entry was not sent but deactivated to avoid perpetual queries
     assert expired_entry.reminder_enabled is False
+
+
+def test_push_worker_uuid_serialization_and_send_detail(
+    test_db_session: Session,
+    test_user: User,
+    default_category: Category,
+) -> None:
+    """Test that check_and_send_due_reminders formats entry_id as string and send_web_push_detail serializes UUIDs cleanly (#93)."""
+    now = datetime.now(UTC)
+    entry_uuid = uuid.uuid4()
+    entry = Entry(
+        id=entry_uuid,
+        user_id=test_user.id,
+        category_id=default_category.id,
+        content="Recordatorio prueba UUID serialization",
+        occurred_at=now,
+        reminder_enabled=True,
+        reminder_time=now,
+        reminder_recurrence="NONE",
+        created_at=now,
+        updated_at=now,
+        version=1,
+    )
+    test_db_session.add(entry)
+
+    sub = PushSubscription(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        endpoint="https://web.push.apple.com/uuid-test",
+        p256dh="key_p256",
+        auth="auth_key",
+        created_at=now,
+        updated_at=now,
+    )
+    test_db_session.add(sub)
+    test_db_session.commit()
+
+    with patch(
+        "app.services.push_worker.send_web_push_detail", return_value=(True, False)
+    ) as mock_send:
+        sent = check_and_send_due_reminders(test_db_session)
+        assert sent == 1
+        assert mock_send.call_count == 1
+        # Inspect payload passed to send_web_push_detail
+        args, kwargs = mock_send.call_args
+        payload = args[1]
+        assert payload["entry_id"] == str(entry_uuid)
+        assert isinstance(payload["entry_id"], str)
+        assert payload["tag"] == f"entry-reminder-{entry_uuid}"
+
+    # Also directly test send_web_push_detail handles raw UUID in data without raising TypeError
+    from app.core.vapid import send_web_push_detail
+
+    sub_info = {
+        "endpoint": "https://web.push.apple.com/direct-uuid-test",
+        "keys": {"p256dh": "key", "auth": "auth"},
+    }
+    with patch("app.core.vapid.webpush", return_value=None):
+        success, is_expired = send_web_push_detail(
+            sub_info,
+            {"title": "Test", "entry_id": entry_uuid, "nested": {"id": uuid.uuid4()}},
+        )
+        assert success is True
+        assert is_expired is False
+
+
+def test_push_subscribe_duplicate_endpoint_concurrency(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    """Test that subscribing with the same endpoint repeatedly or concurrently updates gracefully (#93)."""
+    payload = {
+        "endpoint": "https://web.push.apple.com/duplicate-test-endpoint",
+        "keys": {"p256dh": "p256dh_key_1", "auth": "auth_key_1"},
+        "user_agent": "Mozilla/5.0 Test Browser 1",
+    }
+
+    # First subscribe call
+    res1 = client.post("/api/v1/push/subscribe", json=payload, headers=auth_headers)
+    assert res1.status_code == 200
+    data1 = res1.json()
+    assert data1["status"] == "ok"
+    sub_id_1 = data1["subscription_id"]
+
+    # Second subscribe call with updated keys (e.g. concurrent or repeated)
+    payload["keys"]["auth"] = "auth_key_updated"
+    payload["user_agent"] = "Mozilla/5.0 Test Browser 2"
+    res2 = client.post("/api/v1/push/subscribe", json=payload, headers=auth_headers)
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["status"] == "ok"
+    assert data2["subscription_id"] == sub_id_1
+
