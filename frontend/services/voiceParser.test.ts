@@ -264,7 +264,7 @@ describe("Spoken Command Parser (voiceParser)", () => {
     expect(d.getMinutes()).toBe(0);
   });
 
-  it("defaults unspecified hours 1-11 to PM (e.g. 5 -> 17:00) unless 'de la mañana' is specified", () => {
+  it("defaults unspecified afternoon hours (1-6) to PM (e.g. 5 -> 17:00) unless 'de la mañana' is specified", () => {
     const resPm = parseSpokenCommand(
       "nota fecha hoy a las cinco hacer ejercicio",
       sampleCategories,
@@ -976,6 +976,128 @@ describe("Spoken Command Parser (voiceParser)", () => {
       expect(result.categoryName).toBe("Tareas");
       expect(result.reminderEnabled).toBe(false);
       expect(result.content).toBe("entrega de informe");
+    });
+  });
+
+  describe("Issue #86: Time disambiguation default for daytime hours", () => {
+    it("interprets 10:40 without suffix as daytime (10:40 AM) by default", () => {
+      const transcript = "nota fecha hoy a las 10:40 contenido revisión médica";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(result.isSuccess).toBe(true);
+      const parsedDate = new Date(result.occurredAt!);
+      expect(parsedDate.getHours()).toBe(10);
+      expect(parsedDate.getMinutes()).toBe(40);
+      expect(result.tokens?.some((t) => t.label.includes("a las 10:40"))).toBe(
+        true,
+      );
+    });
+
+    it("interprets 10:40 de la noche as night (22:40 PM)", () => {
+      const transcript =
+        "nota fecha hoy a las 10:40 de la noche contenido revisión médica";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(result.isSuccess).toBe(true);
+      const parsedDate = new Date(result.occurredAt!);
+      expect(parsedDate.getHours()).toBe(22);
+      expect(parsedDate.getMinutes()).toBe(40);
+      expect(result.tokens?.some((t) => t.label.includes("a las 22:40"))).toBe(
+        true,
+      );
+    });
+
+    it("interprets explicit 24h format 22:40 as 22:40", () => {
+      const transcript = "nota fecha hoy a las 22:40 contenido cena tardía";
+      const result = parseSpokenCommand(
+        transcript,
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(result.isSuccess).toBe(true);
+      const parsedDate = new Date(result.occurredAt!);
+      expect(parsedDate.getHours()).toBe(22);
+      expect(parsedDate.getMinutes()).toBe(40);
+      expect(result.tokens?.some((t) => t.label.includes("a las 22:40"))).toBe(
+        true,
+      );
+    });
+
+    it("interprets other morning hours (8:00, 9:30, 11:15) without suffix as morning AM", () => {
+      const r1 = parseSpokenCommand(
+        "nota fecha hoy a las 9:30 contenido desayuno",
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(new Date(r1.occurredAt!).getHours()).toBe(9);
+      expect(new Date(r1.occurredAt!).getMinutes()).toBe(30);
+
+      const r2 = parseSpokenCommand(
+        "nota fecha hoy a las 8 contenido café",
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(new Date(r2.occurredAt!).getHours()).toBe(8);
+
+      const r3 = parseSpokenCommand(
+        "nota fecha hoy a las 11:15 contenido reunión",
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(new Date(r3.occurredAt!).getHours()).toBe(11);
+      expect(new Date(r3.occurredAt!).getMinutes()).toBe(15);
+    });
+
+    it("interprets afternoon hours (1 to 6) without suffix as afternoon PM", () => {
+      const r1 = parseSpokenCommand(
+        "nota fecha hoy a las 4 contenido merienda",
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(new Date(r1.occurredAt!).getHours()).toBe(16);
+
+      const r2 = parseSpokenCommand(
+        "nota fecha hoy a las 5 y media contenido gimnasio",
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(new Date(r2.occurredAt!).getHours()).toBe(17);
+      expect(new Date(r2.occurredAt!).getMinutes()).toBe(30);
+    });
+
+    it("interprets explicit 4 de la mañana as morning 04:00", () => {
+      const r = parseSpokenCommand(
+        "nota fecha hoy a las 4 de la mañana contenido viaje",
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(new Date(r.occurredAt!).getHours()).toBe(4);
+    });
+
+    it("interprets 12 de la noche as midnight 00:00", () => {
+      const r = parseSpokenCommand(
+        "nota fecha hoy a las 12 de la noche contenido cambio de turno",
+        sampleCategories,
+        sampleTags,
+        refDate,
+      );
+      expect(new Date(r.occurredAt!).getHours()).toBe(0);
+      expect(new Date(r.occurredAt!).getMinutes()).toBe(0);
     });
   });
 });

@@ -516,9 +516,15 @@ export function parseSpokenCommand(
           hours === 12
         ) {
           hours = 0;
+        } else if (
+          (ampm.includes("noche") || ampm.includes("madrugada")) &&
+          hours === 12
+        ) {
+          hours = 0;
         }
-      } else if (!isExplicit24h && hours >= 1 && hours <= 11) {
-        // Unspecified hour (e.g. "a las 4", "a las cinco") defaults to PM (16:00, 17:00)
+      } else if (!isExplicit24h && hours >= 1 && hours <= 6) {
+        // Unspecified afternoon hours (e.g. "a las 4", "a las 5 y media") default to PM (16:00, 17:30)
+        // Morning / daytime hours (7 to 11, e.g. "10:40", "9:30", "11:00") default to daytime (AM)
         hours += 12;
       }
 
