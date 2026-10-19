@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { listCategories } from "../db/categories";
+import { CANONICAL_CATEGORIES, listCategories } from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
 import { createLocalEntry } from "../db/entries";
 import { listTags } from "../db/tags";
@@ -29,6 +29,16 @@ import {
   TaskPriority,
   toLocalDateString,
 } from "../types/domain";
+
+function isCategoryAlert(cat?: Category | null): boolean {
+  if (!cat) return false;
+  return (
+    cat.id === CANONICAL_CATEGORIES.ALERTA.id ||
+    cat.name_normalized === "alerta" ||
+    cat.voice_command_normalized === "alerta" ||
+    cat.name?.toLowerCase() === "alerta"
+  );
+}
 
 export interface VoiceCaptureFlowProps {
   db: DatabaseAdapter;
@@ -144,6 +154,39 @@ export function VoiceCaptureFlow({
     setManualDateStr(toLocalDateString(d));
   };
 
+  const handleSelectCategory = (catId: string) => {
+    setManualCategoryId(catId);
+    const cat = categories.find((c) => c.id === catId);
+    if (isCategoryAlert(cat) && !manualDateStr) {
+      setManualDateStr(toLocalDateString());
+    }
+  };
+
+  const webPickerInputStyle: React.CSSProperties = {
+    backgroundColor: "#0f172a",
+    color: "#ffffff",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    borderRadius: "8px",
+    padding: "0 10px",
+    fontSize: "14px",
+    fontFamily:
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    fontWeight: "600",
+    colorScheme: "dark",
+    outline: "none",
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+    height: "44px",
+    minHeight: "44px",
+    maxHeight: "44px",
+    lineHeight: "44px",
+    boxSizing: "border-box",
+    cursor: "pointer",
+    textAlign: "center",
+    WebkitAppearance: "none",
+  };
+
   const buildOccurredAtIso = (): string | null => {
     if (!manualDateStr.trim()) return null;
     try {
@@ -241,12 +284,19 @@ export function VoiceCaptureFlow({
     }
     setParsedResult(parsed);
 
+    const isAlertParsed =
+      parsed.categoryId &&
+      categories.some((c) => c.id === parsed.categoryId && isCategoryAlert(c));
+
     if (parsed.occurredAt) {
       const norm = normalizeUtcIso(parsed.occurredAt) || parsed.occurredAt;
       const d = new Date(norm);
       setManualDateStr(toLocalDateString(d));
       const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
       setManualTimeStr(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    } else if (isAlertParsed) {
+      setManualDateStr(toLocalDateString(new Date()));
+      setManualTimeStr("12:00");
     } else {
       setManualDateStr(defaultDate ? toLocalDateString(defaultDate) : "");
       setManualTimeStr("12:00");
@@ -320,7 +370,8 @@ export function VoiceCaptureFlow({
     setLoading(true);
     try {
       const category = categories.find((c) => c.id === catId);
-      const isTask = category?.kind === "TASK";
+      const isAlert = isCategoryAlert(category);
+      const isTask = category?.kind === "TASK" && !isAlert;
       const finalTitle =
         titleStr !== undefined
           ? titleStr && titleStr.trim()
@@ -330,17 +381,31 @@ export function VoiceCaptureFlow({
             ? manualTitle.trim()
             : null;
 
+      let finalOccurredAt = occurredAtStr;
+      if (isAlert && !finalOccurredAt) {
+        const [h, m] = (manualTimeStr || "12:00")
+          .split(":")
+          .map((v) => parseInt(v, 10) || 0);
+        const now = new Date();
+        now.setHours(h, m, 0, 0);
+        finalOccurredAt = now.toISOString();
+      }
+
+      const finalRemEnabled = isAlert ? true : (remEnabled ?? null);
+      const finalRemOffsetMins = isAlert ? 0 : (remOffsetMins ?? null);
+      const finalRemOffsetsMins = isAlert ? [0] : (remOffsetsMins ?? null);
+
       const entry = await createLocalEntry(db, userId, {
         category_id: catId,
         title: finalTitle,
         content: contentStr,
-        occurred_at: occurredAtStr,
+        occurred_at: finalOccurredAt,
         task_status: isTask ? "PENDING" : null,
         task_recurrence: isTask ? "ONCE" : null,
         task_priority: isTask ? (priority ?? manualPriority ?? "MEDIUM") : null,
-        reminder_enabled: remEnabled ?? null,
-        reminder_offset_minutes: remOffsetMins ?? null,
-        reminder_offsets_minutes: remOffsetsMins ?? null,
+        reminder_enabled: finalRemEnabled,
+        reminder_offset_minutes: finalRemOffsetMins,
+        reminder_offsets_minutes: finalRemOffsetsMins,
         tag_ids: tagIdList,
       });
 
@@ -819,7 +884,7 @@ export function VoiceCaptureFlow({
                     styles.chip,
                     manualCategoryId === cat.id && styles.chipActive,
                   ]}
-                  onPress={() => setManualCategoryId(cat.id)}
+                  onPress={() => handleSelectCategory(cat.id)}
                 >
                   <Text
                     style={[
@@ -833,48 +898,69 @@ export function VoiceCaptureFlow({
               ))}
             </View>
 
-            {categories.find((c) => c.id === manualCategoryId)?.kind ===
-              "TASK" && (
-              <>
-                <Text style={styles.label}>⚡ Prioridad de la Tarea</Text>
-                <View style={styles.chipsRow}>
-                  {(
-                    [
-                      {
-                        id: "HIGH",
-                        label: "🔴 Alta",
-                        testId: "voice-prio-high",
-                      },
-                      {
-                        id: "MEDIUM",
-                        label: "🟡 Media",
-                        testId: "voice-prio-med",
-                      },
-                      { id: "LOW", label: "🔵 Baja", testId: "voice-prio-low" },
-                    ] as const
-                  ).map((p) => (
-                    <Pressable
-                      key={p.id}
-                      testID={p.testId}
-                      style={[
-                        styles.chip,
-                        manualPriority === p.id && styles.chipActive,
-                      ]}
-                      onPress={() => setManualPriority(p.id)}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          manualPriority === p.id && styles.chipTextActive,
-                        ]}
-                      >
-                        {p.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </>
+            {isCategoryAlert(
+              categories.find((c) => c.id === manualCategoryId),
+            ) && (
+              <View
+                style={styles.alertNoticeBox}
+                testID="voice-alert-reminder-notice"
+              >
+                <Text style={styles.alertNoticeText}>
+                  🔔 Alarma automática a la hora exacta configurada (sin
+                  antelación)
+                </Text>
+              </View>
             )}
+
+            {categories.find((c) => c.id === manualCategoryId)?.kind ===
+              "TASK" &&
+              !isCategoryAlert(
+                categories.find((c) => c.id === manualCategoryId),
+              ) && (
+                <>
+                  <Text style={styles.label}>⚡ Prioridad de la Tarea</Text>
+                  <View style={styles.chipsRow}>
+                    {(
+                      [
+                        {
+                          id: "HIGH",
+                          label: "🔴 Alta",
+                          testId: "voice-prio-high",
+                        },
+                        {
+                          id: "MEDIUM",
+                          label: "🟡 Media",
+                          testId: "voice-prio-med",
+                        },
+                        {
+                          id: "LOW",
+                          label: "🔵 Baja",
+                          testId: "voice-prio-low",
+                        },
+                      ] as const
+                    ).map((p) => (
+                      <Pressable
+                        key={p.id}
+                        testID={p.testId}
+                        style={[
+                          styles.chip,
+                          manualPriority === p.id && styles.chipActive,
+                        ]}
+                        onPress={() => setManualPriority(p.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            manualPriority === p.id && styles.chipTextActive,
+                          ]}
+                        >
+                          {p.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
 
             <Text style={styles.label}>📅 Ajuste de Fecha y Hora</Text>
             <View style={styles.datePresetRow}>
@@ -925,69 +1011,37 @@ export function VoiceCaptureFlow({
 
             {Platform.OS === "web" ? (
               <View style={styles.dateTimeInputsRow}>
-                <View
-                  style={{
-                    flex: 2,
-                    flexBasis: 140,
-                    minWidth: 0,
-                    maxWidth: "100%",
-                  }}
-                >
+                <View style={styles.pickerField}>
                   <Text style={styles.subInputLabel}>
                     📅 Fecha (Calendario):
                   </Text>
-                  {React.createElement("input", {
-                    type: "date",
-                    value: manualDateStr,
-                    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-                      setManualDateStr(e.target.value),
-                    style: {
-                      backgroundColor: "#0f172a",
-                      color: "#ffffff",
-                      border: "1px solid rgba(255, 255, 255, 0.2)",
-                      borderRadius: "8px",
-                      padding: "10px 14px",
-                      fontSize: "15px",
-                      fontFamily: "inherit",
-                      colorScheme: "dark",
-                      outline: "none",
-                      width: "100%",
-                      minWidth: 0,
-                      boxSizing: "border-box",
-                      cursor: "pointer",
-                    },
-                  })}
+                  <View style={{ position: "relative", width: "100%" }}>
+                    {React.createElement("input", {
+                      type: "date",
+                      value: manualDateStr,
+                      onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                        setManualDateStr(e.target.value),
+                      style: webPickerInputStyle,
+                    })}
+                    {!manualDateStr && (
+                      <Text
+                        style={styles.webDatePlaceholder}
+                        pointerEvents="none"
+                      >
+                        Seleccionar fecha...
+                      </Text>
+                    )}
+                  </View>
                 </View>
 
-                <View
-                  style={{
-                    flex: 1,
-                    flexBasis: 110,
-                    minWidth: 0,
-                    maxWidth: "100%",
-                  }}
-                >
+                <View style={styles.pickerField}>
                   <Text style={styles.subInputLabel}>⏰ Hora (Reloj):</Text>
                   {React.createElement("input", {
                     type: "time",
                     value: manualTimeStr,
                     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
                       setManualTimeStr(e.target.value),
-                    style: {
-                      backgroundColor: "#0f172a",
-                      color: "#ffffff",
-                      border: "1px solid rgba(255, 255, 255, 0.2)",
-                      borderRadius: "8px",
-                      padding: "10px 14px",
-                      fontSize: "15px",
-                      fontFamily: "inherit",
-                      colorScheme: "dark",
-                      outline: "none",
-                      width: "100%",
-                      minWidth: 0,
-                      boxSizing: "border-box",
-                      cursor: "pointer",
-                    },
+                    style: webPickerInputStyle,
                   })}
                 </View>
 
@@ -1558,7 +1612,39 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     marginBottom: 10,
-    flexWrap: "wrap",
+    width: "100%",
+    alignItems: "flex-start",
+  },
+  pickerField: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: "100%",
+  },
+  webDatePlaceholder: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    textAlign: "center",
+    lineHeight: 44,
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  alertNoticeBox: {
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderColor: "rgba(245, 158, 11, 0.35)",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  alertNoticeText: {
+    color: "#fbbf24",
+    fontSize: 12,
+    fontWeight: "600",
   },
   subInputLabel: {
     color: "#64748B",

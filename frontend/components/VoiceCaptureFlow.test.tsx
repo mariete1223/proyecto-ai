@@ -1,9 +1,10 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
-import { createLocalCategory } from "../db/categories";
+import { createLocalCategory, listCategories } from "../db/categories";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
 import { listLocalEntries } from "../db/entries";
 import { createLocalTag } from "../db/tags";
+import { toLocalDateString } from "../types/domain";
 import { VoiceCaptureFlow } from "./VoiceCaptureFlow";
 
 describe("VoiceCaptureFlow Component (Task 31)", () => {
@@ -23,6 +24,12 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       name: "Tareas",
       voice_command: "tarea",
       kind: "TASK",
+    });
+
+    await createLocalCategory(db, userId, {
+      name: "Alerta",
+      voice_command: "alerta",
+      kind: "STANDARD",
     });
 
     await createLocalTag(db, userId, { name: "Urgente" });
@@ -626,5 +633,124 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
     expect(queryByTestId("btn-parse-transcript")).toBeNull();
     expect(queryByTestId("secondary-controls-row")).toBeNull();
     expect(queryByText("🔄 Limpiar")).toBeNull();
+  });
+
+  describe("Issue #96: Date inputs alignment & Alerta automatic alarms", () => {
+    it("pre-populates date to today, shows alert notice and hides task priority for Alerta", async () => {
+      const { getByTestId, findByTestId, queryByTestId, queryByText } =
+        await render(
+          <VoiceCaptureFlow
+            db={db}
+            userId={userId}
+            saveMode="PREVIEW_BEFORE_SAVE"
+          />,
+        );
+
+      await act(async () => {
+        fireEvent.changeText(
+          getByTestId("input-transcript"),
+          "alerta comprar medicina",
+        );
+      });
+
+      await act(async () => {
+        fireEvent.press(getByTestId("btn-stop-listening"));
+      });
+
+      expect(await findByTestId("correction-section")).toBeTruthy();
+
+      // Date input should be pre-populated with today's date
+      const todayStr = toLocalDateString(new Date());
+      expect(getByTestId("input-manual-date").props.value).toBe(todayStr);
+
+      // Alert notice should be visible
+      expect(getByTestId("voice-alert-reminder-notice")).toBeTruthy();
+
+      // Task priority should not be shown for Alerta
+      expect(queryByText("⚡ Prioridad de la Tarea")).toBeNull();
+      expect(queryByTestId("voice-prio-high")).toBeNull();
+    });
+
+    it("automatically saves Alerta with reminder_enabled=true and offset=0", async () => {
+      const onCreatedMock = jest.fn();
+      const { getByTestId, findByTestId } = await render(
+        <VoiceCaptureFlow
+          db={db}
+          userId={userId}
+          saveMode="PREVIEW_BEFORE_SAVE"
+          onEntryCreated={onCreatedMock}
+        />,
+      );
+
+      await act(async () => {
+        fireEvent.changeText(
+          getByTestId("input-transcript"),
+          "alerta sonar alarma",
+        );
+      });
+
+      await act(async () => {
+        fireEvent.press(getByTestId("btn-stop-listening"));
+      });
+
+      expect(await findByTestId("correction-section")).toBeTruthy();
+
+      await act(async () => {
+        fireEvent.press(getByTestId("btn-save-corrected-entry"));
+      });
+
+      await waitFor(() => {
+        expect(onCreatedMock).toHaveBeenCalledTimes(1);
+      });
+
+      const entries = await listLocalEntries(db, userId);
+      const alertEntry = entries.find((e) => e.content === "sonar alarma");
+      expect(alertEntry).toBeDefined();
+      expect(alertEntry!.reminder_enabled).toBe(true);
+      expect(alertEntry!.reminder_offset_minutes).toBe(0);
+      expect(alertEntry!.task_status).toBeNull();
+      expect(alertEntry!.task_priority).toBeNull();
+    });
+
+    it("pre-populates date to today when user taps Alerta chip if date was empty", async () => {
+      const { getByTestId, findByTestId } = await render(
+        <VoiceCaptureFlow
+          db={db}
+          userId={userId}
+          saveMode="PREVIEW_BEFORE_SAVE"
+        />,
+      );
+
+      await act(async () => {
+        fireEvent.changeText(
+          getByTestId("input-transcript"),
+          "nota contenido sin fecha",
+        );
+      });
+
+      await act(async () => {
+        fireEvent.press(getByTestId("btn-stop-listening"));
+      });
+
+      expect(await findByTestId("correction-section")).toBeTruthy();
+
+      // Initially empty date for Nota without spoken date
+      expect(getByTestId("input-manual-date").props.value).toBe("");
+
+      // Find the Alerta chip
+      const categoriesList = await listCategories(db, userId);
+      const alertaCat = categoriesList.find((c) => c.name === "Alerta");
+      expect(alertaCat).toBeDefined();
+
+      // Tap Alerta category chip
+      await act(async () => {
+        fireEvent.press(getByTestId(`cat-chip-${alertaCat!.id}`));
+      });
+
+      // Date should now be automatically set to today!
+      const todayStr = toLocalDateString(new Date());
+      expect(getByTestId("input-manual-date").props.value).toBe(todayStr);
+      expect(getByTestId("voice-alert-reminder-notice")).toBeTruthy();
+    });
   });
 });

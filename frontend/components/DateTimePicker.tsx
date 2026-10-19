@@ -119,7 +119,7 @@ export function DateTimePicker({
     color: "#ffffff",
     border: "1px solid rgba(56, 189, 248, 0.35)",
     borderRadius: "8px",
-    padding: "8px 10px",
+    padding: "0 10px",
     fontSize: "14px",
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
@@ -129,10 +129,14 @@ export function DateTimePicker({
     width: "100%",
     minWidth: 0,
     maxWidth: "100%",
+    height: "44px",
+    minHeight: "44px",
+    maxHeight: "44px",
+    lineHeight: "44px",
     boxSizing: "border-box",
     cursor: "pointer",
     textAlign: "center",
-    minHeight: "42px",
+    WebkitAppearance: "none",
   };
 
   return (
@@ -179,13 +183,20 @@ export function DateTimePicker({
         <View style={styles.pickersRowWeb}>
           <View style={styles.pickerField}>
             <Text style={styles.pickerSubLabel}>📅 Fecha (Calendario):</Text>
-            {React.createElement("input", {
-              type: "date",
-              value: dateStr,
-              onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-                emitChange(e.target.value, timeStr),
-              style: webInputStyle,
-            })}
+            <View style={{ position: "relative", width: "100%" }}>
+              {React.createElement("input", {
+                type: "date",
+                value: dateStr,
+                onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                  emitChange(e.target.value, timeStr),
+                style: webInputStyle,
+              })}
+              {!dateStr && (
+                <Text style={styles.webDatePlaceholder} pointerEvents="none">
+                  Seleccionar fecha...
+                </Text>
+              )}
+            </View>
           </View>
 
           <View style={styles.pickerField}>
@@ -325,5 +336,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     textTransform: "capitalize",
+  },
+  webDatePlaceholder: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    textAlign: "center",
+    lineHeight: 44,
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "500",
   },
 });

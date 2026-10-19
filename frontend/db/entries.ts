@@ -475,8 +475,9 @@ export async function updateLocalEntry(
   const now = new Date().toISOString();
   const newVersion = existing.version + 1;
 
-  const reminderEnabled =
-    data.reminder_enabled !== undefined
+  const reminderEnabled = isAlertCategory
+    ? true
+    : data.reminder_enabled !== undefined
       ? data.reminder_enabled
       : (existing.reminder_enabled ?? null);
   const reminderTime =
@@ -491,12 +492,14 @@ export async function updateLocalEntry(
     data.reminder_recurrence !== undefined
       ? data.reminder_recurrence
       : (existing.reminder_recurrence ?? null);
-  const reminderOffsetMinutes =
-    data.reminder_offset_minutes !== undefined
+  const reminderOffsetMinutes = isAlertCategory
+    ? 0
+    : data.reminder_offset_minutes !== undefined
       ? data.reminder_offset_minutes
       : (existing.reminder_offset_minutes ?? null);
-  const reminderOffsetsMinutes =
-    data.reminder_offsets_minutes !== undefined
+  const reminderOffsetsMinutes = isAlertCategory
+    ? [0]
+    : data.reminder_offsets_minutes !== undefined
       ? data.reminder_offsets_minutes
       : (existing.reminder_offsets_minutes ?? null);
   const reminderOffsetsStr = reminderOffsetsMinutes

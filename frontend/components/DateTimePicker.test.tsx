@@ -1,5 +1,6 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 import React from "react";
+import { Platform } from "react-native";
 import { DateTimePicker } from "./DateTimePicker";
 
 describe("DateTimePicker Component (#75)", () => {
@@ -32,12 +33,24 @@ describe("DateTimePicker Component (#75)", () => {
       />,
     );
 
-    fireEvent.press(getByTestId("preset-today-18"));
+    await act(async () => {
+      fireEvent.press(getByTestId("preset-today-18"));
+    });
     expect(onChangeMock).toHaveBeenCalled();
     const emittedIso = onChangeMock.mock.calls[0][0];
     expect(emittedIso).toContain("T");
 
-    fireEvent.press(getByTestId("preset-none"));
+    await act(async () => {
+      fireEvent.press(getByTestId("preset-none"));
+    });
     expect(onChangeMock).toHaveBeenLastCalledWith("");
+  });
+
+  it("renders with empty value correctly without errors (#96)", async () => {
+    const { getByTestId, queryByText } = await render(
+      <DateTimePicker value="" onChange={() => {}} />,
+    );
+    expect(getByTestId("preset-none")).toBeTruthy();
+    expect(queryByText("✨")).toBeNull();
   });
 });
