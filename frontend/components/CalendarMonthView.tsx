@@ -22,6 +22,7 @@ import {
   Entry,
   ReminderRecurrence,
   Tag,
+  TaskPriority,
   TaskStatus,
   formatDateTime,
   formatReminderSummary,
@@ -62,6 +63,16 @@ function matchesCalendarDate(
     return origKey.substring(5) === targetDateStr.substring(5);
   }
   return origKey === targetDateStr;
+}
+
+function isCategoryAlert(cat?: Category | null): boolean {
+  if (!cat) return false;
+  return (
+    cat.id === "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9" ||
+    cat.name_normalized === "alerta" ||
+    cat.voice_command_normalized === "alerta" ||
+    cat.name?.toLowerCase() === "alerta"
+  );
 }
 
 export const MAX_VISIBLE_CALENDAR_DOTS = 2;
@@ -114,6 +125,8 @@ export function CalendarMonthView({
     useState<boolean>(false);
   const [quickAddReminderOffset, setQuickAddReminderOffset] =
     useState<number>(0);
+  const [quickAddPriority, setQuickAddPriority] =
+    useState<TaskPriority>("MEDIUM");
   const [isCreatingQuickEntry, setIsCreatingQuickEntry] =
     useState<boolean>(false);
 
@@ -239,7 +252,8 @@ export function CalendarMonthView({
       const catId =
         quickAddCatId || (categories.length > 0 ? categories[0].id : "");
       const selectedCategory = categories.find((c) => c.id === catId);
-      const isTask = selectedCategory?.kind === "TASK";
+      const isTask =
+        selectedCategory?.kind === "TASK" && !isCategoryAlert(selectedCategory);
 
       const [y, m, d] = selectedDayEntries.dateStr.split("-").map(Number);
       const [hh, mm] = (quickAddTime || "12:00").split(":").map(Number);
@@ -253,7 +267,7 @@ export function CalendarMonthView({
         occurred_at: occurredAtIso,
         task_status: isTask ? "PENDING" : null,
         task_recurrence: isTask ? "ONCE" : null,
-        task_priority: isTask ? "MEDIUM" : null,
+        task_priority: isTask ? quickAddPriority : null,
         reminder_enabled: quickAddReminderEnabled,
         reminder_offset_minutes: quickAddReminderOffset,
         reminder_recurrence: "NONE",
@@ -280,7 +294,9 @@ export function CalendarMonthView({
       setQuickAddTitle("");
       setQuickAddContent("");
       setQuickAddTime("12:00");
+      setQuickAddPriority("MEDIUM");
       setQuickAddReminderEnabled(false);
+      setQuickAddReminderOffset(0);
       setIsCreatingQuickEntry(false);
       showToast("✨ ¡Nueva entrada creada en este día!");
       onEntryUpdated?.();
@@ -672,9 +688,20 @@ export function CalendarMonthView({
                 ]}
                 onPress={() => {
                   setShowQuickVoice(false);
-                  setShowQuickAddForm((prev) => !prev);
-                  if (categories.length > 0 && !quickAddCatId) {
+                  const nextShow = !showQuickAddForm;
+                  setShowQuickAddForm(nextShow);
+                  const targetCatId =
+                    quickAddCatId ||
+                    (categories.length > 0 ? categories[0].id : "");
+                  if (!quickAddCatId && categories.length > 0) {
                     setQuickAddCatId(categories[0].id);
+                  }
+                  if (nextShow) {
+                    const selCat = categories.find((c) => c.id === targetCatId);
+                    if (isCategoryAlert(selCat)) {
+                      setQuickAddReminderEnabled(true);
+                      setQuickAddReminderOffset(0);
+                    }
                   }
                 }}
               >
@@ -777,7 +804,22 @@ export function CalendarMonthView({
                           borderColor: c.color || "#38BDF8",
                         },
                       ]}
-                      onPress={() => setQuickAddCatId(c.id)}
+                      onPress={() => {
+                        const prevCat = categories.find(
+                          (cat) =>
+                            cat.id === (quickAddCatId || categories[0]?.id),
+                        );
+                        setQuickAddCatId(c.id);
+                        if (isCategoryAlert(c)) {
+                          setQuickAddReminderEnabled(true);
+                          setQuickAddReminderOffset(0);
+                        } else if (isCategoryAlert(prevCat)) {
+                          setQuickAddReminderEnabled(false);
+                        }
+                        if (c.kind === "TASK" && !isCategoryAlert(c)) {
+                          setQuickAddPriority("MEDIUM");
+                        }
+                      }}
                     >
                       <Text
                         style={[
@@ -791,6 +833,54 @@ export function CalendarMonthView({
                   );
                 })}
               </View>
+
+              {(() => {
+                const activeCat = categories.find(
+                  (c) => c.id === (quickAddCatId || categories[0]?.id),
+                );
+                const isQuickCatTask =
+                  activeCat?.kind === "TASK" && !isCategoryAlert(activeCat);
+                if (!isQuickCatTask) return null;
+                return (
+                  <View style={styles.quickAddPriorityRow}>
+                    <Text style={styles.quickAddSublabel}>Prioridad:</Text>
+                    <View style={styles.quickAddPriorityChips}>
+                      {[
+                        { id: "HIGH", label: "🔴 Alta", color: "#EF4444" },
+                        { id: "MEDIUM", label: "🟡 Media", color: "#F59E0B" },
+                        { id: "LOW", label: "🔵 Baja", color: "#3B82F6" },
+                      ].map((p) => {
+                        const isSel = quickAddPriority === p.id;
+                        return (
+                          <Pressable
+                            key={p.id}
+                            testID={`quick-add-priority-${p.id}`}
+                            style={[
+                              styles.quickPriorityChip,
+                              isSel && {
+                                borderColor: p.color,
+                                backgroundColor: `${p.color}25`,
+                              },
+                            ]}
+                            onPress={() =>
+                              setQuickAddPriority(p.id as TaskPriority)
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.quickPriorityChipText,
+                                isSel && { color: p.color, fontWeight: "700" },
+                              ]}
+                            >
+                              {p.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })()}
 
               <TextInput
                 testID="input-quick-add-title"
@@ -847,6 +937,7 @@ export function CalendarMonthView({
                 onPress={() => setQuickAddReminderEnabled((prev) => !prev)}
               >
                 <View
+                  testID="checkbox-quick-add-reminder"
                   style={[
                     styles.quickCheckbox,
                     quickAddReminderEnabled && styles.quickCheckboxChecked,
@@ -1950,6 +2041,26 @@ const styles = StyleSheet.create({
   quickAddCatChipText: {
     color: "#94A3B8",
     fontSize: 12,
+  },
+  quickAddPriorityRow: {
+    gap: 6,
+  },
+  quickAddPriorityChips: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  quickPriorityChip: {
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  quickPriorityChipText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
   },
   quickAddInput: {
     backgroundColor: "#0F172A",
