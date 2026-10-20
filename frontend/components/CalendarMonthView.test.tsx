@@ -547,6 +547,45 @@ describe("CalendarMonthView Component (Task 35)", () => {
     expect(getByTestId(`btn-toggle-task-${createdTask.id}`)).toBeTruthy();
   });
 
+  it("automatically displays today's entries when opening/entering calendar view (#102)", async () => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    const todayStr = `${y}-${m}-${d}`;
+
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      title: "Reunión de Hoy Automática",
+      content: "Contenido para validar auto-selección de hoy",
+      occurred_at: today.toISOString(),
+    });
+
+    const { getByTestId, getByText, queryByTestId } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={today} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId(`day-cell-${todayStr}`)).toBeTruthy();
+      expect(getByTestId("day-detail-panel")).toBeTruthy();
+      expect(getByText(`Entradas del ${todayStr}`)).toBeTruthy();
+      expect(getByText(/Reunión de Hoy Automática/)).toBeTruthy();
+      expect(
+        getByText("Contenido para validar auto-selección de hoy"),
+      ).toBeTruthy();
+    });
+
+    // Verify today's cell is marked selected
+    const todayCell = getByTestId(`day-cell-${todayStr}`);
+    expect(todayCell).toBeTruthy();
+
+    // Close button dismisses detail panel
+    fireEvent.press(getByTestId("btn-close-day-detail"));
+    await waitFor(() => {
+      expect(queryByTestId("day-detail-panel")).toBeNull();
+    });
+  });
+
   it("creates a new entry directly on the selected day using inline quick add", async () => {
     const onEntryUpdatedMock = jest.fn();
     const { getByTestId, findByTestId, getByText } = await render(
@@ -594,7 +633,9 @@ describe("CalendarMonthView Component (Task 35)", () => {
       );
     });
 
-    fireEvent.press(getByTestId("btn-submit-quick-add"));
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-submit-quick-add"));
+    });
 
     await waitFor(() => {
       expect(onEntryUpdatedMock).toHaveBeenCalled();

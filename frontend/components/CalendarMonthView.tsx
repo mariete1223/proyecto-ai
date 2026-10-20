@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -73,6 +73,7 @@ export function CalendarMonthView({
     dateStr: string;
     items: Entry[];
   } | null>(null);
+  const hasAutoSelectedToday = useRef(false);
   const [editingTitleEntryId, setEditingTitleEntryId] = useState<string | null>(
     null,
   );
@@ -382,8 +383,29 @@ export function CalendarMonthView({
           setCategories(cats);
           setTags(tagList);
           setEntries(fetchedEntries);
+
+          const shouldAutoSelectToday = !hasAutoSelectedToday.current;
+          if (shouldAutoSelectToday) {
+            hasAutoSelectedToday.current = true;
+          }
+
+          const todayStr = toLocalDateString();
+          const curMonthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+
           setSelectedDayEntries((prev) => {
-            if (!prev) return null;
+            if (!prev) {
+              if (
+                shouldAutoSelectToday &&
+                todayStr.startsWith(curMonthPrefix)
+              ) {
+                const todayItems = fetchedEntries.filter((e) => {
+                  if (!e.occurred_at) return false;
+                  return getEntryDateKey(e.occurred_at) === todayStr;
+                });
+                return { dateStr: todayStr, items: todayItems };
+              }
+              return null;
+            }
             const updatedItems = fetchedEntries.filter((e) => {
               if (!e.occurred_at) return false;
               return getEntryDateKey(e.occurred_at) === prev.dateStr;
