@@ -41,6 +41,8 @@ function parseValue(val: string) {
   return { date: "", time: "12:00" };
 }
 
+type PresetType = "NOW" | "TODAY_18" | "TOMORROW_9" | "NONE" | null;
+
 export function DateTimePicker({
   value,
   onChange,
@@ -48,8 +50,43 @@ export function DateTimePicker({
   testID = "input-date",
 }: DateTimePickerProps) {
   const { date: dateStr, time: timeStr } = parseValue(value);
+  const [activePreset, setActivePreset] = React.useState<PresetType>(() => {
+    if (!value) return "NONE";
+    return null;
+  });
 
-  const emitChange = (newDate: string, newTime: string) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const todayDateStr = `${year}-${month}-${day}`;
+
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomYear = tomorrow.getFullYear();
+  const tomMonth = String(tomorrow.getMonth() + 1).padStart(2, "0");
+  const tomDay = String(tomorrow.getDate()).padStart(2, "0");
+  const tomorrowDateStr = `${tomYear}-${tomMonth}-${tomDay}`;
+
+  const isNone = !dateStr;
+  const isNow = !isNone && activePreset === "NOW" && dateStr === todayDateStr;
+  const isToday18 =
+    !isNone &&
+    !isNow &&
+    (activePreset === "TODAY_18" ||
+      (dateStr === todayDateStr && timeStr === "18:00"));
+  const isTomorrow9 =
+    !isNone &&
+    !isNow &&
+    (activePreset === "TOMORROW_9" ||
+      (dateStr === tomorrowDateStr && timeStr === "09:00"));
+
+  const emitChange = (
+    newDate: string,
+    newTime: string,
+    presetOrigin?: PresetType,
+  ) => {
+    setActivePreset(presetOrigin !== undefined ? presetOrigin : null);
     if (!newDate) {
       onChange("");
     } else {
@@ -63,36 +100,38 @@ export function DateTimePicker({
   };
 
   const handleSetNow = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    const hours = String(now.getHours()).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-    const d = `${year}-${month}-${day}`;
-    const t = `${hours}:${minutes}`;
-    emitChange(d, t);
+    const curNow = new Date();
+    const curYear = curNow.getFullYear();
+    const curMonth = String(curNow.getMonth() + 1).padStart(2, "0");
+    const curDay = String(curNow.getDate()).padStart(2, "0");
+    const hours = String(curNow.getHours()).padStart(2, "0");
+    const minutes = String(curNow.getMinutes()).padStart(2, "0");
+    emitChange(
+      `${curYear}-${curMonth}-${curDay}`,
+      `${hours}:${minutes}`,
+      "NOW",
+    );
   };
 
   const handleSetToday18 = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    emitChange(`${year}-${month}-${day}`, "18:00");
+    const curNow = new Date();
+    const curYear = curNow.getFullYear();
+    const curMonth = String(curNow.getMonth() + 1).padStart(2, "0");
+    const curDay = String(curNow.getDate()).padStart(2, "0");
+    emitChange(`${curYear}-${curMonth}-${curDay}`, "18:00", "TODAY_18");
   };
 
   const handleSetTomorrow9 = () => {
-    const now = new Date();
-    now.setDate(now.getDate() + 1);
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    emitChange(`${year}-${month}-${day}`, "09:00");
+    const curNow = new Date();
+    curNow.setDate(curNow.getDate() + 1);
+    const curYear = curNow.getFullYear();
+    const curMonth = String(curNow.getMonth() + 1).padStart(2, "0");
+    const curDay = String(curNow.getDate()).padStart(2, "0");
+    emitChange(`${curYear}-${curMonth}-${curDay}`, "09:00", "TOMORROW_9");
   };
 
   const handleClear = () => {
-    emitChange("", "");
+    emitChange("", "", "NONE");
   };
 
   const getFormattedLabel = () => {
@@ -146,35 +185,67 @@ export function DateTimePicker({
       {/* Quick Presets */}
       <View style={styles.presetRow} testID="date-presets">
         <Pressable
-          style={styles.presetChip}
+          style={[styles.presetChip, isNow && styles.presetChipActive]}
           onPress={handleSetNow}
           testID="preset-now"
         >
-          <Text style={styles.presetChipText}>⚡ Ahora</Text>
+          <Text
+            style={[
+              styles.presetChipText,
+              isNow && styles.presetChipTextActive,
+            ]}
+          >
+            ⚡ Ahora
+          </Text>
         </Pressable>
 
         <Pressable
-          style={styles.presetChip}
+          style={[styles.presetChip, isToday18 && styles.presetChipActive]}
           onPress={handleSetToday18}
           testID="preset-today-18"
         >
-          <Text style={styles.presetChipText}>📅 Hoy 18:00</Text>
+          <Text
+            style={[
+              styles.presetChipText,
+              isToday18 && styles.presetChipTextActive,
+            ]}
+          >
+            📅 Hoy 18:00
+          </Text>
         </Pressable>
 
         <Pressable
-          style={styles.presetChip}
+          style={[styles.presetChip, isTomorrow9 && styles.presetChipActive]}
           onPress={handleSetTomorrow9}
           testID="preset-tomorrow-9"
         >
-          <Text style={styles.presetChipText}>🌅 Mañana 09:00</Text>
+          <Text
+            style={[
+              styles.presetChipText,
+              isTomorrow9 && styles.presetChipTextActive,
+            ]}
+          >
+            🌅 Mañana 09:00
+          </Text>
         </Pressable>
 
         <Pressable
-          style={[styles.presetChip, !dateStr && styles.presetChipActive]}
+          style={[
+            styles.presetChip,
+            isNone && styles.presetChipActive,
+            isNone && styles.presetChipActiveDanger,
+          ]}
           onPress={handleClear}
           testID="preset-none"
         >
-          <Text style={styles.presetChipText}>❌ Sin Fecha</Text>
+          <Text
+            style={[
+              styles.presetChipText,
+              isNone && styles.presetChipTextActiveDanger,
+            ]}
+          >
+            ❌ Sin Fecha
+          </Text>
         </Pressable>
       </View>
 
@@ -285,6 +356,10 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   presetChipActive: {
+    borderColor: "#38BDF8",
+    backgroundColor: "rgba(56, 189, 248, 0.2)",
+  },
+  presetChipActiveDanger: {
     borderColor: theme.colors.danger,
     backgroundColor: "rgba(239, 68, 68, 0.15)",
   },
@@ -292,6 +367,14 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: 13,
     fontWeight: "600",
+  },
+  presetChipTextActive: {
+    color: "#38BDF8",
+    fontWeight: "700",
+  },
+  presetChipTextActiveDanger: {
+    color: theme.colors.danger,
+    fontWeight: "700",
   },
   pickersRowWeb: {
     flexDirection: "row",

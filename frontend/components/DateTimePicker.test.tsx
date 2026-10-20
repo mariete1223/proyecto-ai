@@ -1,6 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { DateTimePicker } from "./DateTimePicker";
 
 describe("DateTimePicker Component (#75)", () => {
@@ -52,5 +52,65 @@ describe("DateTimePicker Component (#75)", () => {
     );
     expect(getByTestId("preset-none")).toBeTruthy();
     expect(queryByText("✨")).toBeNull();
+  });
+
+  it("applies active styles when presets are selected (#101)", async () => {
+    let currentValue = "";
+    const onChangeMock = jest.fn((val: string) => {
+      currentValue = val;
+    });
+
+    const { getByTestId, rerender } = await render(
+      <DateTimePicker value={currentValue} onChange={onChangeMock} />,
+    );
+
+    // Initial state with empty value: preset-none is active
+    let noneStyle = StyleSheet.flatten(getByTestId("preset-none").props.style);
+    expect(noneStyle.borderColor).toBe("#ef4444");
+
+    // Press 'Ahora'
+    await act(async () => {
+      fireEvent.press(getByTestId("preset-now"));
+    });
+    expect(onChangeMock).toHaveBeenCalled();
+    await rerender(
+      <DateTimePicker value={currentValue} onChange={onChangeMock} />,
+    );
+    let nowStyle = StyleSheet.flatten(getByTestId("preset-now").props.style);
+    expect(nowStyle.borderColor).toBe("#38BDF8");
+
+    // Press 'Hoy 18:00'
+    await act(async () => {
+      fireEvent.press(getByTestId("preset-today-18"));
+    });
+    await rerender(
+      <DateTimePicker value={currentValue} onChange={onChangeMock} />,
+    );
+    let today18Style = StyleSheet.flatten(
+      getByTestId("preset-today-18").props.style,
+    );
+    expect(today18Style.borderColor).toBe("#38BDF8");
+
+    // Press 'Mañana 09:00'
+    await act(async () => {
+      fireEvent.press(getByTestId("preset-tomorrow-9"));
+    });
+    await rerender(
+      <DateTimePicker value={currentValue} onChange={onChangeMock} />,
+    );
+    let tomorrow9Style = StyleSheet.flatten(
+      getByTestId("preset-tomorrow-9").props.style,
+    );
+    expect(tomorrow9Style.borderColor).toBe("#38BDF8");
+
+    // Press 'Sin Fecha'
+    await act(async () => {
+      fireEvent.press(getByTestId("preset-none"));
+    });
+    await rerender(
+      <DateTimePicker value={currentValue} onChange={onChangeMock} />,
+    );
+    noneStyle = StyleSheet.flatten(getByTestId("preset-none").props.style);
+    expect(noneStyle.borderColor).toBe("#ef4444");
   });
 });
