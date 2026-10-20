@@ -613,6 +613,8 @@ class NotificationService {
       baseDate.setDate(baseDate.getDate() + 7);
     } else if (rec === "MONTHLY") {
       baseDate.setMonth(baseDate.getMonth() + 1);
+    } else if (rec === "YEARLY") {
+      baseDate.setFullYear(baseDate.getFullYear() + 1);
     } else {
       this.activeTimers.delete(entry.id);
       return;

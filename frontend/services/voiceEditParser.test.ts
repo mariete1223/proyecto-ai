@@ -176,6 +176,18 @@ describe("voiceEditParser (#68)", () => {
     );
   });
 
+  it("extracts yearly recurrence when saying 'poner recordatorio anual' (#103)", () => {
+    const res = parseVoiceEditCommand(
+      "poner recordatorio anual",
+      baseEntry,
+      refDate,
+    );
+    expect(res.hasChanges).toBe(true);
+    expect(res.changes.reminder_enabled).toBe(true);
+    expect(res.changes.reminder_recurrence).toBe("YEARLY");
+    expect(res.actions).toContain("Frecuencia: anual");
+  });
+
   it("returns hasChanges false when no edit command is recognized", () => {
     const res = parseVoiceEditCommand(
       "hola buenos días cómo estás",

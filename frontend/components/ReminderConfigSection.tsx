@@ -155,6 +155,12 @@ export function ReminderConfigSection({
       description:
         "Aviso mensual. Sonará cada mes el mismo día a la hora fijada hasta la fecha final.",
     },
+    {
+      label: "Anual (todos los años)",
+      value: "YEARLY",
+      description:
+        "Ocurre todos los años. Se mostrará en el calendario y sonará cada año en el mismo día y mes.",
+    },
   ];
 
   const standardRecurrenceValues = [
@@ -167,6 +173,7 @@ export function ReminderConfigSection({
     "DAILY",
     "WEEKLY",
     "MONTHLY",
+    "YEARLY",
   ];
 
   const initialHourMatch = recurrence

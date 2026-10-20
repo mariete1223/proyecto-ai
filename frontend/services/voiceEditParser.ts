@@ -143,11 +143,25 @@ export function parseVoiceEditCommand(
       actions.push(`Frecuencia: cada ${hrs} horas`);
     } else if (
       /diario|todos los d[ií]as/i.test(lower) &&
-      /aviso|recordatorio/i.test(lower)
+      /(?:aviso|recordatorio|repetir)/i.test(lower)
     ) {
       changes.reminder_enabled = true;
       changes.reminder_recurrence = "DAILY";
       actions.push("Frecuencia: diario");
+    } else if (
+      /semanal|todas las semanas|cada semana/i.test(lower) &&
+      /(?:aviso|recordatorio|repetir)/i.test(lower)
+    ) {
+      changes.reminder_enabled = true;
+      changes.reminder_recurrence = "WEEKLY";
+      actions.push("Frecuencia: semanal");
+    } else if (
+      /anual|todos los a[ñn]os|cada a[ñn]o/i.test(lower) &&
+      /(?:aviso|recordatorio|repetir)/i.test(lower)
+    ) {
+      changes.reminder_enabled = true;
+      changes.reminder_recurrence = "YEARLY";
+      actions.push("Frecuencia: anual");
     }
   }
 

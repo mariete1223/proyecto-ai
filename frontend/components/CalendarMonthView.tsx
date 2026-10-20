@@ -51,6 +51,19 @@ function getEntryDateKey(iso?: string | null): string {
   return toLocalDateString(d);
 }
 
+function matchesCalendarDate(
+  entry: Entry,
+  targetDateStr: string,
+  _currentYear: number,
+): boolean {
+  if (!entry.occurred_at) return false;
+  const origKey = getEntryDateKey(entry.occurred_at);
+  if (entry.reminder_recurrence === "YEARLY") {
+    return origKey.substring(5) === targetDateStr.substring(5);
+  }
+  return origKey === targetDateStr;
+}
+
 export const MAX_VISIBLE_CALENDAR_DOTS = 2;
 
 export function CalendarMonthView({
@@ -109,28 +122,31 @@ export function CalendarMonthView({
     string | null
   >(null);
   const toastTimerRef = React.useRef<any>(null);
+  const isMountedRef = React.useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (toastTimerRef.current) {
         clearTimeout(toastTimerRef.current);
       }
     };
   }, []);
 
-  const showToast = (
-    msg: string,
-    durationMs: number = typeof process !== "undefined" &&
-    process.env?.NODE_ENV === "test"
-      ? 50
-      : 3500,
-  ) => {
+  const showToast = (msg: string, durationMs: number = 3500) => {
+    if (!isMountedRef.current) return;
     setReminderToastMessage(msg);
     if (toastTimerRef.current) {
       clearTimeout(toastTimerRef.current);
     }
+    if (typeof process !== "undefined" && process.env?.NODE_ENV === "test") {
+      return;
+    }
     toastTimerRef.current = setTimeout(() => {
-      setReminderToastMessage((curr) => (curr === msg ? null : curr));
+      if (isMountedRef.current) {
+        setReminderToastMessage((curr) => (curr === msg ? null : curr));
+      }
     }, durationMs);
   };
 
@@ -265,12 +281,14 @@ export function CalendarMonthView({
       setQuickAddContent("");
       setQuickAddTime("12:00");
       setQuickAddReminderEnabled(false);
+      setIsCreatingQuickEntry(false);
       showToast("✨ ¡Nueva entrada creada en este día!");
       onEntryUpdated?.();
     } catch (err) {
       console.error("Error al crear entrada en el calendario:", err);
-    } finally {
-      setIsCreatingQuickEntry(false);
+      if (isMountedRef.current) {
+        setIsCreatingQuickEntry(false);
+      }
     }
   };
 
@@ -369,6 +387,7 @@ export function CalendarMonthView({
         const fetchedEntries = await listLocalEntries(db, userId, {
           start_at: startOfMonth,
           end_at: endOfMonth,
+          include_yearly: true,
           category_ids:
             selectedCategoryIds && selectedCategoryIds.length > 0
               ? selectedCategoryIds
@@ -400,7 +419,7 @@ export function CalendarMonthView({
               ) {
                 const todayItems = fetchedEntries.filter((e) => {
                   if (!e.occurred_at) return false;
-                  return getEntryDateKey(e.occurred_at) === todayStr;
+                  return matchesCalendarDate(e, todayStr, year);
                 });
                 return { dateStr: todayStr, items: todayItems };
               }
@@ -408,7 +427,7 @@ export function CalendarMonthView({
             }
             const updatedItems = fetchedEntries.filter((e) => {
               if (!e.occurred_at) return false;
-              return getEntryDateKey(e.occurred_at) === prev.dateStr;
+              return matchesCalendarDate(e, prev.dateStr, year);
             });
             return { ...prev, items: updatedItems };
           });
@@ -462,10 +481,14 @@ export function CalendarMonthView({
   const entriesByDayMap = new Map<string, Entry[]>();
   entries.forEach((entry) => {
     if (entry.occurred_at) {
-      const dateKey = getEntryDateKey(entry.occurred_at);
-      const existing = entriesByDayMap.get(dateKey) || [];
+      const origDateKey = getEntryDateKey(entry.occurred_at);
+      const targetDateKey =
+        entry.reminder_recurrence === "YEARLY"
+          ? `${year}-${origDateKey.substring(5)}`
+          : origDateKey;
+      const existing = entriesByDayMap.get(targetDateKey) || [];
       existing.push(entry);
-      entriesByDayMap.set(dateKey, existing);
+      entriesByDayMap.set(targetDateKey, existing);
     }
   });
 
@@ -709,13 +732,13 @@ export function CalendarMonthView({
                 saveMode="PREVIEW_BEFORE_SAVE"
                 onEntryCreated={async () => {
                   setShowQuickVoice(false);
-                  const updatedEntries = await listLocalEntries(db, userId);
+                  const updatedEntries = await listLocalEntries(db, userId, {
+                    include_yearly: true,
+                  });
                   setEntries(updatedEntries);
                   if (selectedDayEntries) {
-                    const dayItems = updatedEntries.filter(
-                      (e) =>
-                        getEntryDateKey(e.occurred_at) ===
-                        selectedDayEntries.dateStr,
+                    const dayItems = updatedEntries.filter((e) =>
+                      matchesCalendarDate(e, selectedDayEntries.dateStr, year),
                     );
                     setSelectedDayEntries({
                       dateStr: selectedDayEntries.dateStr,
@@ -878,7 +901,7 @@ export function CalendarMonthView({
                   ]}
                   onPress={() => {
                     if (!quickAddContent.trim() || isCreatingQuickEntry) return;
-                    handleQuickCreateEntry();
+                    return handleQuickCreateEntry();
                   }}
                 >
                   <Text style={styles.quickAddSubmitBtnText}>
@@ -1131,6 +1154,7 @@ export function CalendarMonthView({
                           { id: "EVERY_4_HOURS", label: "Cada 4h" },
                           { id: "DAILY", label: "Diario" },
                           { id: "WEEKLY", label: "Semanal" },
+                          { id: "YEARLY", label: "Anual" },
                         ].map((rec) => (
                           <Pressable
                             key={rec.id}

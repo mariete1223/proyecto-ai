@@ -49,6 +49,7 @@ export interface ListEntryFilters {
   end_at?: string;
   category_ids?: string[];
   tag_ids?: string[];
+  include_yearly?: boolean;
 }
 
 function parseRowReminderOffsets(raw: unknown): number[] | null {
@@ -297,16 +298,20 @@ export async function listLocalEntries(
 
   let filtered = uniqueRows;
 
-  if (filters.start_at) {
-    filtered = filtered.filter(
-      (e) => e.occurred_at && e.occurred_at >= filters.start_at!,
-    );
-  }
-
-  if (filters.end_at) {
-    filtered = filtered.filter(
-      (e) => e.occurred_at && e.occurred_at <= filters.end_at!,
-    );
+  if (filters.start_at || filters.end_at) {
+    filtered = filtered.filter((e) => {
+      if (!e.occurred_at) return false;
+      if (filters.include_yearly && e.reminder_recurrence === "YEARLY") {
+        return true;
+      }
+      if (filters.start_at && e.occurred_at < filters.start_at) {
+        return false;
+      }
+      if (filters.end_at && e.occurred_at > filters.end_at) {
+        return false;
+      }
+      return true;
+    });
   }
 
   if (filters.category_ids && filters.category_ids.length > 0) {

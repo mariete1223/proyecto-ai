@@ -66,6 +66,8 @@ def check_and_send_due_reminders(db: Session) -> int:
                     delta = timedelta(days=7)
                 elif rec == "MONTHLY":
                     delta = timedelta(days=30)
+                elif rec == "YEARLY":
+                    delta = timedelta(days=365)
 
                 if delta is not None:
                     next_trigger = (entry.reminder_time or trigger_dt) + delta
@@ -160,6 +162,8 @@ def check_and_send_due_reminders(db: Session) -> int:
                 delta = timedelta(days=7)
             elif rec == "MONTHLY":
                 delta = timedelta(days=30)
+            elif rec == "YEARLY":
+                delta = timedelta(days=365)
 
             if delta is not None:
                 next_trigger = (entry.reminder_time or trigger_dt) + delta

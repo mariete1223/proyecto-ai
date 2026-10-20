@@ -232,15 +232,24 @@ describe("CalendarMonthView Component (Task 35)", () => {
     expect(queryByText("✕ Cancelar")).toBeNull();
 
     // Open quick voice flow for the day
-    fireEvent.press(getByTestId("btn-quick-voice-add"));
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-quick-voice-add"));
+    });
     expect(await findByTestId("quick-voice-card")).toBeTruthy();
     expect(getByText(/Dictar para el 2026-09-15/)).toBeTruthy();
+
+    // Settle catalog loading microtasks
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
 
     // Header still has only a single Cerrar button
     expect(queryByText("✕ Cancelar")).toBeNull();
 
     // Close day detail
-    fireEvent.press(getByTestId("btn-close-day-detail"));
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-close-day-detail"));
+    });
     await waitFor(() => {
       expect(queryByText(/Entradas del 2026-09-15/)).toBeNull();
     });
@@ -588,7 +597,7 @@ describe("CalendarMonthView Component (Task 35)", () => {
 
   it("creates a new entry directly on the selected day using inline quick add", async () => {
     const onEntryUpdatedMock = jest.fn();
-    const { getByTestId, findByTestId, getByText } = await render(
+    const { getByTestId, queryByTestId, getByText } = await render(
       <CalendarMonthView
         db={db}
         userId={userId}
@@ -604,8 +613,9 @@ describe("CalendarMonthView Component (Task 35)", () => {
     await act(async () => {
       fireEvent.press(getByTestId("day-cell-2026-09-15"));
     });
-
-    expect(await findByTestId("day-detail-panel")).toBeTruthy();
+    await waitFor(() => {
+      expect(getByTestId("day-detail-panel")).toBeTruthy();
+    });
 
     // Open quick add form
     const quickAddBtn = getByTestId("btn-open-quick-add");
@@ -613,16 +623,20 @@ describe("CalendarMonthView Component (Task 35)", () => {
       fireEvent.press(quickAddBtn);
     });
 
-    expect(getByTestId("quick-add-form-card")).toBeTruthy();
+    await waitFor(() => {
+      expect(getByTestId("quick-add-form-card")).toBeTruthy();
+    });
 
-    fireEvent.changeText(
-      getByTestId("input-quick-add-title"),
-      "Reunión de estrategia",
-    );
-    fireEvent.changeText(
-      getByTestId("input-quick-add-content"),
-      "Discutir roadmap del Q4 con el equipo",
-    );
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-quick-add-title"),
+        "Reunión de estrategia",
+      );
+      fireEvent.changeText(
+        getByTestId("input-quick-add-content"),
+        "Discutir roadmap del Q4 con el equipo",
+      );
+    });
 
     await waitFor(() => {
       expect(getByTestId("input-quick-add-title").props.value).toBe(
@@ -639,6 +653,8 @@ describe("CalendarMonthView Component (Task 35)", () => {
 
     await waitFor(() => {
       expect(onEntryUpdatedMock).toHaveBeenCalled();
+      expect(queryByTestId("quick-add-form-card")).toBeNull();
+      expect(getByText(/Reunión de estrategia/)).toBeTruthy();
     });
 
     const allEntries = await listLocalEntries(db, userId);

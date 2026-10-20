@@ -504,6 +504,57 @@ def test_check_and_send_due_reminders_hourly_cutoff_at_end_time(
     assert entry.reminder_enabled is False
 
 
+def test_check_and_send_due_reminders_yearly_advances_properly(
+    test_db_session: Session,
+    test_user: User,
+    default_category: Category,
+) -> None:
+    now = datetime.now(UTC)
+    entry = Entry(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        category_id=default_category.id,
+        content="Cumpleaños anual",
+        title="Aniversario",
+        occurred_at=now,
+        reminder_enabled=True,
+        reminder_time=now,
+        reminder_recurrence="YEARLY",
+        created_at=now,
+        updated_at=now,
+        version=1,
+    )
+    test_db_session.add(entry)
+
+    sub = PushSubscription(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        endpoint="https://web.push.apple.com/yearly-rec-test",
+        p256dh="key_p256",
+        auth="auth_key",
+        created_at=now,
+        updated_at=now,
+    )
+    test_db_session.add(sub)
+    test_db_session.commit()
+
+    with patch(
+        "app.services.push_worker.send_web_push_detail", return_value=(True, False)
+    ):
+        sent = check_and_send_due_reminders(test_db_session)
+        assert sent == 1
+
+    test_db_session.refresh(entry)
+    assert entry.reminder_enabled is True
+    assert entry.reminder_time is not None
+    entry_rt = (
+        entry.reminder_time
+        if entry.reminder_time.tzinfo
+        else entry.reminder_time.replace(tzinfo=UTC)
+    )
+    assert entry_rt == now + timedelta(days=365)
+
+
 def test_push_worker_window_past_and_expiration(
     test_db_session: Session,
     test_user: User,

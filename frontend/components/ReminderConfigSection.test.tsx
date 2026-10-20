@@ -122,4 +122,27 @@ describe("ReminderConfigSection Component (#67)", () => {
     expect(getByText(/Sonará de forma periódica cada 6 horas/i)).toBeTruthy();
     expect(getByText(/Aviso periódico flexible cada 6 horas/i)).toBeTruthy();
   });
+
+  it("selects yearly preset Anual (todos los años) and triggers onRecurrenceChange with YEARLY (#103)", async () => {
+    const onRecurrenceChangeMock = jest.fn();
+
+    const { getByText } = await render(
+      <ReminderConfigSection
+        enabled={true}
+        onEnabledChange={jest.fn()}
+        reminderTime={baseReminderTime}
+        onReminderTimeChange={jest.fn()}
+        reminderEndTime={baseReminderEndTime}
+        onReminderEndTimeChange={jest.fn()}
+        offsetMinutes={0}
+        onOffsetMinutesChange={jest.fn()}
+        recurrence="NONE"
+        onRecurrenceChange={onRecurrenceChangeMock}
+        occurredAt={baseOccurredAt}
+      />,
+    );
+
+    fireEvent.press(getByText("Anual (todos los años)"));
+    expect(onRecurrenceChangeMock).toHaveBeenCalledWith("YEARLY");
+  });
 });

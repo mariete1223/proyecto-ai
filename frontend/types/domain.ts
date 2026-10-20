@@ -44,6 +44,7 @@ export type ReminderRecurrence =
   | "DAILY"
   | "WEEKLY"
   | "MONTHLY"
+  | "YEARLY"
   | "EVERY_1_HOUR"
   | "EVERY_2_HOURS"
   | "EVERY_4_HOURS"
@@ -182,6 +183,8 @@ export function formatReminderSummary(entry: {
     recSuffix = ` (Semanal${endDesc})`;
   } else if (rec === "MONTHLY") {
     recSuffix = ` (Mensual${endDesc})`;
+  } else if (rec === "YEARLY") {
+    recSuffix = ` (Anual${endDesc})`;
   }
 
   // Multi-offset display
