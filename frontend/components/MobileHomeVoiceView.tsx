@@ -18,7 +18,7 @@ export interface MobileHomeVoiceViewProps {
   userId: string;
   onOpenManualForm: () => void;
   onOpenLlmImport: () => void;
-  onEntryCreated?: () => void;
+  onEntryCreated?: (entryId?: string) => void | Promise<void>;
   refreshSignal?: number;
 }
 
@@ -205,9 +205,9 @@ export function MobileHomeVoiceView({
             db={db}
             userId={userId}
             saveMode="PREVIEW_BEFORE_SAVE"
-            onEntryCreated={() => {
+            onEntryCreated={(createdId) => {
               setActiveVoiceModal(false);
-              onEntryCreated?.();
+              onEntryCreated?.(createdId);
             }}
             onClose={() => setActiveVoiceModal(false)}
           />

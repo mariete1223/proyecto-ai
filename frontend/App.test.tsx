@@ -59,4 +59,38 @@ describe("App", () => {
       expect(getByTestId("calendar-month-view")).toBeTruthy();
     });
   });
+
+  it("navigates to calendar tab and automatically opens the entry's day detail panel (#105)", async () => {
+    const { getByText, getByTestId, findByTestId, queryByTestId } =
+      await render(<App />);
+
+    const manualBtn = await findByTestId("btn-mobile-manual-entry");
+    await act(async () => {
+      fireEvent.press(manualBtn);
+    });
+
+    expect(await findByTestId("entry-form-container")).toBeTruthy();
+
+    await waitFor(() => {
+      expect(getByText("Notas")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.changeText(
+        getByTestId("input-content"),
+        "Cita con el dentista en el calendario",
+      );
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-submit-entry"));
+    });
+
+    await waitFor(() => {
+      expect(queryByTestId("entry-form-container")).toBeNull();
+      expect(getByTestId("calendar-month-view")).toBeTruthy();
+      expect(getByTestId("day-detail-panel")).toBeTruthy();
+      expect(getByText(/Cita con el dentista en el calendario/)).toBeTruthy();
+    });
+  });
 });

@@ -662,4 +662,28 @@ describe("CalendarMonthView Component (Task 35)", () => {
       true,
     );
   });
+
+  it("automatically opens and selects the day specified in initialSelectedDateStr even in a different month (#105)", async () => {
+    const targetDate = "2026-11-20";
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      title: "Reunión de Noviembre",
+      content: "Plan de fin de año",
+      occurred_at: "2026-11-20T10:00:00.000Z",
+    });
+
+    const { getByTestId, getByText } = await render(
+      <CalendarMonthView
+        db={db}
+        userId={userId}
+        initialSelectedDateStr={targetDate}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("day-detail-panel")).toBeTruthy();
+      expect(getByText(/Entradas del 2026-11-20/)).toBeTruthy();
+      expect(getByText(/Reunión de Noviembre/)).toBeTruthy();
+    });
+  });
 });

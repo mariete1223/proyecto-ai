@@ -41,12 +41,19 @@ import {
 } from "./db/database";
 import {
   createLocalEntry,
+  getEntryById,
   listLocalEntries,
   listPendingDatelessTasks,
 } from "./db/entries";
 import { createLocalTag, listTags } from "./db/tags";
 import { theme } from "./styles/theme";
-import { Category, Entry, Tag } from "./types/domain";
+import {
+  Category,
+  Entry,
+  Tag,
+  normalizeUtcIso,
+  toLocalDateString,
+} from "./types/domain";
 
 import { performSync } from "./services/syncEngine";
 import { notificationService } from "./services/notificationService";
@@ -196,6 +203,31 @@ export default function App() {
   const [showVoiceCaptureModal, setShowVoiceCaptureModal] = useState(false);
   const [showEntryFormModal, setShowEntryFormModal] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const [calendarFocusDateStr, setCalendarFocusDateStr] = useState<
+    string | null
+  >(null);
+
+  const handleEntryCreatedNavigate = async (createdEntryId?: string) => {
+    if (createdEntryId) {
+      try {
+        const ent = await getEntryById(db, userId, createdEntryId);
+        if (ent && ent.occurred_at) {
+          const norm = normalizeUtcIso(ent.occurred_at) || ent.occurred_at;
+          const d = new Date(norm);
+          if (!isNaN(d.getTime())) {
+            setCalendarFocusDateStr(toLocalDateString(d));
+          }
+        }
+      } catch (err) {
+        console.warn(
+          "Error al obtener fecha de entrada creada para calendario:",
+          err,
+        );
+      }
+    }
+    await loadDatabaseState(true);
+    setActiveTab("CALENDAR");
+  };
 
   const mainScrollViewRef = React.useRef<ScrollView>(null);
 
@@ -533,6 +565,7 @@ export default function App() {
     tab: "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT",
   ) => {
     setActiveTab(tab);
+    setCalendarFocusDateStr(null);
     // Auto-close any open modal when user switches navigation tabs
     setShowVoiceCaptureModal(false);
     setShowEntryFormModal(false);
@@ -601,11 +634,10 @@ export default function App() {
                 db={db}
                 userId={userId}
                 saveMode="PREVIEW_BEFORE_SAVE"
-                onEntryCreated={async () => {
-                  await loadDatabaseState(true);
+                onEntryCreated={async (createdId) => {
                   setShowVoiceCaptureModal(false);
                   isFormOpenRef.current = false;
-                  setActiveTab("CALENDAR");
+                  await handleEntryCreatedNavigate(createdId);
                 }}
                 onClose={() => setShowVoiceCaptureModal(false)}
               />
@@ -630,11 +662,10 @@ export default function App() {
                 db={db}
                 userId={userId}
                 apiConfig={{ baseUrl: getBackendUrl(), token: userToken }}
-                onSuccess={async () => {
-                  await loadDatabaseState(true);
+                onSuccess={async (createdId) => {
                   setShowEntryFormModal(false);
                   isFormOpenRef.current = false;
-                  setActiveTab("CALENDAR");
+                  await handleEntryCreatedNavigate(createdId);
                 }}
               />
             </View>
@@ -717,9 +748,8 @@ export default function App() {
             refreshSignal={lastSyncTime}
             onOpenManualForm={() => setShowEntryFormModal(true)}
             onOpenLlmImport={() => setActiveTab("LLM_IMPORT")}
-            onEntryCreated={async () => {
-              await loadDatabaseState(true);
-              setActiveTab("CALENDAR");
+            onEntryCreated={async (createdId) => {
+              await handleEntryCreatedNavigate(createdId);
             }}
           />
         )}
@@ -739,6 +769,7 @@ export default function App() {
               key="calendar-view"
               db={db}
               userId={userId}
+              initialSelectedDateStr={calendarFocusDateStr || undefined}
               selectedCategoryIds={
                 selectedCategoryIds.length > 0 ? selectedCategoryIds : undefined
               }

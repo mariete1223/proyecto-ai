@@ -37,6 +37,7 @@ export interface CalendarMonthViewProps {
   db: DatabaseAdapter;
   userId: string;
   initialDate?: Date;
+  initialSelectedDateStr?: string;
   onSelectEntry?: (entryId: string) => void;
   selectedCategoryIds?: string[];
   selectedTagIds?: string[];
@@ -81,15 +82,23 @@ export function CalendarMonthView({
   db,
   userId,
   initialDate = new Date(),
+  initialSelectedDateStr,
   onSelectEntry,
   selectedCategoryIds,
   selectedTagIds,
   refreshSignal,
   onEntryUpdated,
 }: CalendarMonthViewProps) {
-  const [currentDate, setCurrentDate] = useState<Date>(
-    new Date(initialDate.getFullYear(), initialDate.getMonth(), 1),
-  );
+  const [currentDate, setCurrentDate] = useState<Date>(() => {
+    if (
+      initialSelectedDateStr &&
+      /^\d{4}-\d{2}-\d{2}$/.test(initialSelectedDateStr)
+    ) {
+      const [y, m] = initialSelectedDateStr.split("-").map(Number);
+      return new Date(y, m - 1, 1);
+    }
+    return new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
+  });
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -98,6 +107,24 @@ export function CalendarMonthView({
     items: Entry[];
   } | null>(null);
   const hasAutoSelectedToday = useRef(false);
+  const hasAutoSelectedInitialDate = useRef<string | null>(null);
+  const lastSelectedDateStrRef = useRef<string | undefined>(
+    initialSelectedDateStr,
+  );
+
+  useEffect(() => {
+    if (
+      initialSelectedDateStr &&
+      /^\d{4}-\d{2}-\d{2}$/.test(initialSelectedDateStr) &&
+      initialSelectedDateStr !== lastSelectedDateStrRef.current
+    ) {
+      lastSelectedDateStrRef.current = initialSelectedDateStr;
+      hasAutoSelectedInitialDate.current = null;
+      const [y, m] = initialSelectedDateStr.split("-").map(Number);
+      setCurrentDate(new Date(y, m - 1, 1));
+    }
+  }, [initialSelectedDateStr]);
+
   const [editingTitleEntryId, setEditingTitleEntryId] = useState<string | null>(
     null,
   );
@@ -428,6 +455,22 @@ export function CalendarMonthView({
           const curMonthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
 
           setSelectedDayEntries((prev) => {
+            if (
+              initialSelectedDateStr &&
+              initialSelectedDateStr.startsWith(curMonthPrefix) &&
+              (!prev ||
+                (prev.dateStr !== initialSelectedDateStr &&
+                  hasAutoSelectedInitialDate.current !==
+                    initialSelectedDateStr))
+            ) {
+              hasAutoSelectedInitialDate.current = initialSelectedDateStr;
+              const matchingItems = fetchedEntries.filter((e) => {
+                if (!e.occurred_at) return false;
+                return matchesCalendarDate(e, initialSelectedDateStr, year);
+              });
+              return { dateStr: initialSelectedDateStr, items: matchingItems };
+            }
+
             if (!prev) {
               if (
                 shouldAutoSelectToday &&
@@ -464,6 +507,7 @@ export function CalendarMonthView({
     selectedCategoryIds,
     selectedTagIds,
     refreshSignal,
+    initialSelectedDateStr,
   ]);
 
   const prevMonth = () => {
