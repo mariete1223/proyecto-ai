@@ -91,6 +91,22 @@ export function ReminderConfigSection({
     setTimeout(() => setTestSentMessage(null), 4000);
   };
 
+  const isOffsetInPast = (offsetMins: number): boolean => {
+    if (!occurredAt) return false;
+    const base = new Date(occurredAt);
+    if (isNaN(base.getTime())) return false;
+    const triggerTime = base.getTime() - offsetMins * 60000;
+    return triggerTime < Date.now();
+  };
+
+  useEffect(() => {
+    if (occurredAt && !showCustomPicker && offsetMinutes > 0) {
+      if (isOffsetInPast(offsetMinutes)) {
+        onOffsetMinutesChange(0);
+      }
+    }
+  }, [occurredAt, offsetMinutes, showCustomPicker]);
+
   const offsetOptions = [
     { label: "A la hora exacta", value: 0 },
     { label: "5 min antes", value: 5 },
@@ -433,11 +449,19 @@ export function ReminderConfigSection({
                 {offsetOptions.map((opt) => {
                   const isSelected =
                     offsetMinutes === opt.value && !showCustomPicker;
+                  const isDisabled = isOffsetInPast(opt.value);
                   return (
                     <Pressable
                       key={opt.value}
-                      style={[styles.chip, isSelected && styles.chipActive]}
+                      testID={`chip-offset-${opt.value}`}
+                      disabled={isDisabled}
+                      style={[
+                        styles.chip,
+                        isSelected && styles.chipActive,
+                        isDisabled && styles.chipDisabled,
+                      ]}
                       onPress={() => {
+                        if (isDisabled) return;
                         setShowCustomPicker(false);
                         onOffsetMinutesChange(opt.value);
                         onReminderTimeChange("");
@@ -447,6 +471,7 @@ export function ReminderConfigSection({
                         style={[
                           styles.chipText,
                           isSelected && styles.chipTextActive,
+                          isDisabled && styles.chipTextDisabled,
                         ]}
                       >
                         {opt.label}
@@ -639,6 +664,18 @@ export function ReminderConfigSection({
                     minute: "2-digit",
                   })}
                 </Text>
+                {effectiveTrigger &&
+                effectiveTrigger.getTime() < Date.now() &&
+                recurrence === "NONE" ? (
+                  <Text
+                    style={styles.summaryWarningText}
+                    testID="warning-reminder-trigger-past"
+                  >
+                    ⚠️ La hora calculada para el aviso ya ha pasado. Ajusta la
+                    antelación o la fecha para que el aviso se programe en el
+                    futuro.
+                  </Text>
+                ) : null}
                 {effectiveEnd ? (
                   <Text style={styles.summaryItemText}>
                     🏁{" "}
@@ -956,6 +993,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(59, 130, 246, 0.25)",
     borderColor: theme.colors.primary,
   },
+  chipDisabled: {
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    borderColor: "rgba(255, 255, 255, 0.04)",
+    opacity: 0.35,
+  },
   chipText: {
     color: theme.colors.textSecondary,
     fontSize: 12,
@@ -964,6 +1006,10 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: "#60a5fa",
     fontWeight: "700",
+  },
+  chipTextDisabled: {
+    color: "#475569",
+    textDecorationLine: "line-through",
   },
   recurrenceHelpBox: {
     backgroundColor: "rgba(30, 41, 59, 0.5)",

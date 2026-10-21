@@ -1045,27 +1045,44 @@ export function CalendarMonthView({
                     { label: "⚡ Exacta", offset: 0 },
                     { label: "⏱️ 15m antes", offset: 15 },
                     { label: "⏰ 1h antes", offset: 60 },
-                  ].map((p) => (
-                    <Pressable
-                      key={p.offset}
-                      style={[
-                        styles.quickPresetChip,
-                        quickAddReminderOffset === p.offset &&
-                          styles.quickPresetChipActive,
-                      ]}
-                      onPress={() => setQuickAddReminderOffset(p.offset)}
-                    >
-                      <Text
+                  ].map((p) => {
+                    let isPast = false;
+                    if (selectedDayEntries?.dateStr && p.offset > 0) {
+                      const d = new Date(
+                        `${selectedDayEntries.dateStr}T12:00:00`,
+                      );
+                      if (!isNaN(d.getTime())) {
+                        isPast = d.getTime() - p.offset * 60000 < Date.now();
+                      }
+                    }
+                    return (
+                      <Pressable
+                        key={p.offset}
+                        disabled={isPast}
                         style={[
-                          styles.quickPresetChipText,
+                          styles.quickPresetChip,
                           quickAddReminderOffset === p.offset &&
-                            styles.quickPresetChipTextActive,
+                            styles.quickPresetChipActive,
+                          isPast && styles.quickPresetChipDisabled,
                         ]}
+                        onPress={() => {
+                          if (isPast) return;
+                          setQuickAddReminderOffset(p.offset);
+                        }}
                       >
-                        {p.label}
-                      </Text>
-                    </Pressable>
-                  ))}
+                        <Text
+                          style={[
+                            styles.quickPresetChipText,
+                            quickAddReminderOffset === p.offset &&
+                              styles.quickPresetChipTextActive,
+                            isPast && styles.quickPresetChipTextDisabled,
+                          ]}
+                        >
+                          {p.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               )}
 
@@ -1277,30 +1294,45 @@ export function CalendarMonthView({
                           { label: "⏱️ 15 min antes", offset: 15 },
                           { label: "⏰ 1 hora antes", offset: 60 },
                           { label: "📅 1 día antes", offset: 1440 },
-                        ].map((preset) => (
-                          <Pressable
-                            key={preset.offset}
-                            testID={`preset-offset-${preset.offset}-${ent.id}`}
-                            style={[
-                              styles.reminderPresetButton,
-                              selectedReminderOffset === preset.offset &&
-                                styles.reminderPresetButtonActive,
-                            ]}
-                            onPress={() =>
-                              setSelectedReminderOffset(preset.offset)
+                        ].map((preset) => {
+                          const baseIso = ent.occurred_at || ent.reminder_time;
+                          let isPast = false;
+                          if (baseIso && preset.offset > 0) {
+                            const baseNorm = normalizeUtcIso(baseIso) || baseIso;
+                            const d = new Date(baseNorm);
+                            if (!isNaN(d.getTime())) {
+                              isPast = d.getTime() - preset.offset * 60000 < Date.now();
                             }
-                          >
-                            <Text
+                          }
+                          return (
+                            <Pressable
+                              key={preset.offset}
+                              testID={`preset-offset-${preset.offset}-${ent.id}`}
+                              disabled={isPast}
                               style={[
-                                styles.reminderPresetButtonText,
+                                styles.reminderPresetButton,
                                 selectedReminderOffset === preset.offset &&
-                                  styles.reminderPresetButtonTextActive,
+                                  styles.reminderPresetButtonActive,
+                                isPast && styles.reminderPresetButtonDisabled,
                               ]}
+                              onPress={() => {
+                                if (isPast) return;
+                                setSelectedReminderOffset(preset.offset);
+                              }}
                             >
-                              {preset.label}
-                            </Text>
-                          </Pressable>
-                        ))}
+                              <Text
+                                style={[
+                                  styles.reminderPresetButtonText,
+                                  selectedReminderOffset === preset.offset &&
+                                    styles.reminderPresetButtonTextActive,
+                                  isPast && styles.reminderPresetButtonTextDisabled,
+                                ]}
+                              >
+                                {preset.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
                       </View>
 
                       <View
@@ -1469,9 +1501,16 @@ export function CalendarMonthView({
                               setEditingReminderEntryId(null);
                             } else {
                               setEditingReminderEntryId(ent.id);
-                              setSelectedReminderOffset(
-                                ent.reminder_offset_minutes || 0,
-                              );
+                              let initialOffset = ent.reminder_offset_minutes || 0;
+                              const baseIso = ent.occurred_at || ent.reminder_time;
+                              if (baseIso && initialOffset > 0) {
+                                const baseNorm = normalizeUtcIso(baseIso) || baseIso;
+                                const d = new Date(baseNorm);
+                                if (!isNaN(d.getTime()) && d.getTime() - initialOffset * 60000 < Date.now()) {
+                                  initialOffset = 0;
+                                }
+                              }
+                              setSelectedReminderOffset(initialOffset);
                               setSelectedReminderRecurrence(
                                 (ent.reminder_recurrence as ReminderRecurrence) ||
                                   "NONE",
@@ -2216,6 +2255,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
+  quickPresetChipDisabled: {
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    borderColor: "rgba(255, 255, 255, 0.05)",
+    opacity: 0.35,
+  },
   quickPresetChipActive: {
     backgroundColor: "rgba(245, 158, 11, 0.25)",
     borderColor: "#F59E0B",
@@ -2227,6 +2271,10 @@ const styles = StyleSheet.create({
   quickPresetChipTextActive: {
     color: "#F59E0B",
     fontWeight: "bold",
+  },
+  quickPresetChipTextDisabled: {
+    color: "#475569",
+    textDecorationLine: "line-through",
   },
   quickAddSubmitRow: {
     flexDirection: "row",
@@ -2344,6 +2392,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(245, 158, 11, 0.25)",
     borderColor: "#F59E0B",
   },
+  reminderPresetButtonDisabled: {
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    borderColor: "rgba(255, 255, 255, 0.05)",
+    opacity: 0.35,
+  },
   reminderPresetButtonText: {
     color: "#94A3B8",
     fontSize: 11,
@@ -2352,6 +2405,10 @@ const styles = StyleSheet.create({
   reminderPresetButtonTextActive: {
     color: "#F59E0B",
     fontWeight: "bold",
+  },
+  reminderPresetButtonTextDisabled: {
+    color: "#475569",
+    textDecorationLine: "line-through",
   },
   quickReminderRecurrenceRow: {
     flexDirection: "row",

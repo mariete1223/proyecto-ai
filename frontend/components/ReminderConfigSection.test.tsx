@@ -194,4 +194,37 @@ describe("ReminderConfigSection Component (#67)", () => {
     fireEvent.press(getByText("Anual (todos los años)"));
     expect(onRecurrenceChangeMock).toHaveBeenCalledWith("YEARLY");
   });
+
+  it("disables offset options that would place trigger time in the past for today's entry", async () => {
+    // Set occurredAt to 2 hours from now
+    const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const { getByTestId, queryByTestId } = await render(
+      <ReminderConfigSection
+        enabled={true}
+        defaultExpanded={true}
+        onEnabledChange={jest.fn()}
+        reminderTime={undefined}
+        onReminderTimeChange={jest.fn()}
+        reminderEndTime={undefined}
+        onReminderEndTimeChange={jest.fn()}
+        offsetMinutes={0}
+        onOffsetMinutesChange={jest.fn()}
+        recurrence="NONE"
+        onRecurrenceChange={jest.fn()}
+        occurredAt={twoHoursFromNow}
+      />,
+    );
+
+    // 0 min (exact) should not be disabled
+    const opt0 = getByTestId("chip-offset-0");
+    expect(opt0.props.accessibilityState?.disabled).toBeFalsy();
+
+    // 1440 min (1 day before) would be 22 hours in the past -> disabled
+    const opt1440 = getByTestId("chip-offset-1440");
+    expect(opt1440.props.accessibilityState?.disabled).toBe(true);
+
+    // Warning not shown since offset is 0 (future)
+    expect(queryByTestId("warning-reminder-trigger-past")).toBeNull();
+  });
 });
+
