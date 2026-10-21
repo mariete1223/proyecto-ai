@@ -54,6 +54,7 @@ def _create_sqlite_tables(engine: Any) -> None:
         # Ensure newer columns exist in dev SQLite if tables already existed
         for alter_stmt in [
             "ALTER TABLE tags ADD COLUMN color VARCHAR(7) DEFAULT '#64748B';",
+            "ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 1;",
             "ALTER TABLE entries ADD COLUMN title TEXT;",
             "ALTER TABLE entries ADD COLUMN task_priority VARCHAR(20);",
             "ALTER TABLE entries ADD COLUMN reminder_enabled BOOLEAN DEFAULT 0;",
