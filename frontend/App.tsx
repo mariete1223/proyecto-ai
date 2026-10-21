@@ -166,6 +166,7 @@ export default function App() {
   const [authSession, setAuthSession] = useState<AuthSession | null>(() =>
     authStorage.loadSession(),
   );
+  const [bypassAuth, setBypassAuth] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const userId = authSession ? authSession.userId : "user-demo-123";
@@ -362,6 +363,28 @@ export default function App() {
 
       setIsSyncing(true);
       try {
+        // Adoptar / migrar automáticamente cualquier entrada creada previamente en modo invitado
+        if (userId && userId !== "user-demo-123") {
+          try {
+            await db.runAsync(
+              `UPDATE entries SET user_id = ? WHERE user_id = 'user-demo-123';`,
+              [userId],
+            );
+            await db.runAsync(
+              `UPDATE entry_tags SET user_id = ? WHERE user_id = 'user-demo-123';`,
+              [userId],
+            );
+            await db.runAsync(
+              `UPDATE categories SET user_id = ? WHERE user_id = 'user-demo-123';`,
+              [userId],
+            );
+            await db.runAsync(
+              `UPDATE tags SET user_id = ? WHERE user_id = 'user-demo-123';`,
+              [userId],
+            );
+          } catch (_) {}
+        }
+
         // 1. Deduplicar en local antes del sync
         await deduplicateAndHealEntries(db, userId);
 
@@ -589,15 +612,36 @@ export default function App() {
     );
   }
 
-  // Si no hay sesión activa, requerimos inicio de sesión o registro antes de usar la app
-  if (!authSession) {
+  // Si no hay sesión activa y no ha entrado en modo invitado, requerimos inicio de sesión o registro
+  if (!authSession && !bypassAuth) {
     return (
       <AuthScreen
         baseUrl={getBackendUrl()}
-        onSuccess={(session) => {
+        onSuccess={async (session) => {
           setAuthSession(session);
+          if (session?.userId && session.userId !== "user-demo-123") {
+            try {
+              await db.runAsync(
+                `UPDATE entries SET user_id = ? WHERE user_id = 'user-demo-123';`,
+                [session.userId],
+              );
+              await db.runAsync(
+                `UPDATE entry_tags SET user_id = ? WHERE user_id = 'user-demo-123';`,
+                [session.userId],
+              );
+              await db.runAsync(
+                `UPDATE categories SET user_id = ? WHERE user_id = 'user-demo-123';`,
+                [session.userId],
+              );
+              await db.runAsync(
+                `UPDATE tags SET user_id = ? WHERE user_id = 'user-demo-123';`,
+                [session.userId],
+              );
+            } catch (_) {}
+          }
           loadDatabaseState(true);
         }}
+        onContinueOffline={() => setBypassAuth(true)}
       />
     );
   }

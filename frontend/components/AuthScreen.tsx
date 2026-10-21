@@ -26,11 +26,13 @@ const appLogo = require("../assets/logo-small.png");
 export interface AuthScreenProps {
   baseUrl: string;
   onSuccess: (session: AuthSession) => void;
+  onContinueOffline?: () => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({
   baseUrl,
   onSuccess,
+  onContinueOffline,
 }) => {
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 480;
@@ -478,6 +480,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </>
           )}
 
+          {onContinueOffline && (
+            <Pressable
+              style={styles.guestButton}
+              onPress={onContinueOffline}
+              testID="btn-continue-offline"
+            >
+              <Text style={styles.guestButtonText}>
+                Continuar en modo offline / invitado
+              </Text>
+            </Pressable>
+          )}
+
           {/* Footer Note */}
           <View style={styles.footerNote}>
             <Text style={styles.footerNoteText}>
@@ -681,6 +695,18 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  guestButton: {
+    marginTop: 4,
+    marginBottom: 16,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  guestButtonText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "500",
+    textDecorationLine: "underline",
   },
   footerNote: {
     borderTopWidth: 1,

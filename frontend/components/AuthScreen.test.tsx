@@ -175,4 +175,24 @@ describe("AuthScreen Component", () => {
       expect(getByTestId("auth-info-banner")).toBeTruthy();
     });
   });
+
+  it("calls onContinueOffline when guest/offline button is pressed", async () => {
+    const offlineMock = jest.fn();
+    const { getByTestId } = await render(
+      <AuthScreen
+        baseUrl="http://localhost:8000"
+        onSuccess={jest.fn()}
+        onContinueOffline={offlineMock}
+      />,
+    );
+
+    const guestBtn = getByTestId("btn-continue-offline");
+    expect(guestBtn).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(guestBtn);
+    });
+
+    expect(offlineMock).toHaveBeenCalledTimes(1);
+  });
 });
