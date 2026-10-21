@@ -115,7 +115,12 @@ const getBackendUrl = (): string => {
     // Si estamos en el túnel Cloudflare Web o en Vercel (acceso remoto/móvil por internet):
     if (host.includes("trycloudflare.com") || host.includes("vercel.app")) {
       const fromEnv = process.env.EXPO_PUBLIC_BACKEND_URL;
-      if (fromEnv && fromEnv.trim()) {
+      if (
+        fromEnv &&
+        fromEnv.trim() &&
+        !fromEnv.includes("trycloudflare.com") &&
+        !fromEnv.includes("explorer-server-forgot-engineering")
+      ) {
         return fromEnv.trim();
       }
       return ACTIVE_BACKEND_TUNNEL;
@@ -127,6 +132,7 @@ const getBackendUrl = (): string => {
   if (
     fromEnv &&
     fromEnv.trim() &&
+    !fromEnv.includes("trycloudflare.com") &&
     !fromEnv.includes("explorer-server-forgot-engineering")
   ) {
     return fromEnv.trim();
@@ -136,12 +142,13 @@ const getBackendUrl = (): string => {
   if (
     fromAppJson &&
     fromAppJson.trim() &&
+    !fromAppJson.includes("trycloudflare.com") &&
     !fromAppJson.includes("explorer-server-forgot-engineering")
   ) {
     return fromAppJson.trim();
   }
 
-  // 3. Fallback al túnel Cloudflare activo para backend
+  // 3. Fallback a la URL estática permanente para backend
   return ACTIVE_BACKEND_TUNNEL;
 };
 

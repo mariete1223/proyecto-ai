@@ -464,8 +464,14 @@ describe("CalendarMonthView Component (Task 35)", () => {
     const d = String(today.getDate()).padStart(2, "0");
     const todayStr = `${y}-${m}-${d}`;
 
-    // Reminder on today (scheduled for future today)
-    const todayReminderTime = new Date(today.getTime() + 2 * 3600 * 1000);
+    // Reminder on today (stays on today's date regardless of test execution hour)
+    const todayReminderTime = new Date(today);
+    todayReminderTime.setHours(today.getHours(), today.getMinutes() + 5, 0, 0);
+    // If setting +5 minutes rolled to next day (e.g. at 23:58), clamp to 23:59 today
+    if (todayReminderTime.getDate() !== today.getDate()) {
+      todayReminderTime.setDate(today.getDate());
+      todayReminderTime.setHours(23, 59, 0, 0);
+    }
     await createLocalEntry(db, userId, {
       category_id: catId,
       content: "Recordatorio importante para hoy",

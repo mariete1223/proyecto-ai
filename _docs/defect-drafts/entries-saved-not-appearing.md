@@ -35,27 +35,27 @@ Frecuencia: Reportado por el usuario; pendiente de determinar las condiciones de
 - Declaración del usuario:
   - "he guardado antes cosas y no me aparecen en la app porque?"
   - "me dice q no puede conectar con el servidor"
+  - "este es el ordenador donde se establece el servidor"
+  - "esto nunca tuve que hacerlo Abre el navegador de tu móvil ... no me conecta aun"
 
 ## Triage
 
-- Classification: `needs-triage`
-- Impact: La aplicación no puede comunicarse con el backend remoto o túnel desde el cliente móvil, bloqueando la sincronización de notas y el inicio de sesión.
+- Classification: `confirmed`
+- Impact: high (usuario no visualiza sus notas previas y experimenta errores de conexión desde el cliente móvil).
 - Facts:
-  - El backend local FastAPI está activo y respondiendo en el puerto 8000 (`{"status":"ok"}`).
-  - El túnel Ngrok `https://raging-degraded-reptile.ngrok-free.dev` está activo y enrutando hacia `http://localhost:8000`.
-  - El usuario intenta conectar desde el móvil (PWA) y recibe el mensaje de error de conexión con el servidor.
-- Hypotheses:
-  1. Si el usuario está abriendo la app desde una URL que no tiene el túnel activo configurado o si el navegador móvil tiene guardada en `localStorage` una URL antigua (`custom_backend_url`), las peticiones a la API fallan.
-  2. En navegadores móviles (iOS Safari), si la web anclada está en `https://voxdaily.vercel.app`, una solicitud de red fallida por problemas de red o certificado en el túnel ngrok provoca `TypeError: Failed to fetch`, derivando en el error `No se pudo conectar con el servidor`.
-  3. Al no poder conectar con el servidor, no se pueden recuperar las notas y tareas sincronizadas de la cuenta del usuario.
+  - El servidor backend corre localmente en esta misma máquina (`http://localhost:8000`) y está activo.
+  - El túnel ngrok `https://raging-degraded-reptile.ngrok-free.dev` apunta a `http://localhost:8000` y está activo.
+  - En `backend/app.db`, las entradas previas del usuario ("Hemos ido con Carmen a casa de mis abuelos...", "Tengo que ir al mercado del La Alberca...", "Después del partido fui al Cervemur...") existen y están guardadas, pero bajo el usuario demo/invitado (`11111111-1111-4111-a111-111111111111` / `demo@example.com`).
+  - Al iniciar sesión con `mariete1223@outlook.es`, la app aísla los datos por `user_id` y no muestra las notas del usuario demo.
+  - El fallo de conexión previo se debió a un error de esquema interno en SQLite (`no such column: users.is_verified`), que ya fue corregido en `backend/app.db` y `backend/app/main.py`.
 - Missing information:
-  - ¿Dónde te aparece exactamente el mensaje "no puede conectar con el servidor"? (¿Al intentar iniciar sesión en la pantalla de bienvenida, en un punto/aviso en la cabecera, o al pulsar el botón de sincronización `🔄`?)
-  - ¿Qué dirección URL estás usando en el navegador del móvil para abrir la app (ej. `https://voxdaily.vercel.app` o una dirección IP)?
-  - Si intentas iniciar sesión, ¿qué usuario o correo estás introduciendo?
-- Possible duplicates checked:
-  - Ningún issue abierto duplicado.
-
+  - ¿En qué punto exacto de la app móvil se muestra el error de conexión (en el formulario de login al escribir la contraseña, en un toast al abrir la app o al pulsar sincronizar)?
+- Next Steps:
+  - Migrar o reasignar las notas del usuario demo a la cuenta `mariete1223@outlook.es`.
+  - Asegurar que la sesión en el móvil reconecte y sincronice limpiamente.
 
 ## Publication history
 
 - 2026-10-21: Registrado como borrador local `needs-triage` a la espera de clarificación del usuario.
+- 2026-10-21: Clasificado como `confirmed` tras aislar las notas guardadas bajo la cuenta demo en `backend/app.db` y comprobar el estado del backend local.
+
