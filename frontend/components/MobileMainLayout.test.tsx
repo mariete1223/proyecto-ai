@@ -78,21 +78,37 @@ describe("MobileMainLayout Component", () => {
   });
 
   describe("Horizontal Swipe Navigation Logic", () => {
-    it("recognizes dominant horizontal moves and ignores vertical scrolls", () => {
+    it("recognizes dominant horizontal moves in both bubble and capture phases and ignores vertical scrolls", () => {
       const onTabChange = jest.fn();
       const config = getSwipePanResponderConfig("CALENDAR", onTabChange);
 
       // Start should not capture touch immediately
       expect(config.onStartShouldSetPanResponder()).toBe(false);
+      expect(config.onStartShouldSetPanResponderCapture()).toBe(false);
 
-      // Significant horizontal move (|dx| > 30 and |dx| > |dy| * 1.5)
-      expect(
-        config.onMoveShouldSetPanResponder({} as any, { dx: 40, dy: 5 } as any),
-      ).toBe(true);
+      // Termination request should return false to keep gesture active
+      expect(config.onPanResponderTerminationRequest()).toBe(false);
 
-      // Horizontal move with delta <= 30 should not activate
+      // Significant horizontal move (|dx| >= 20 and |dx| > |dy| * 1.5)
       expect(
         config.onMoveShouldSetPanResponder({} as any, { dx: 25, dy: 5 } as any),
+      ).toBe(true);
+      expect(
+        config.onMoveShouldSetPanResponderCapture(
+          {} as any,
+          { dx: 25, dy: 5 } as any,
+        ),
+      ).toBe(true);
+
+      // Horizontal move with delta < 20 should not activate
+      expect(
+        config.onMoveShouldSetPanResponder({} as any, { dx: 15, dy: 2 } as any),
+      ).toBe(false);
+      expect(
+        config.onMoveShouldSetPanResponderCapture(
+          {} as any,
+          { dx: 15, dy: 2 } as any,
+        ),
       ).toBe(false);
 
       // Predominantly vertical move (|dy| >= |dx| or not exceeding 1.5x)
@@ -103,7 +119,19 @@ describe("MobileMainLayout Component", () => {
         ),
       ).toBe(false);
       expect(
+        config.onMoveShouldSetPanResponderCapture(
+          {} as any,
+          { dx: 35, dy: 40 } as any,
+        ),
+      ).toBe(false);
+      expect(
         config.onMoveShouldSetPanResponder(
+          {} as any,
+          { dx: 40, dy: 30 } as any,
+        ),
+      ).toBe(false);
+      expect(
+        config.onMoveShouldSetPanResponderCapture(
           {} as any,
           { dx: 40, dy: 30 } as any,
         ),
@@ -120,28 +148,28 @@ describe("MobileMainLayout Component", () => {
         config.onPanResponderRelease({} as any, { dx, dy } as any);
       };
 
-      // Swipe Right (dx >= 50, |dx| > |dy| * 1.5): CALENDAR -> VOICE_CAPTURE
-      performSwipe(60, 10);
+      // Swipe Right (dx >= 40, |dx| > |dy| * 1.5): CALENDAR -> VOICE_CAPTURE
+      performSwipe(50, 10);
       expect(onTabChange).toHaveBeenLastCalledWith("VOICE_CAPTURE");
       expect(currentTab).toBe("VOICE_CAPTURE");
 
-      // Swipe Left (dx <= -50, |dx| > |dy| * 1.5): VOICE_CAPTURE -> CALENDAR
-      performSwipe(-60, 10);
+      // Swipe Left (dx <= -40, |dx| > |dy| * 1.5): VOICE_CAPTURE -> CALENDAR
+      performSwipe(-50, 10);
       expect(onTabChange).toHaveBeenLastCalledWith("CALENDAR");
       expect(currentTab).toBe("CALENDAR");
 
       // Swipe Left: CALENDAR -> PENDING_TASKS
-      performSwipe(-70, 5);
+      performSwipe(-60, 5);
       expect(onTabChange).toHaveBeenLastCalledWith("PENDING_TASKS");
       expect(currentTab).toBe("PENDING_TASKS");
 
       // Swipe Left: PENDING_TASKS -> EXPLORER
-      performSwipe(-55, 12);
+      performSwipe(-45, 8);
       expect(onTabChange).toHaveBeenLastCalledWith("EXPLORER");
       expect(currentTab).toBe("EXPLORER");
 
       // Swipe Left: EXPLORER -> LLM_IMPORT
-      performSwipe(-80, 0);
+      performSwipe(-70, 0);
       expect(onTabChange).toHaveBeenLastCalledWith("LLM_IMPORT");
       expect(currentTab).toBe("LLM_IMPORT");
     });
@@ -167,12 +195,12 @@ describe("MobileMainLayout Component", () => {
       const onTabChange = jest.fn();
       const config = getSwipePanResponderConfig("CALENDAR", onTabChange);
 
-      // Distance below threshold (|dx| < 50)
-      config.onPanResponderRelease({} as any, { dx: 45, dy: 5 } as any);
+      // Distance below threshold (|dx| < 40)
+      config.onPanResponderRelease({} as any, { dx: 35, dy: 5 } as any);
       expect(onTabChange).not.toHaveBeenCalled();
 
       // Vertical dominant scroll (|dy| >= |dx| / 1.5)
-      config.onPanResponderRelease({} as any, { dx: 60, dy: 55 } as any);
+      config.onPanResponderRelease({} as any, { dx: 50, dy: 45 } as any);
       expect(onTabChange).not.toHaveBeenCalled();
 
       // Pure vertical scroll

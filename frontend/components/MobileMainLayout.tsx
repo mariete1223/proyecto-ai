@@ -33,24 +33,33 @@ export function getSwipePanResponderConfig(
   activeTab: MobileTab,
   onTabChange: (tab: MobileTab) => void,
 ) {
+  const isHorizontalSwipe = (dx: number, dy: number) => {
+    return Math.abs(dx) >= 20 && Math.abs(dx) > Math.abs(dy) * 1.5;
+  };
+
   return {
     onStartShouldSetPanResponder: () => false,
+    onStartShouldSetPanResponderCapture: () => false,
     onMoveShouldSetPanResponder: (
       _evt: GestureResponderEvent,
       gestureState: PanResponderGestureState,
     ) => {
-      // Detect intentional horizontal swipes: horizontal displacement exceeds 30px,
-      // and horizontal movement is dominant over vertical movement by at least 1.5x
-      const { dx, dy } = gestureState;
-      return Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy) * 1.5;
+      return isHorizontalSwipe(gestureState.dx, gestureState.dy);
     },
+    onMoveShouldSetPanResponderCapture: (
+      _evt: GestureResponderEvent,
+      gestureState: PanResponderGestureState,
+    ) => {
+      return isHorizontalSwipe(gestureState.dx, gestureState.dy);
+    },
+    onPanResponderTerminationRequest: () => false,
     onPanResponderRelease: (
       _evt: GestureResponderEvent,
       gestureState: PanResponderGestureState,
     ) => {
       const { dx, dy } = gestureState;
       const isHorizontalDominant = Math.abs(dx) > Math.abs(dy) * 1.5;
-      const minSwipeDistance = 50;
+      const minSwipeDistance = 40;
 
       if (!isHorizontalDominant || Math.abs(dx) < minSwipeDistance) {
         return;
@@ -204,7 +213,12 @@ export function MobileMainLayout({
       {/* Main Content Scroll Area with Horizontal Swipe PanResponder */}
       <View style={styles.contentArea} testID="mobile-content-area">
         <View
-          style={{ flex: 1, width: "100%", height: "100%" }}
+          style={[
+            styles.swipeContainer,
+            Platform.OS === "web"
+              ? ({ touchAction: "pan-y" } as any)
+              : undefined,
+          ]}
           testID="mobile-swipe-container"
           {...panResponder.panHandlers}
         >
@@ -427,6 +441,11 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: isIosDevice ? 98 : 78, // Space for fixed bottom tab bar + home swipe bar
     width: "100%",
+  },
+  swipeContainer: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
   },
   bottomTabBar: {
     position: (Platform.OS === "web" ? "fixed" : "absolute") as any,
