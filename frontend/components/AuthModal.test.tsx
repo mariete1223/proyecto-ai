@@ -104,6 +104,7 @@ describe("AuthModal", () => {
     await waitFor(() => {
       expect(registerSpy).toHaveBeenCalled();
       expect(getByText(/revisa tu correo electrónico/i)).toBeTruthy();
+      expect(getByTestId("modal-input-verify-token")).toBeTruthy();
     });
   });
 
@@ -146,6 +147,7 @@ describe("AuthModal", () => {
     await waitFor(() => {
       expect(loginSpy).toHaveBeenCalled();
       expect(getByTestId("btn-resend-verification")).toBeTruthy();
+      expect(getByTestId("modal-input-verify-token")).toBeTruthy();
     });
 
     await act(async () => {
@@ -159,5 +161,27 @@ describe("AuthModal", () => {
       );
       expect(getByText(/Correo reenviado/i)).toBeTruthy();
     });
+  });
+
+  it("calls onContinueOffline when guest/offline button is pressed in AuthModal", async () => {
+    const offlineMock = jest.fn();
+    const { getByTestId } = await render(
+      <AuthModal
+        visible={true}
+        baseUrl="http://localhost:8000"
+        onSuccess={jest.fn()}
+        onClose={jest.fn()}
+        onContinueOffline={offlineMock}
+      />,
+    );
+
+    const guestBtn = getByTestId("modal-btn-continue-offline");
+    expect(guestBtn).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(guestBtn);
+    });
+
+    expect(offlineMock).toHaveBeenCalledTimes(1);
   });
 });

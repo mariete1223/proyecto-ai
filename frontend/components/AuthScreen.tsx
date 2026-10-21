@@ -187,12 +187,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         if (res.success && res.session) {
           onSuccess(res.session);
         } else {
-          setErrorMessage(
-            res.error ||
-              "No se pudo iniciar sesión. Verifica tus credenciales.",
-          );
           if (res.isUnverified) {
+            setMode("verify");
             setIsUnverified(true);
+            setErrorMessage(
+              res.error ||
+                "Tu cuenta aún no está verificada. Por favor, introduce el token de verificación que te enviamos a tu correo para activarla y poder acceder.",
+            );
+          } else {
+            setErrorMessage(
+              res.error ||
+                "No se pudo iniciar sesión. Verifica tus credenciales.",
+            );
           }
         }
       } else {
@@ -200,9 +206,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         if (res.success) {
           setInfoMessage(
             res.message ||
-              "¡Cuenta creada! Hemos enviado un correo de confirmación a tu dirección de email. Revisa tu bandeja de entrada para activar tu cuenta antes de iniciar sesión.",
+              "¡Cuenta creada! Hemos enviado un código a tu correo electrónico. Introdúcelo a continuación para activar tu cuenta.",
           );
-          setMode("login");
+          setMode("verify");
           setPassword("");
         } else {
           setErrorMessage(

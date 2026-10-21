@@ -57,6 +57,7 @@ import {
 
 import { performSync } from "./services/syncEngine";
 import { notificationService } from "./services/notificationService";
+import { checkBackendHealth } from "./services/webApi";
 import { AuthModal } from "./components/AuthModal";
 import { AuthScreen } from "./components/AuthScreen";
 import {
@@ -546,6 +547,12 @@ export default function App() {
       );
 
       if (isMounted) {
+        if (!authSession) {
+          const isHealthy = await checkBackendHealth(defaultApiConfig);
+          if (!isHealthy) {
+            setBypassAuth(true);
+          }
+        }
         await loadDatabaseState(true);
         setIsInitialized(true);
         if (!isOnboardingCompleted(userId)) {

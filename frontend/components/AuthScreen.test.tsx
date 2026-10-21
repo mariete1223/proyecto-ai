@@ -84,6 +84,7 @@ describe("AuthScreen Component", () => {
       expect(registerSpy).toHaveBeenCalled();
       expect(getByTestId("auth-info-banner")).toBeTruthy();
       expect(getByText(/revisa tu correo electrónico/i)).toBeTruthy();
+      expect(getByTestId("auth-input-verify-token")).toBeTruthy();
     });
   });
 
@@ -122,6 +123,7 @@ describe("AuthScreen Component", () => {
       expect(loginSpy).toHaveBeenCalled();
       expect(getByTestId("auth-error-banner")).toBeTruthy();
       expect(getByTestId("btn-resend-verification")).toBeTruthy();
+      expect(getByTestId("auth-input-verify-token")).toBeTruthy();
     });
 
     await act(async () => {
