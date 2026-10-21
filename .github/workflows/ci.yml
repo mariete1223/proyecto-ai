@@ -84,9 +84,12 @@ jobs:
           echo "Automated continuous delivery pipeline triggered for main branch."
 
       - name: Trigger Render Deploy Hook (if configured)
-        if: env.RENDER_DEPLOY_HOOK != ''
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
-          curl -s -X POST "$RENDER_DEPLOY_HOOK"
-          echo "Render deployment hook triggered successfully."
+          if [ -n "$RENDER_DEPLOY_HOOK" ]; then
+            curl -s -f -X POST "$RENDER_DEPLOY_HOOK"
+            echo "Render deployment hook triggered successfully."
+          else
+            echo "RENDER_DEPLOY_HOOK secret is not configured; skipping Render trigger."
+          fi
