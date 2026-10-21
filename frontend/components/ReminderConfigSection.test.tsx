@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { ReminderConfigSection } from "./ReminderConfigSection";
 import { notificationService } from "../services/notificationService";
 
@@ -18,13 +18,58 @@ describe("ReminderConfigSection Component (#67)", () => {
     jest.restoreAllMocks();
   });
 
-  it("renders enabled state with start date, end date and recurrence options", async () => {
+  it("is collapsed by default when enabled is true and can be expanded and re-collapsed (#107)", async () => {
+    const { getByText, getByTestId, queryByTestId, queryByText } = await render(
+      <ReminderConfigSection
+        enabled={true}
+        onEnabledChange={jest.fn()}
+        reminderTime={baseReminderTime}
+        onReminderTimeChange={jest.fn()}
+        reminderEndTime={baseReminderEndTime}
+        onReminderEndTimeChange={jest.fn()}
+        offsetMinutes={0}
+        onOffsetMinutesChange={jest.fn()}
+        recurrence="NONE"
+        onRecurrenceChange={jest.fn()}
+        occurredAt={baseOccurredAt}
+      />,
+    );
+
+    expect(getByText("🔔 Recordatorios y Notificaciones")).toBeTruthy();
+    expect(getByTestId("toggle-reminder-collapse-btn")).toBeTruthy();
+    expect(getByText("▼ Ajustar recordatorio")).toBeTruthy();
+    // Confirma que el panel detallado está plegado
+    expect(queryByTestId("input-reminder-end-date")).toBeNull();
+    expect(queryByText("Cada 2 horas")).toBeNull();
+
+    // Desplegar
+    await act(async () => {
+      fireEvent.press(getByTestId("toggle-reminder-collapse-btn"));
+    });
+    await waitFor(() => {
+      expect(getByTestId("input-reminder-end-date")).toBeTruthy();
+      expect(getByText("Cada 2 horas")).toBeTruthy();
+      expect(getByText("▲ Plegar ajustes")).toBeTruthy();
+    });
+
+    // Plegar de nuevo
+    await act(async () => {
+      fireEvent.press(getByTestId("toggle-reminder-collapse-btn"));
+    });
+    await waitFor(() => {
+      expect(queryByTestId("input-reminder-end-date")).toBeNull();
+      expect(getByText("▼ Ajustar recordatorio")).toBeTruthy();
+    });
+  });
+
+  it("renders enabled state with start date, end date and recurrence options when expanded", async () => {
     const onRecurrenceChangeMock = jest.fn();
     const onReminderEndTimeChangeMock = jest.fn();
 
     const { getByText, getByTestId } = await render(
       <ReminderConfigSection
         enabled={true}
+        defaultExpanded={true}
         onEnabledChange={jest.fn()}
         reminderTime={baseReminderTime}
         onReminderTimeChange={jest.fn()}
@@ -54,6 +99,7 @@ describe("ReminderConfigSection Component (#67)", () => {
     const { getByText } = await render(
       <ReminderConfigSection
         enabled={true}
+        defaultExpanded={true}
         onEnabledChange={jest.fn()}
         reminderTime={baseReminderTime}
         onReminderTimeChange={jest.fn()}
@@ -77,6 +123,7 @@ describe("ReminderConfigSection Component (#67)", () => {
     const { getByTestId } = await render(
       <ReminderConfigSection
         enabled={true}
+        defaultExpanded={true}
         onEnabledChange={jest.fn()}
         reminderTime={baseReminderTime}
         onReminderTimeChange={jest.fn()}
@@ -106,6 +153,7 @@ describe("ReminderConfigSection Component (#67)", () => {
     const { getByText } = await render(
       <ReminderConfigSection
         enabled={true}
+        defaultExpanded={true}
         onEnabledChange={jest.fn()}
         reminderTime={baseReminderTime}
         onReminderTimeChange={jest.fn()}
@@ -129,6 +177,7 @@ describe("ReminderConfigSection Component (#67)", () => {
     const { getByText } = await render(
       <ReminderConfigSection
         enabled={true}
+        defaultExpanded={true}
         onEnabledChange={jest.fn()}
         reminderTime={baseReminderTime}
         onReminderTimeChange={jest.fn()}

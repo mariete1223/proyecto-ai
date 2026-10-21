@@ -20,6 +20,7 @@ export interface ReminderConfigSectionProps {
   recurrence: ReminderRecurrence;
   onRecurrenceChange: (recurrence: ReminderRecurrence) => void;
   occurredAt?: string;
+  defaultExpanded?: boolean;
 }
 
 export function ReminderConfigSection({
@@ -34,7 +35,9 @@ export function ReminderConfigSection({
   recurrence,
   onRecurrenceChange,
   occurredAt,
+  defaultExpanded = false,
 }: ReminderConfigSectionProps) {
+  const [isExpanded, setIsExpanded] = useState<boolean>(defaultExpanded);
   const [permissionStatus, setPermissionStatus] = useState<string>("default");
   const [isRequesting, setIsRequesting] = useState<boolean>(false);
   const [hasAttemptedRequest, setHasAttemptedRequest] =
@@ -253,6 +256,7 @@ export function ReminderConfigSection({
             const next = !enabled;
             onEnabledChange(next);
             if (next) {
+              setIsExpanded(true);
               if (!reminderTime) {
                 onReminderTimeChange(getSmartDefaultIso());
               }
@@ -272,6 +276,39 @@ export function ReminderConfigSection({
       </View>
 
       {enabled && (
+        <View style={styles.accordionControlRow}>
+          <View style={styles.accordionSummaryLeft}>
+            <Text style={styles.accordionSummaryTitle}>
+              {effectiveTrigger
+                ? `📅 Inicio: ${effectiveTrigger.toLocaleDateString("es-ES", {
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })} · ${
+                    recurrence === "NONE"
+                      ? "Aviso puntual"
+                      : hourMatch
+                        ? `Cada ${hourMatch[1]}h`
+                        : recurrenceOptions.find((r) => r.value === recurrence)
+                            ?.label || recurrence
+                  }`
+                : "Recordatorio activo (configurar fecha/hora)"}
+            </Text>
+          </View>
+          <Pressable
+            testID="toggle-reminder-collapse-btn"
+            style={styles.accordionToggleBtn}
+            onPress={() => setIsExpanded((prev) => !prev)}
+          >
+            <Text style={styles.accordionToggleBtnText}>
+              {isExpanded ? "▲ Plegar ajustes" : "▼ Ajustar recordatorio"}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
+      {enabled && isExpanded && (
         <View style={styles.expandedContent}>
           {/* 1. Gestión de Permisos del Navegador */}
           {permissionStatus === "granted" ? (
@@ -704,6 +741,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: theme.colors.textPrimary,
+  },
+  accordionControlRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(30, 41, 59, 0.7)",
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.2)",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  accordionSummaryLeft: {
+    flex: 1,
+    minWidth: 160,
+  },
+  accordionSummaryTitle: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontWeight: "600",
+  },
+  accordionToggleBtn: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    borderColor: "rgba(56, 189, 248, 0.4)",
+    borderWidth: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  accordionToggleBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#38bdf8",
   },
   expandedContent: {
     marginTop: 14,
