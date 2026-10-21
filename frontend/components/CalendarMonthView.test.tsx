@@ -464,29 +464,37 @@ describe("CalendarMonthView Component (Task 35)", () => {
     const d = String(today.getDate()).padStart(2, "0");
     const todayStr = `${y}-${m}-${d}`;
 
-    // Reminder on today
+    // Reminder on today (scheduled for future today)
+    const todayReminderTime = new Date(today.getTime() + 2 * 3600 * 1000);
     await createLocalEntry(db, userId, {
       category_id: catId,
       content: "Recordatorio importante para hoy",
-      occurred_at: today.toISOString(),
+      occurred_at: todayReminderTime.toISOString(),
       reminder_enabled: true,
-      reminder_offset_minutes: 60,
+      reminder_offset_minutes: 0,
     });
 
-    // Reminder on another regular day in the current month (e.g. 1st of month if not today, or tomorrow)
+    // Reminder on another regular day in the current month (e.g. tomorrow or end of month in future)
     const otherDay = new Date(today);
-    otherDay.setDate(today.getDate() === 1 ? 2 : 1);
-    const otherY = otherDay.getFullYear();
-    const otherM = String(otherDay.getMonth() + 1).padStart(2, "0");
-    const otherD = String(otherDay.getDate()).padStart(2, "0");
+    otherDay.setDate(
+      today.getDate() >= 25 ? today.getDate() - 2 : today.getDate() + 2,
+    );
+    // Ensure otherDay is set into future relative to now for pending bell test
+    const futureDay = new Date(today.getTime() + 24 * 3600 * 1000);
+    if (futureDay.getMonth() !== today.getMonth()) {
+      futureDay.setDate(1);
+    }
+    const otherY = futureDay.getFullYear();
+    const otherM = String(futureDay.getMonth() + 1).padStart(2, "0");
+    const otherD = String(futureDay.getDate()).padStart(2, "0");
     const otherDayStr = `${otherY}-${otherM}-${otherD}`;
 
     await createLocalEntry(db, userId, {
       category_id: catId,
       content: "Recordatorio en otro día",
-      occurred_at: otherDay.toISOString(),
+      occurred_at: futureDay.toISOString(),
       reminder_enabled: true,
-      reminder_offset_minutes: 30,
+      reminder_offset_minutes: 0,
     });
 
     const { getByTestId, getByText } = await render(
@@ -761,5 +769,51 @@ describe("CalendarMonthView Component (Task 35)", () => {
     expect(getByTestId(`btn-toggle-task-${taskEntry.id}`)).toBeTruthy();
     // Standard entry must NOT have a checkbox
     expect(queryByTestId(`btn-toggle-task-${standardEntry.id}`)).toBeNull();
+  });
+
+  it("does not render reminder bell in calendar cell if the alert or event is in the past (#109)", async () => {
+    const refDate = new Date();
+    const pastDate = new Date(refDate.getTime() - 48 * 3600 * 1000); // 2 days ago
+    const futureDate = new Date(refDate.getTime() + 48 * 3600 * 1000); // 2 days ahead
+
+    // Keep both in same month view by using refDate
+    const pastDayStr = `${pastDate.getFullYear()}-${String(pastDate.getMonth() + 1).padStart(2, "0")}-${String(pastDate.getDate()).padStart(2, "0")}`;
+    const futureDayStr = `${futureDate.getFullYear()}-${String(futureDate.getMonth() + 1).padStart(2, "0")}-${String(futureDate.getDate()).padStart(2, "0")}`;
+
+    // Past alert entry with reminder_enabled = true
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Alerta pasada con notificación habilitada",
+      occurred_at: pastDate.toISOString(),
+      reminder_enabled: true,
+      reminder_offset_minutes: 0,
+    });
+
+    // Future alert entry with reminder_enabled = true
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Alerta futura con notificación habilitada",
+      occurred_at: futureDate.toISOString(),
+      reminder_enabled: true,
+      reminder_offset_minutes: 0,
+    });
+
+    const { queryByTestId, getByTestId } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("calendar-grid")).toBeTruthy();
+    });
+
+    // If pastDate is in the visible month view, its bell must NOT be rendered
+    if (pastDate.getMonth() === refDate.getMonth()) {
+      expect(queryByTestId(`day-has-reminder-${pastDayStr}`)).toBeNull();
+    }
+
+    // If futureDate is in the visible month view, its bell MUST be rendered
+    if (futureDate.getMonth() === refDate.getMonth()) {
+      expect(getByTestId(`day-has-reminder-${futureDayStr}`)).toBeTruthy();
+    }
   });
 });

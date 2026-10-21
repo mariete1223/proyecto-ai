@@ -76,6 +76,43 @@ function isCategoryAlert(cat?: Category | null): boolean {
   );
 }
 
+export function isEntryReminderPending(
+  entry: Entry,
+  now: Date = new Date(),
+): boolean {
+  if (!entry.reminder_enabled) return false;
+
+  // Si tiene recurrencia activa (ej. YEARLY, DAILY, etc.)
+  if (entry.reminder_recurrence && entry.reminder_recurrence !== "NONE") {
+    // Si tiene reminder_end_time y ya venció en el pasado, la recurrencia ya cesó
+    if (entry.reminder_end_time) {
+      const endD = new Date(entry.reminder_end_time);
+      if (!isNaN(endD.getTime()) && endD.getTime() < now.getTime()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Recordatorio puntual (sin recurrencia): calcular fecha y hora efectiva del disparo
+  const baseIso = entry.reminder_time || entry.occurred_at;
+  if (!baseIso) return false;
+
+  const norm = normalizeUtcIso(baseIso) || baseIso;
+  const targetDate = new Date(norm);
+  if (isNaN(targetDate.getTime())) return false;
+
+  const offsetMins = entry.reminder_offset_minutes ?? 0;
+  // La hora de disparo es targetDate menos offset (si offsetMins > 0 y baseIso fue occurred_at)
+  let triggerTime = targetDate.getTime();
+  if (offsetMins > 0 && entry.occurred_at && baseIso === entry.occurred_at) {
+    triggerTime -= offsetMins * 60 * 1000;
+  }
+
+  // Si el momento del disparo ya ocurrió en el pasado, no está pendiente
+  return triggerTime >= now.getTime();
+}
+
 export const MAX_VISIBLE_CALENDAR_DOTS = 2;
 
 export function CalendarMonthView({
@@ -634,7 +671,9 @@ export function CalendarMonthView({
             0,
             dayEntries.length - MAX_VISIBLE_CALENDAR_DOTS,
           );
-          const hasReminders = dayEntries.some((e) => !!e.reminder_enabled);
+          const hasReminders = dayEntries.some((e) =>
+            isEntryReminderPending(e),
+          );
           const isSelected = selectedDayEntries?.dateStr === cell.dateStr;
           const isToday = toLocalDateString() === cell.dateStr;
 
