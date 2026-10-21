@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -12,7 +12,13 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { AuthSession, loginUser, registerUser } from "../services/authService";
+import {
+  AuthSession,
+  loginUser,
+  registerUser,
+  resendVerification,
+  verifyEmail,
+} from "../services/authService";
 import { theme } from "../styles/theme";
 
 const appLogo = require("../assets/logo-small.png");
@@ -30,14 +36,138 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const isSmallScreen = width < 480;
   const isTablet = width >= 480 && width < 900;
 
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "verify">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [isUnverified, setIsUnverified] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const tokenParam = params.get("token");
+        if (tokenParam && tokenParam.trim()) {
+          const cleanToken = tokenParam.trim();
+          setVerificationToken(cleanToken);
+          setMode("verify");
+          setIsLoading(true);
+          verifyEmail(baseUrl, cleanToken)
+            .then((res) => {
+              if (res.success) {
+                setInfoMessage(
+                  res.message ||
+                    "¡Correo verificado con éxito! Ya puedes iniciar sesión con tu cuenta.",
+                );
+                setMode("login");
+              } else {
+                setErrorMessage(
+                  res.error ||
+                    "El token de verificación es inválido o ha expirado.",
+                );
+              }
+            })
+            .catch((err) => {
+              setErrorMessage(
+                err instanceof Error
+                  ? err.message
+                  : "Error al verificar el correo.",
+              );
+            })
+            .finally(() => {
+              setIsLoading(false);
+            });
+        }
+      } catch {
+        // Ignore URL parsing errors
+      }
+    }
+  }, [baseUrl]);
+
+  const handleResend = async () => {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setErrorMessage(
+        "Introduce tu correo electrónico para reenviar la confirmación.",
+      );
+      return;
+    }
+    setIsResending(true);
+    setErrorMessage(null);
+    try {
+      const res = await resendVerification(baseUrl, cleanEmail);
+      if (res.success) {
+        setInfoMessage(
+          res.message ||
+            `Hemos reenviado el correo de confirmación a ${cleanEmail}. Revisa tu bandeja de entrada.`,
+        );
+        setIsUnverified(false);
+      } else {
+        setErrorMessage(
+          res.error || "No se pudo reenviar el correo de confirmación.",
+        );
+      }
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "Error al conectar con el servidor.",
+      );
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleVerifyToken = async () => {
+    setErrorMessage(null);
+    setInfoMessage(null);
+    const cleanToken = verificationToken.trim();
+    if (!cleanToken) {
+      setErrorMessage(
+        "Por favor, introduce el token de verificación recibido.",
+      );
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await verifyEmail(baseUrl, cleanToken);
+      if (res.success) {
+        setInfoMessage(
+          res.message ||
+            "¡Cuenta verificada exitosamente! Ya puedes iniciar sesión con tus credenciales.",
+        );
+        setMode("login");
+        setVerificationToken("");
+      } else {
+        setErrorMessage(
+          res.error || "Token de verificación inválido o expirado.",
+        );
+      }
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "Error al procesar la verificación.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     setErrorMessage(null);
+    setInfoMessage(null);
+    setIsUnverified(false);
+
+    if (mode === "verify") {
+      await handleVerifyToken();
+      return;
+    }
+
     const cleanEmail = email.trim();
     if (!cleanEmail || !cleanEmail.includes("@")) {
       setErrorMessage("Por favor, introduce un correo electrónico válido.");
@@ -50,17 +180,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsLoading(true);
     try {
-      const res =
-        mode === "login"
-          ? await loginUser(baseUrl, cleanEmail, password)
-          : await registerUser(baseUrl, cleanEmail, password);
-
-      if (res.success && res.session) {
-        onSuccess(res.session);
+      if (mode === "login") {
+        const res = await loginUser(baseUrl, cleanEmail, password);
+        if (res.success && res.session) {
+          onSuccess(res.session);
+        } else {
+          setErrorMessage(
+            res.error ||
+              "No se pudo iniciar sesión. Verifica tus credenciales.",
+          );
+          if (res.isUnverified) {
+            setIsUnverified(true);
+          }
+        }
       } else {
-        setErrorMessage(
-          res.error || "No se pudo iniciar sesión. Verifica tus credenciales.",
-        );
+        const res = await registerUser(baseUrl, cleanEmail, password);
+        if (res.success) {
+          setInfoMessage(
+            res.message ||
+              "¡Cuenta creada! Hemos enviado un correo de confirmación a tu dirección de email. Revisa tu bandeja de entrada para activar tu cuenta antes de iniciar sesión.",
+          );
+          setMode("login");
+          setPassword("");
+        } else {
+          setErrorMessage(
+            res.error || "No se pudo crear la cuenta. Inténtalo de nuevo.",
+          );
+        }
       }
     } catch (err: unknown) {
       setErrorMessage(
@@ -182,68 +328,155 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 Registrarse
               </Text>
             </Pressable>
+            <Pressable
+              style={[
+                styles.tabButton,
+                mode === "verify" && styles.tabButtonActive,
+              ]}
+              onPress={() => {
+                setMode("verify");
+                setErrorMessage(null);
+              }}
+              testID="tab-auth-verify"
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  mode === "verify" && styles.tabTextActive,
+                ]}
+              >
+                Verificar
+              </Text>
+            </Pressable>
           </View>
 
           <Text style={styles.modeDescription}>
             {mode === "login"
               ? "Introduce tus credenciales para acceder a tus notas, calendario y tareas privadas."
-              : "Crea tu cuenta personal. Tus datos estarán totalmente aislados de otros usuarios."}
+              : mode === "register"
+                ? "Crea tu cuenta personal. Te enviaremos un email para confirmar tu dirección antes de iniciar sesión."
+                : "Introduce el código o token recibido en tu correo electrónico para activar tu cuenta."}
           </Text>
 
-          {/* Inputs */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Correo Electrónico</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="tu@email.com"
-              placeholderTextColor="#64748b"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              testID="auth-input-email"
-              onSubmitEditing={handleSubmit}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Contraseña</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Mínimo 8 caracteres"
-              placeholderTextColor="#64748b"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-              testID="auth-input-password"
-              onSubmitEditing={handleSubmit}
-            />
-          </View>
-
-          {/* Error Message */}
-          {errorMessage && (
-            <View style={styles.errorContainer} testID="auth-error-banner">
-              <Text style={styles.errorText}>{errorMessage}</Text>
+          {/* Info / Success Feedback */}
+          {infoMessage && (
+            <View style={styles.infoContainer} testID="auth-info-banner">
+              <Text style={styles.infoText}>✉️ {infoMessage}</Text>
             </View>
           )}
 
-          {/* Submit Button */}
-          <Pressable
-            style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={isLoading}
-            testID="auth-btn-submit"
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.primaryButtonText}>
-                {mode === "login" ? "Acceder" : "Crear Cuenta"}
-              </Text>
-            )}
-          </Pressable>
+          {/* Error Message & Unverified Account Actions */}
+          {errorMessage && (
+            <View style={styles.errorContainer} testID="auth-error-banner">
+              <Text style={styles.errorText}>{errorMessage}</Text>
+              {isUnverified && (
+                <View style={styles.unverifiedActionRow}>
+                  <Pressable
+                    style={styles.resendButton}
+                    onPress={handleResend}
+                    disabled={isResending}
+                    testID="btn-resend-verification"
+                  >
+                    {isResending ? (
+                      <ActivityIndicator size="small" color="#38BDF8" />
+                    ) : (
+                      <Text style={styles.resendButtonText}>
+                        📩 Reenviar correo de confirmación
+                      </Text>
+                    )}
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Verification Code Form */}
+          {mode === "verify" ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Token o Código de Verificación</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Pega aquí el token de tu correo"
+                placeholderTextColor="#64748b"
+                value={verificationToken}
+                onChangeText={setVerificationToken}
+                autoCapitalize="none"
+                autoCorrect={false}
+                testID="auth-input-verify-token"
+                onSubmitEditing={handleVerifyToken}
+              />
+              <Pressable
+                style={[
+                  styles.primaryButton,
+                  isLoading && styles.buttonDisabled,
+                ]}
+                onPress={handleVerifyToken}
+                disabled={isLoading}
+                testID="auth-btn-verify-token"
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>
+                    Confirmar Verificación
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              {/* Inputs */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Correo Electrónico</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="tu@email.com"
+                  placeholderTextColor="#64748b"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  testID="auth-input-email"
+                  onSubmitEditing={handleSubmit}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Contraseña</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Mínimo 8 caracteres"
+                  placeholderTextColor="#64748b"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  testID="auth-input-password"
+                  onSubmitEditing={handleSubmit}
+                />
+              </View>
+
+              {/* Submit Button */}
+              <Pressable
+                style={[
+                  styles.primaryButton,
+                  isLoading && styles.buttonDisabled,
+                ]}
+                onPress={handleSubmit}
+                disabled={isLoading}
+                testID="auth-btn-submit"
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>
+                    {mode === "login" ? "Acceder" : "Crear Cuenta"}
+                  </Text>
+                )}
+              </Pressable>
+            </>
+          )}
 
           {/* Footer Note */}
           <View style={styles.footerNote}>
@@ -305,12 +538,6 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 6,
   },
-  logoBadgeText: {
-    color: "#FFFFFF",
-    fontWeight: "900",
-    fontSize: 22,
-    letterSpacing: 1,
-  },
   brandTitle: {
     fontSize: 26,
     fontWeight: "800",
@@ -358,7 +585,7 @@ const styles = StyleSheet.create({
   tabText: {
     color: "#94A3B8",
     fontWeight: "600",
-    fontSize: 14,
+    fontSize: 13,
   },
   tabTextActive: {
     color: "#FFFFFF",
@@ -390,6 +617,19 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
   },
+  infoContainer: {
+    backgroundColor: "rgba(14, 165, 233, 0.15)",
+    borderWidth: 1,
+    borderColor: "#0284C7",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  infoText: {
+    color: "#7DD3FC",
+    fontSize: 13,
+    lineHeight: 18,
+  },
   errorContainer: {
     backgroundColor: "rgba(239, 68, 68, 0.15)",
     borderWidth: 1,
@@ -402,6 +642,23 @@ const styles = StyleSheet.create({
     color: "#FCA5A5",
     fontSize: 13,
     lineHeight: 18,
+  },
+  unverifiedActionRow: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    alignItems: "center",
+  },
+  resendButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  resendButtonText: {
+    color: "#38BDF8",
+    fontWeight: "600",
+    fontSize: 13,
+    textDecorationLine: "underline",
   },
   primaryButton: {
     backgroundColor: theme.colors.primary,

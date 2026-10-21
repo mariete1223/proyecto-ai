@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.auth import InvalidTokenError, create_access_token, decode_access_token
+from app.core.auth import (
+    InvalidTokenError,
+    create_access_token,
+    create_verification_token,
+    decode_access_token,
+    decode_verification_token,
+)
 
 
 def test_create_and_decode_access_token_success() -> None:
@@ -50,3 +56,29 @@ def test_decode_invalid_structure_token_raises_error() -> None:
 
     with pytest.raises(InvalidTokenError):
         decode_access_token("invalidtoken")
+
+
+def test_create_and_decode_verification_token_success() -> None:
+    user_id = "00000000-0000-0000-0000-000000000001"
+    email = "verify@example.com"
+
+    token = create_verification_token(
+        user_id=user_id, email=email, expires_in_seconds=86400
+    )
+    payload = decode_verification_token(token)
+
+    assert payload["sub"] == user_id
+    assert payload["email"] == email
+    assert payload["type"] == "verify_email"
+    assert "exp" in payload
+
+
+def test_decode_verification_token_rejects_access_token() -> None:
+    user_id = "00000000-0000-0000-0000-000000000001"
+    email = "user@example.com"
+
+    access_token = create_access_token(user_id=user_id, email=email)
+    with pytest.raises(InvalidTokenError) as exc_info:
+        decode_verification_token(access_token)
+
+    assert "verification" in str(exc_info.value).lower()

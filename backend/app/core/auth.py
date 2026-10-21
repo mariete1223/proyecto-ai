@@ -93,3 +93,46 @@ def decode_access_token(token: str, secret_key: str | None = None) -> dict[str, 
         raise InvalidTokenError("Token has expired.")
 
     return payload
+
+
+def create_verification_token(
+    user_id: str,
+    email: str,
+    expires_in_seconds: int = 86400,
+    secret_key: str | None = None,
+) -> str:
+    """Create a signed JWT token for email verification (valid 24h by default)."""
+    if secret_key is None:
+        secret_key = get_secret_key()
+
+    header = {"alg": "HS256", "typ": "JWT"}
+    now = int(time.time())
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "type": "verify_email",
+        "iat": now,
+        "exp": now + expires_in_seconds,
+    }
+
+    header_bytes = json.dumps(header, separators=(",", ":")).encode("utf-8")
+    payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+    unsigned_token = f"{_b64encode(header_bytes)}.{_b64encode(payload_bytes)}"
+    signature = hmac.new(
+        secret_key.encode("utf-8"),
+        unsigned_token.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+
+    return f"{unsigned_token}.{_b64encode(signature)}"
+
+
+def decode_verification_token(
+    token: str, secret_key: str | None = None
+) -> dict[str, Any]:
+    """Decode and verify a signed email verification token."""
+    payload = decode_access_token(token, secret_key=secret_key)
+    if payload.get("type") != "verify_email":
+        raise InvalidTokenError("Token is not an email verification token.")
+    return payload

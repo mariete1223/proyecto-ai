@@ -47,7 +47,9 @@ def validate_password(password: str) -> None:
         raise InvalidUserDataError("Password must be at least 8 characters long.")
 
 
-def create_user(db: Session, email: str, password: str) -> User:
+def create_user(
+    db: Session, email: str, password: str, is_verified: bool = True
+) -> User:
     """Create a new user with secure password hash and normalized email."""
     normalized_email = validate_email(email)
     validate_password(password)
@@ -63,6 +65,7 @@ def create_user(db: Session, email: str, password: str) -> User:
         email=email.strip(),
         email_normalized=normalized_email,
         password_hash=hash_password(password),
+        is_verified=is_verified,
         created_at=now,
         updated_at=now,
         version=1,

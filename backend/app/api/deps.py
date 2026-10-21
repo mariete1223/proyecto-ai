@@ -56,11 +56,16 @@ def get_current_user(
                 email="demo@example.com",
                 email_normalized="demo@example.com",
                 password_hash="demo_hash",
+                is_verified=True,
                 created_at=now,
                 updated_at=now,
                 version=1,
             )
             db.add(demo_user)
+            db.commit()
+            db.refresh(demo_user)
+        elif not demo_user.is_verified:
+            demo_user.is_verified = True
             db.commit()
             db.refresh(demo_user)
         return demo_user
@@ -88,5 +93,10 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email address is not verified.",
         )
     return user

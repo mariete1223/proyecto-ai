@@ -1,8 +1,13 @@
 import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { AuthModal } from "./AuthModal";
+import * as authService from "../services/authService";
 
 describe("AuthModal", () => {
+  beforeEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it("renders login inputs and title correctly", async () => {
     const { getByText, getByPlaceholderText } = await render(
       <AuthModal
@@ -23,7 +28,7 @@ describe("AuthModal", () => {
   });
 
   it("switches to registration mode", async () => {
-    const { getAllByText, getByText } = await render(
+    const { getAllByText, getByTestId } = await render(
       <AuthModal
         visible={true}
         baseUrl="http://localhost:8000"
@@ -32,8 +37,9 @@ describe("AuthModal", () => {
       />,
     );
 
-    const registerTab = getByText("Registrarse");
-    fireEvent.press(registerTab);
+    await act(async () => {
+      fireEvent.press(getByTestId("modal-tab-register"));
+    });
 
     await waitFor(() => {
       expect(getAllByText("Crear Cuenta").length).toBeGreaterThanOrEqual(1);
@@ -41,7 +47,7 @@ describe("AuthModal", () => {
   });
 
   it("validates empty email", async () => {
-    const { getByText } = await render(
+    const { getByText, getByTestId } = await render(
       <AuthModal
         visible={true}
         baseUrl="http://localhost:8000"
@@ -50,13 +56,108 @@ describe("AuthModal", () => {
       />,
     );
 
-    const submitBtn = getByText("Acceder");
-    fireEvent.press(submitBtn);
+    await act(async () => {
+      fireEvent.press(getByTestId("modal-btn-submit"));
+    });
 
     await waitFor(() => {
       expect(
         getByText("Por favor, introduce un correo electrónico válido."),
       ).toBeTruthy();
+    });
+  });
+
+  it("shows confirmation instruction banner upon successful registration", async () => {
+    const registerSpy = jest
+      .spyOn(authService, "registerUser")
+      .mockResolvedValueOnce({
+        success: true,
+        message:
+          "Cuenta creada con éxito. Por favor, revisa tu correo electrónico para verificar tu cuenta antes de iniciar sesión.",
+      });
+
+    const { getByText, getByPlaceholderText, getByTestId } = await render(
+      <AuthModal
+        visible={true}
+        baseUrl="http://localhost:8000"
+        onSuccess={jest.fn()}
+        onClose={jest.fn()}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.press(getByTestId("modal-tab-register"));
+    });
+
+    const emailInput = getByPlaceholderText("tu@email.com");
+    const passwordInput = getByPlaceholderText("Mínimo 8 caracteres");
+
+    await act(async () => {
+      fireEvent.changeText(emailInput, "modaluser@example.com");
+      fireEvent.changeText(passwordInput, "StrongPassword123!");
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("modal-btn-submit"));
+    });
+
+    await waitFor(() => {
+      expect(registerSpy).toHaveBeenCalled();
+      expect(getByText(/revisa tu correo electrónico/i)).toBeTruthy();
+    });
+  });
+
+  it("shows unverified error and handles resend verification", async () => {
+    const loginSpy = jest
+      .spyOn(authService, "loginUser")
+      .mockResolvedValueOnce({
+        success: false,
+        error: "Email address is not verified.",
+        isUnverified: true,
+      });
+    const resendSpy = jest
+      .spyOn(authService, "resendVerification")
+      .mockResolvedValueOnce({
+        success: true,
+        message: "Correo reenviado.",
+      });
+
+    const { getByText, getByPlaceholderText, getByTestId } = await render(
+      <AuthModal
+        visible={true}
+        baseUrl="http://localhost:8000"
+        onSuccess={jest.fn()}
+        onClose={jest.fn()}
+      />,
+    );
+
+    const emailInput = getByPlaceholderText("tu@email.com");
+    const passwordInput = getByPlaceholderText("Mínimo 8 caracteres");
+
+    await act(async () => {
+      fireEvent.changeText(emailInput, "unverified@example.com");
+      fireEvent.changeText(passwordInput, "Password123!");
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("modal-btn-submit"));
+    });
+
+    await waitFor(() => {
+      expect(loginSpy).toHaveBeenCalled();
+      expect(getByTestId("btn-resend-verification")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-resend-verification"));
+    });
+
+    await waitFor(() => {
+      expect(resendSpy).toHaveBeenCalledWith(
+        "http://localhost:8000",
+        "unverified@example.com",
+      );
+      expect(getByText(/Correo reenviado/i)).toBeTruthy();
     });
   });
 });

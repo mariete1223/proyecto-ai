@@ -89,6 +89,7 @@ def seed_domain_graph(connection: Connection) -> dict[str, Any]:
                 "email": f"{key}@example.com",
                 "email_normalized": f"{key}@example.com",
                 "password_hash": "hash",
+                "is_verified": True,
                 "created_at": now,
                 "updated_at": now,
                 "version": 1,
