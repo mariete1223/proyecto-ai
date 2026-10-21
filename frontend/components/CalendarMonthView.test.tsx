@@ -686,4 +686,80 @@ describe("CalendarMonthView Component (Task 35)", () => {
       expect(getByText(/Reunión de Noviembre/)).toBeTruthy();
     });
   });
+
+  it("does not render task checkbox for alert entries and cannot mark them as completed (#106)", async () => {
+    // Create an Alerta category (canonical STANDARD kind)
+    const alertCat = await createLocalCategory(db, userId, {
+      name: "Alerta",
+      voice_command: "alerta",
+      color: "#EF4444",
+    });
+
+    const alertEntry = await createLocalEntry(db, userId, {
+      category_id: alertCat.id,
+      content: "Aviso de reunión importante",
+      occurred_at: "2026-09-15T09:00:00Z",
+    });
+
+    const { queryByTestId, getByTestId } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("day-cell-2026-09-15")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("day-cell-2026-09-15"));
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("day-detail-panel")).toBeTruthy();
+    });
+
+    // Alert entry must NOT have a task checkbox
+    expect(queryByTestId(`btn-toggle-task-${alertEntry.id}`)).toBeNull();
+  });
+
+  it("renders task checkbox only for TASK category entries and not for STANDARD entries (#106)", async () => {
+    const taskCat = await createLocalCategory(db, userId, {
+      name: "Tareas",
+      voice_command: "tarea",
+      color: "#F59E0B",
+      kind: "TASK",
+    });
+
+    const taskEntry = await createLocalEntry(db, userId, {
+      category_id: taskCat.id,
+      content: "Tarea con checkbox",
+      occurred_at: "2026-09-15T10:00:00Z",
+    });
+
+    const standardEntry = await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Nota estándar sin checkbox",
+      occurred_at: "2026-09-15T11:00:00Z",
+    });
+
+    const { queryByTestId, getByTestId } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("day-cell-2026-09-15")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("day-cell-2026-09-15"));
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("day-detail-panel")).toBeTruthy();
+    });
+
+    // Task entry MUST have a checkbox
+    expect(getByTestId(`btn-toggle-task-${taskEntry.id}`)).toBeTruthy();
+    // Standard entry must NOT have a checkbox
+    expect(queryByTestId(`btn-toggle-task-${standardEntry.id}`)).toBeNull();
+  });
 });

@@ -191,6 +191,10 @@ export function CalendarMonthView({
   };
 
   const handleToggleTaskStatus = async (entry: Entry) => {
+    const cat = categoryMap.get(entry.category_id);
+    if (!cat || cat.kind !== "TASK" || isCategoryAlert(cat)) {
+      return;
+    }
     const nextStatus: TaskStatus =
       entry.task_status === "DONE" ? "PENDING" : "DONE";
     try {
@@ -1063,8 +1067,8 @@ export function CalendarMonthView({
           ) : (
             selectedDayEntries.items.map((ent) => {
               const cat = categoryMap.get(ent.category_id);
-              const isTask = cat?.kind === "TASK" || ent.task_status !== null;
-              const isCompleted = ent.task_status === "DONE";
+              const isTask = cat?.kind === "TASK" && !isCategoryAlert(cat);
+              const isCompleted = isTask && ent.task_status === "DONE";
               const timeNorm =
                 normalizeUtcIso(ent.occurred_at) || ent.occurred_at;
               const timeStr = timeNorm
