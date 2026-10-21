@@ -197,15 +197,17 @@ describe("ReminderConfigSection Component (#67)", () => {
 
   it("disables offset options that would place trigger time in the past for today's entry", async () => {
     // Set occurredAt to 2 hours from now
-    const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const twoHoursFromNow = new Date(
+      Date.now() + 2 * 60 * 60 * 1000,
+    ).toISOString();
     const { getByTestId, queryByTestId } = await render(
       <ReminderConfigSection
         enabled={true}
         defaultExpanded={true}
         onEnabledChange={jest.fn()}
-        reminderTime={undefined}
+        reminderTime=""
         onReminderTimeChange={jest.fn()}
-        reminderEndTime={undefined}
+        reminderEndTime=""
         onReminderEndTimeChange={jest.fn()}
         offsetMinutes={0}
         onOffsetMinutesChange={jest.fn()}
@@ -227,4 +229,3 @@ describe("ReminderConfigSection Component (#67)", () => {
     expect(queryByTestId("warning-reminder-trigger-past")).toBeNull();
   });
 });
-

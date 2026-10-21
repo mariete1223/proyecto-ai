@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  GestureResponderEvent,
   Image,
+  PanResponder,
+  PanResponderGestureState,
   Platform,
   Pressable,
   ScrollView,
@@ -17,6 +20,61 @@ const appLogo = require("../assets/logo-small.png");
 
 export type MobileTab =
   "VOICE_CAPTURE" | "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "LLM_IMPORT";
+
+export const ORDERED_MOBILE_TABS: MobileTab[] = [
+  "VOICE_CAPTURE",
+  "CALENDAR",
+  "PENDING_TASKS",
+  "EXPLORER",
+  "LLM_IMPORT",
+];
+
+export function getSwipePanResponderConfig(
+  activeTab: MobileTab,
+  onTabChange: (tab: MobileTab) => void,
+) {
+  return {
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (
+      _evt: GestureResponderEvent,
+      gestureState: PanResponderGestureState,
+    ) => {
+      // Detect intentional horizontal swipes: horizontal displacement exceeds 30px,
+      // and horizontal movement is dominant over vertical movement by at least 1.5x
+      const { dx, dy } = gestureState;
+      return Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy) * 1.5;
+    },
+    onPanResponderRelease: (
+      _evt: GestureResponderEvent,
+      gestureState: PanResponderGestureState,
+    ) => {
+      const { dx, dy } = gestureState;
+      const isHorizontalDominant = Math.abs(dx) > Math.abs(dy) * 1.5;
+      const minSwipeDistance = 50;
+
+      if (!isHorizontalDominant || Math.abs(dx) < minSwipeDistance) {
+        return;
+      }
+
+      const currentIdx = ORDERED_MOBILE_TABS.indexOf(activeTab);
+      if (currentIdx === -1) return;
+
+      if (dx <= -minSwipeDistance) {
+        // Swipe Left -> Next tab
+        if (currentIdx < ORDERED_MOBILE_TABS.length - 1) {
+          const nextTab = ORDERED_MOBILE_TABS[currentIdx + 1];
+          onTabChange(nextTab);
+        }
+      } else if (dx >= minSwipeDistance) {
+        // Swipe Right -> Previous tab
+        if (currentIdx > 0) {
+          const prevTab = ORDERED_MOBILE_TABS[currentIdx - 1];
+          onTabChange(prevTab);
+        }
+      }
+    },
+  };
+}
 
 export interface MobileMainLayoutProps {
   apiConfig: WebApiConfig;
@@ -76,6 +134,12 @@ export function MobileMainLayout({
     Platform.OS === "web"
       ? ({ minHeight: "100dvh", height: "100dvh" } as any)
       : undefined;
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create(getSwipePanResponderConfig(activeTab, onTabChange)),
+    [activeTab, onTabChange],
+  );
 
   return (
     <View
@@ -137,9 +201,15 @@ export function MobileMainLayout({
         </View>
       </View>
 
-      {/* Main Content Scroll Area */}
+      {/* Main Content Scroll Area with Horizontal Swipe PanResponder */}
       <View style={styles.contentArea} testID="mobile-content-area">
-        {children}
+        <View
+          style={{ flex: 1, width: "100%", height: "100%" }}
+          testID="mobile-swipe-container"
+          {...panResponder.panHandlers}
+        >
+          {children}
+        </View>
       </View>
 
       {/* Fixed Bottom Navigation Bar (Standard Mobile Bottom Tabs) */}

@@ -1298,10 +1298,13 @@ export function CalendarMonthView({
                           const baseIso = ent.occurred_at || ent.reminder_time;
                           let isPast = false;
                           if (baseIso && preset.offset > 0) {
-                            const baseNorm = normalizeUtcIso(baseIso) || baseIso;
+                            const baseNorm =
+                              normalizeUtcIso(baseIso) || baseIso;
                             const d = new Date(baseNorm);
                             if (!isNaN(d.getTime())) {
-                              isPast = d.getTime() - preset.offset * 60000 < Date.now();
+                              isPast =
+                                d.getTime() - preset.offset * 60000 <
+                                Date.now();
                             }
                           }
                           return (
@@ -1325,7 +1328,8 @@ export function CalendarMonthView({
                                   styles.reminderPresetButtonText,
                                   selectedReminderOffset === preset.offset &&
                                     styles.reminderPresetButtonTextActive,
-                                  isPast && styles.reminderPresetButtonTextDisabled,
+                                  isPast &&
+                                    styles.reminderPresetButtonTextDisabled,
                                 ]}
                               >
                                 {preset.label}
@@ -1501,12 +1505,19 @@ export function CalendarMonthView({
                               setEditingReminderEntryId(null);
                             } else {
                               setEditingReminderEntryId(ent.id);
-                              let initialOffset = ent.reminder_offset_minutes || 0;
-                              const baseIso = ent.occurred_at || ent.reminder_time;
+                              let initialOffset =
+                                ent.reminder_offset_minutes || 0;
+                              const baseIso =
+                                ent.occurred_at || ent.reminder_time;
                               if (baseIso && initialOffset > 0) {
-                                const baseNorm = normalizeUtcIso(baseIso) || baseIso;
+                                const baseNorm =
+                                  normalizeUtcIso(baseIso) || baseIso;
                                 const d = new Date(baseNorm);
-                                if (!isNaN(d.getTime()) && d.getTime() - initialOffset * 60000 < Date.now()) {
+                                if (
+                                  !isNaN(d.getTime()) &&
+                                  d.getTime() - initialOffset * 60000 <
+                                    Date.now()
+                                ) {
                                   initialOffset = 0;
                                 }
                               }
