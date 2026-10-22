@@ -611,8 +611,9 @@ export interface AdoptionResult {
 export async function adoptGuestData(
   db: DatabaseAdapter,
   targetUserId: string,
+  guestUserId: string = "user-demo-123",
 ): Promise<AdoptionResult> {
-  if (!targetUserId || targetUserId === "user-demo-123") {
+  if (!targetUserId || targetUserId === guestUserId) {
     return { adoptedEntries: 0, adoptedCategories: 0, adoptedTags: 0 };
   }
 
@@ -636,8 +637,8 @@ export async function adoptGuestData(
     id: string;
     name: string;
     name_normalized: string;
-  }>(`SELECT id, name, name_normalized FROM categories WHERE user_id != ?;`, [
-    targetUserId,
+  }>(`SELECT id, name, name_normalized FROM categories WHERE user_id = ?;`, [
+    guestUserId,
   ]);
   let adoptedCategories = 0;
   for (const gc of guestCategories) {
@@ -675,8 +676,8 @@ export async function adoptGuestData(
     id: string;
     name: string;
     name_normalized: string;
-  }>(`SELECT id, name, name_normalized FROM tags WHERE user_id != ?;`, [
-    targetUserId,
+  }>(`SELECT id, name, name_normalized FROM tags WHERE user_id = ?;`, [
+    guestUserId,
   ]);
   let adoptedTags = 0;
   for (const gt of guestTags) {
@@ -702,7 +703,7 @@ export async function adoptGuestData(
   const guestEntries = await db.getAllAsync<{
     id: string;
     category_id: string;
-  }>(`SELECT id, category_id FROM entries WHERE user_id != ?;`, [targetUserId]);
+  }>(`SELECT id, category_id FROM entries WHERE user_id = ?;`, [guestUserId]);
 
   const fallbackCat = targetCategories[0]?.id || CANONICAL_CATEGORIES.TAREAS.id;
   for (const ge of guestEntries) {
@@ -721,8 +722,8 @@ export async function adoptGuestData(
 
   // 5. Adoptar vínculos de etiquetas en entry_tags
   await db.runAsync(
-    `UPDATE entry_tags SET user_id = ?, sync_status = 'PENDING_PUSH' WHERE user_id != ?;`,
-    [targetUserId, targetUserId],
+    `UPDATE entry_tags SET user_id = ?, sync_status = 'PENDING_PUSH' WHERE user_id = ?;`,
+    [targetUserId, guestUserId],
   );
 
   return {

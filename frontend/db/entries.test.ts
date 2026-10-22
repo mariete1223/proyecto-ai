@@ -374,5 +374,35 @@ describe("Local Entries and Tasks Storage Layer", () => {
         adoptedTags: 0,
       });
     });
+
+    it("does not adopt entries belonging to another authenticated user", async () => {
+      const userA = "user-authenticated-A";
+      const userB = "user-authenticated-B";
+
+      const catA = await createLocalCategory(db, userA, {
+        name: "Private Notes",
+        voice_command: "privada",
+        kind: "STANDARD",
+      });
+
+      const entryA = await createLocalEntry(db, userA, {
+        category_id: catA.id,
+        content: "User A private task",
+      });
+
+      // User B logs in and runs adoptGuestData
+      const result = await adoptGuestData(db, userB);
+      expect(result.adoptedEntries).toBe(0);
+
+      // Verify User A's entry remains untouched
+      const entriesA = await listLocalEntries(db, userA);
+      expect(entriesA.length).toBe(1);
+      expect(entriesA[0].id).toBe(entryA.id);
+      expect(entriesA[0].user_id).toBe(userA);
+
+      // Verify User B has 0 entries
+      const entriesB = await listLocalEntries(db, userB);
+      expect(entriesB.length).toBe(0);
+    });
   });
 });
