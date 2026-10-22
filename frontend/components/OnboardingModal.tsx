@@ -180,6 +180,16 @@ export function OnboardingModal({
             </Pressable>
           </View>
 
+          {/* Aviso para volver a consultar la guía arriba */}
+          <View style={styles.revisitBanner} testID="onboarding-revisit-banner">
+            <Text style={styles.revisitBannerText}>
+              💡 Podrás volver a consultar esta guía siempre que quieras desde
+              el botón{" "}
+              <Text style={styles.revisitBannerHighlight}>💡 Guía</Text> arriba
+              en la barra superior.
+            </Text>
+          </View>
+
           {/* Icono central */}
           <View style={styles.iconCircle}>
             <Text style={styles.iconText}>{step.icon}</Text>
@@ -308,6 +318,25 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     fontSize: 13,
     fontWeight: "600",
+  },
+  revisitBanner: {
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    borderColor: "rgba(56, 189, 248, 0.25)",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  revisitBannerText: {
+    color: "#94A3B8",
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: "center",
+  },
+  revisitBannerHighlight: {
+    color: "#38BDF8",
+    fontWeight: "700",
   },
   iconCircle: {
     width: 72,

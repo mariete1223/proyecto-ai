@@ -61,6 +61,7 @@ import { notificationService } from "./services/notificationService";
 import { checkBackendHealth } from "./services/webApi";
 import { AuthModal } from "./components/AuthModal";
 import { AuthScreen } from "./components/AuthScreen";
+import { OfflineNoticeModal } from "./components/OfflineNoticeModal";
 import {
   OnboardingModal,
   isOnboardingCompleted,
@@ -172,6 +173,7 @@ export default function App() {
   const [isBackendOffline, setIsBackendOffline] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [showOfflineNoticeModal, setShowOfflineNoticeModal] = useState(false);
   const userId = authSession ? authSession.userId : "user-demo-123";
   const userToken = authSession ? authSession.token : "demo-token";
   const [isInitialized, setIsInitialized] = useState(false);
@@ -553,12 +555,12 @@ export default function App() {
         if (!authSession) {
           const isHealthy = await checkBackendHealth(defaultApiConfig);
           setIsBackendOffline(!isHealthy);
+        } else if (!isOnboardingCompleted(authSession.userId)) {
+          // Solo mostrar la guía automáticamente la primera vez que se inicia sesión
+          setShowOnboardingModal(true);
         }
         await loadDatabaseState(true);
         setIsInitialized(true);
-        if (!isOnboardingCompleted(userId)) {
-          setShowOnboardingModal(true);
-        }
       }
     }
 
@@ -633,8 +635,14 @@ export default function App() {
             } catch (_) {}
           }
           await loadDatabaseState(true, session?.userId, session?.token);
+          if (session?.userId && !isOnboardingCompleted(session.userId)) {
+            setShowOnboardingModal(true);
+          }
         }}
-        onContinueOffline={() => setBypassAuth(true)}
+        onContinueOffline={() => {
+          setBypassAuth(true);
+          setShowOfflineNoticeModal(true);
+        }}
         isOffline={isBackendOffline}
       />
     );
@@ -745,6 +753,27 @@ export default function App() {
 
     return (
       <View style={styles.tabContentWrapper}>
+        {/* Banner de Modo Offline Activo */}
+        {bypassAuth && !authSession && (
+          <View style={styles.offlineNoticeBanner} testID="banner-offline-mode">
+            <View style={styles.offlineNoticeBannerContent}>
+              <Text style={styles.offlineNoticeBannerText}>
+                📡{" "}
+                <Text style={{ fontWeight: "700" }}>Modo Offline activo:</Text>{" "}
+                Estás trabajando sin conexión. Los datos creados se
+                sincronizarán con tu cuenta online al iniciar sesión.
+              </Text>
+            </View>
+            <Pressable
+              style={styles.offlineNoticeBannerBtn}
+              onPress={() => setShowOfflineNoticeModal(true)}
+              testID="btn-open-offline-info"
+            >
+              <Text style={styles.offlineNoticeBannerBtnText}>Más info</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Proactive Startup Permissions Banner (#77) */}
         <StartupPermissionsPrompt
           backendUrl={getBackendUrl()}
@@ -896,7 +925,10 @@ export default function App() {
             }
           }}
           onClose={() => setShowAuthModal(false)}
-          onContinueOffline={() => setShowAuthModal(false)}
+          onContinueOffline={() => {
+            setShowAuthModal(false);
+            setShowOfflineNoticeModal(true);
+          }}
           isOffline={isBackendOffline}
         />
 
@@ -905,6 +937,12 @@ export default function App() {
           visible={showOnboardingModal}
           onClose={() => setShowOnboardingModal(false)}
           userId={userId}
+        />
+
+        {/* Modal de Aviso de Modo Offline */}
+        <OfflineNoticeModal
+          visible={showOfflineNoticeModal}
+          onClose={() => setShowOfflineNoticeModal(false)}
         />
       </View>
     );
@@ -1116,5 +1154,39 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 1040,
     alignSelf: "center",
+  },
+  offlineNoticeBanner: {
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.4)",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  offlineNoticeBannerContent: {
+    flex: 1,
+  },
+  offlineNoticeBannerText: {
+    color: "#FEF3C7",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  offlineNoticeBannerBtn: {
+    backgroundColor: "rgba(245, 158, 11, 0.25)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.5)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  offlineNoticeBannerBtnText: {
+    color: "#FDE68A",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

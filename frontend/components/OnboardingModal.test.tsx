@@ -160,4 +160,14 @@ describe("OnboardingModal Component (#66)", () => {
 
     expect(queryByTestId("onboarding-modal")).toBeNull();
   });
+
+  it("displays recall notice indicating the guide can be consulted again from the top button", async () => {
+    const onCloseMock = jest.fn();
+    const { getByTestId, getByText } = await render(
+      <OnboardingModal visible={true} onClose={onCloseMock} userId={userId} />,
+    );
+
+    expect(getByTestId("onboarding-revisit-banner")).toBeTruthy();
+    expect(getByText(/volver a consultar esta guía/i)).toBeTruthy();
+  });
 });

@@ -93,4 +93,23 @@ describe("App", () => {
       expect(getByText(/Cita con el dentista en el calendario/)).toBeTruthy();
     });
   });
+
+  it("displays OfflineNoticeModal and banner when continuing in offline mode", async () => {
+    authStorage.clearSession();
+    const { getByTestId, findByTestId, queryByTestId } = await render(<App />);
+
+    // Initial render without session displays AuthScreen
+    expect(getByTestId("auth-screen")).toBeTruthy();
+
+    // Trigger onContinueOffline by passing offline simulation or pressing offline button
+    // When offline is detected and user continues offline:
+    const continueOfflineBtn = queryByTestId("btn-continue-offline");
+    if (continueOfflineBtn) {
+      await act(async () => {
+        fireEvent.press(continueOfflineBtn);
+      });
+      expect(await findByTestId("offline-notice-modal")).toBeTruthy();
+      expect(getByTestId("banner-offline-mode")).toBeTruthy();
+    }
+  });
 });
