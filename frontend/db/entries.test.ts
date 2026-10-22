@@ -1,6 +1,7 @@
 import { createLocalCategory } from "./categories";
 import { MemoryDatabaseAdapter, runMigrations } from "./database";
 import {
+  adoptGuestData,
   createLocalEntry,
   deleteLocalEntry,
   getEntryById,
@@ -278,6 +279,100 @@ describe("Local Entries and Tasks Storage Layer", () => {
       expect(customOffsetsEntry.reminder_enabled).toBe(true);
       expect(customOffsetsEntry.reminder_offset_minutes).toBe(60);
       expect(customOffsetsEntry.reminder_offsets_minutes).toEqual([60]);
+    });
+  });
+
+  describe("adoptGuestData", () => {
+    it("adopts guest entries, categories, and tags to target user with PENDING_PUSH sync status", async () => {
+      const guestId = "user-demo-123";
+      const targetUser = "user-target-789";
+
+      // Crear categorías para el usuario objetivo
+      const targetCat = await createLocalCategory(db, targetUser, {
+        name: "Notas",
+        voice_command: "nota",
+        kind: "STANDARD",
+      });
+
+      // Crear categoría de invitado con mismo nombre (debe fusionarse)
+      const guestCatSame = await createLocalCategory(db, guestId, {
+        name: "Notas",
+        voice_command: "nota",
+        kind: "STANDARD",
+      });
+
+      // Crear categoría de invitado con nombre nuevo (debe ser adoptada)
+      const guestCatNew = await createLocalCategory(db, guestId, {
+        name: "Trabajo",
+        voice_command: "trabajo",
+        kind: "STANDARD",
+      });
+
+      // Crear etiquetas para target y guest
+      const targetTag = await createLocalTag(db, targetUser, {
+        name: "Urgente",
+      });
+      const guestTagSame = await createLocalTag(db, guestId, {
+        name: "Urgente",
+      });
+      const guestTagNew = await createLocalTag(db, guestId, {
+        name: "OfflineTag",
+      });
+
+      // Crear entradas de invitado
+      const guestEntry1 = await createLocalEntry(db, guestId, {
+        category_id: guestCatSame.id,
+        content: "Tarea creada en modo offline",
+        tag_ids: [guestTagSame.id, guestTagNew.id],
+      });
+
+      const guestEntry2 = await createLocalEntry(db, guestId, {
+        category_id: guestCatNew.id,
+        content: "Nota nueva offline",
+        occurred_at: "2026-10-21T10:00:00.000Z",
+      });
+
+      // Ejecutar adopción
+      const result = await adoptGuestData(db, targetUser);
+      expect(result.adoptedEntries).toBe(2);
+
+      // Verificar que las entradas ahora pertenecen al targetUser y tienen sync_status PENDING_PUSH
+      const targetEntries = await listLocalEntries(db, targetUser);
+      expect(targetEntries.length).toBe(2);
+
+      const adopted1 = targetEntries.find((e) => e.id === guestEntry1.id);
+      expect(adopted1).toBeDefined();
+      expect(adopted1?.user_id).toBe(targetUser);
+      // Su categoría debió ser mapeada a targetCat.id
+      expect(adopted1?.category_id).toBe(targetCat.id);
+      expect(adopted1?.sync_status).toBe("PENDING_PUSH");
+      // Las etiquetas deben incluir targetTag.id y guestTagNew.id (ahora adoptada)
+      expect(adopted1?.tag_ids).toContain(targetTag.id);
+
+      const adopted2 = targetEntries.find((e) => e.id === guestEntry2.id);
+      expect(adopted2).toBeDefined();
+      expect(adopted2?.user_id).toBe(targetUser);
+      expect(adopted2?.sync_status).toBe("PENDING_PUSH");
+
+      // Verificar que no quedan entradas para guestId
+      const remainingGuestEntries = await listLocalEntries(db, guestId);
+      expect(remainingGuestEntries.length).toBe(0);
+    });
+
+    it("returns zero counts if targetUserId is demo or empty", async () => {
+      const res1 = await adoptGuestData(db, "user-demo-123");
+      expect(res1).toEqual({
+        adoptedEntries: 0,
+        adoptedCategories: 0,
+        adoptedTags: 0,
+      });
+
+      const res2 = await adoptGuestData(db, "");
+      expect(res2).toEqual({
+        adoptedEntries: 0,
+        adoptedCategories: 0,
+        adoptedTags: 0,
+      });
     });
   });
 });

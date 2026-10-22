@@ -601,3 +601,133 @@ export async function deleteLocalEntry(
     [tbId, userId, "ENTRY", entryId, now, deletedVersion, "PENDING_PUSH"],
   );
 }
+
+export interface AdoptionResult {
+  adoptedEntries: number;
+  adoptedCategories: number;
+  adoptedTags: number;
+}
+
+export async function adoptGuestData(
+  db: DatabaseAdapter,
+  targetUserId: string,
+): Promise<AdoptionResult> {
+  if (!targetUserId || targetUserId === "user-demo-123") {
+    return { adoptedEntries: 0, adoptedCategories: 0, adoptedTags: 0 };
+  }
+
+  // 1. Obtener todas las categorías existentes del usuario objetivo
+  const targetCategories = await db.getAllAsync<{
+    id: string;
+    name_normalized: string;
+    kind: string;
+  }>(`SELECT id, name_normalized, kind FROM categories WHERE user_id = ?;`, [
+    targetUserId,
+  ]);
+  const targetCatMap = new Map<string, string>();
+  for (const tc of targetCategories) {
+    if (tc.name_normalized) {
+      targetCatMap.set(tc.name_normalized.toLowerCase(), tc.id);
+    }
+  }
+
+  // 2. Adoptar categorías huérfanas / de invitado
+  const guestCategories = await db.getAllAsync<{
+    id: string;
+    name: string;
+    name_normalized: string;
+  }>(`SELECT id, name, name_normalized FROM categories WHERE user_id != ?;`, [
+    targetUserId,
+  ]);
+  let adoptedCategories = 0;
+  for (const gc of guestCategories) {
+    const norm = (gc.name_normalized || gc.name || "").trim().toLowerCase();
+    const existingTargetId = targetCatMap.get(norm);
+    if (existingTargetId && existingTargetId !== gc.id) {
+      await db.runAsync(
+        `UPDATE entries SET category_id = ? WHERE category_id = ?;`,
+        [existingTargetId, gc.id],
+      );
+      await db.runAsync(`DELETE FROM categories WHERE id = ?;`, [gc.id]);
+    } else {
+      await db.runAsync(
+        `UPDATE categories SET user_id = ?, sync_status = 'PENDING_PUSH' WHERE id = ?;`,
+        [targetUserId, gc.id],
+      );
+      targetCatMap.set(norm, gc.id);
+      adoptedCategories++;
+    }
+  }
+
+  // 3. Adoptar etiquetas huérfanas / de invitado
+  const targetTags = await db.getAllAsync<{
+    id: string;
+    name_normalized: string;
+  }>(`SELECT id, name_normalized FROM tags WHERE user_id = ?;`, [targetUserId]);
+  const targetTagMap = new Map<string, string>();
+  for (const tt of targetTags) {
+    if (tt.name_normalized) {
+      targetTagMap.set(tt.name_normalized.toLowerCase(), tt.id);
+    }
+  }
+
+  const guestTags = await db.getAllAsync<{
+    id: string;
+    name: string;
+    name_normalized: string;
+  }>(`SELECT id, name, name_normalized FROM tags WHERE user_id != ?;`, [
+    targetUserId,
+  ]);
+  let adoptedTags = 0;
+  for (const gt of guestTags) {
+    const norm = (gt.name_normalized || gt.name || "").trim().toLowerCase();
+    const existingTagId = targetTagMap.get(norm);
+    if (existingTagId && existingTagId !== gt.id) {
+      await db.runAsync(
+        `UPDATE entry_tags SET tag_id = ?, user_id = ?, sync_status = 'PENDING_PUSH' WHERE tag_id = ?;`,
+        [existingTagId, targetUserId, gt.id],
+      );
+      await db.runAsync(`DELETE FROM tags WHERE id = ?;`, [gt.id]);
+    } else {
+      await db.runAsync(
+        `UPDATE tags SET user_id = ?, sync_status = 'PENDING_PUSH' WHERE id = ?;`,
+        [targetUserId, gt.id],
+      );
+      targetTagMap.set(norm, gt.id);
+      adoptedTags++;
+    }
+  }
+
+  // 4. Adoptar todas las entradas huérfanas / de invitado
+  const guestEntries = await db.getAllAsync<{
+    id: string;
+    category_id: string;
+  }>(`SELECT id, category_id FROM entries WHERE user_id != ?;`, [targetUserId]);
+
+  const fallbackCat = targetCategories[0]?.id || CANONICAL_CATEGORIES.TAREAS.id;
+  for (const ge of guestEntries) {
+    let catId = ge.category_id;
+    if (
+      !catId ||
+      (!Array.from(targetCatMap.values()).includes(catId) && fallbackCat)
+    ) {
+      catId = fallbackCat;
+    }
+    await db.runAsync(
+      `UPDATE entries SET user_id = ?, category_id = ?, sync_status = 'PENDING_PUSH' WHERE id = ?;`,
+      [targetUserId, catId, ge.id],
+    );
+  }
+
+  // 5. Adoptar vínculos de etiquetas en entry_tags
+  await db.runAsync(
+    `UPDATE entry_tags SET user_id = ?, sync_status = 'PENDING_PUSH' WHERE user_id != ?;`,
+    [targetUserId, targetUserId],
+  );
+
+  return {
+    adoptedEntries: guestEntries.length,
+    adoptedCategories,
+    adoptedTags,
+  };
+}

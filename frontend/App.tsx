@@ -40,6 +40,7 @@ import {
   runMigrations,
 } from "./db/database";
 import {
+  adoptGuestData,
   createLocalEntry,
   getEntryById,
   listLocalEntries,
@@ -347,14 +348,21 @@ export default function App() {
   };
 
   const loadDatabaseState = useCallback(
-    async (forceReload: boolean = false) => {
+    async (
+      forceReload: boolean = false,
+      overrideUserId?: string,
+      overrideToken?: string,
+    ) => {
+      const activeUserId = overrideUserId || userId;
+      const activeToken = overrideToken || userToken;
+
       // Si hay un formulario abierto y no se fuerza recarga, solo sincronizar en background sin tocar el estado de React.
       if (isFormOpenRef.current && !forceReload) {
         try {
           await performSync(db, {
             apiBaseUrl: getBackendUrl(),
-            token: userToken,
-            userId,
+            token: activeToken,
+            userId: activeUserId,
           });
         } catch (_) {
           // silencioso
@@ -364,37 +372,23 @@ export default function App() {
 
       setIsSyncing(true);
       try {
-        // Adoptar / migrar automáticamente cualquier entrada creada previamente en modo invitado
-        if (userId && userId !== "user-demo-123") {
+        // Adoptar / migrar automáticamente cualquier entrada creada previamente en modo invitado o huérfana
+        if (activeUserId && activeUserId !== "user-demo-123") {
           try {
-            await db.runAsync(
-              `UPDATE entries SET user_id = ? WHERE user_id = 'user-demo-123';`,
-              [userId],
-            );
-            await db.runAsync(
-              `UPDATE entry_tags SET user_id = ? WHERE user_id = 'user-demo-123';`,
-              [userId],
-            );
-            await db.runAsync(
-              `UPDATE categories SET user_id = ? WHERE user_id = 'user-demo-123';`,
-              [userId],
-            );
-            await db.runAsync(
-              `UPDATE tags SET user_id = ? WHERE user_id = 'user-demo-123';`,
-              [userId],
-            );
+            await adoptGuestData(db, activeUserId);
           } catch (_) {}
         }
 
-        // 1. Deduplicar en local antes del sync
-        await deduplicateAndHealEntries(db, userId);
+        // 1. Asegurar categorías canónicas y deduplicar en local antes del sync
+        await ensureCanonicalCategories(db, activeUserId);
+        await deduplicateAndHealEntries(db, activeUserId);
 
         // 2. Sincronizar con el backend
         try {
           const syncRes = await performSync(db, {
             apiBaseUrl: getBackendUrl(),
-            token: userToken,
-            userId,
+            token: activeToken,
+            userId: activeUserId,
           });
           if (!syncRes.success && syncRes.error) {
             console.warn("[Sync] Engine returned warning:", syncRes.error);
@@ -404,12 +398,15 @@ export default function App() {
         }
 
         // 3. Post-sync: deduplicar entradas recibidas
-        await deduplicateAndHealEntries(db, userId);
+        await deduplicateAndHealEntries(db, activeUserId);
 
-        const cats = await listCategories(db, userId);
-        const tgs = await listTags(db, userId);
-        const allEntries = await listLocalEntries(db, userId);
-        const datelessPending = await listPendingDatelessTasks(db, userId);
+        const cats = await listCategories(db, activeUserId);
+        const tgs = await listTags(db, activeUserId);
+        const allEntries = await listLocalEntries(db, activeUserId);
+        const datelessPending = await listPendingDatelessTasks(
+          db,
+          activeUserId,
+        );
 
         // Doble check: puede que el usuario abriera el formulario MIENTRAS el sync corría
         if (isFormOpenRef.current && !forceReload) return;
@@ -435,9 +432,9 @@ export default function App() {
         // Sincronizar todos los recordatorios activos en el servicio de notificaciones y suscripción push en servidor
         notificationService.syncAllReminders(
           db,
-          userId,
+          activeUserId,
           getBackendUrl(),
-          authSession ? authSession.token : undefined,
+          activeToken ? activeToken : undefined,
         );
       } catch (err) {
         console.error("Error al cargar la base de datos:", err);
@@ -535,6 +532,11 @@ export default function App() {
       } catch {
         // Column may already exist
       }
+      if (userId && userId !== "user-demo-123") {
+        try {
+          await adoptGuestData(db, userId);
+        } catch (_) {}
+      }
       await ensureCanonicalCategories(db, userId);
       await deduplicateAndHealEntries(db, userId);
 
@@ -628,25 +630,10 @@ export default function App() {
           setAuthSession(session);
           if (session?.userId && session.userId !== "user-demo-123") {
             try {
-              await db.runAsync(
-                `UPDATE entries SET user_id = ? WHERE user_id = 'user-demo-123';`,
-                [session.userId],
-              );
-              await db.runAsync(
-                `UPDATE entry_tags SET user_id = ? WHERE user_id = 'user-demo-123';`,
-                [session.userId],
-              );
-              await db.runAsync(
-                `UPDATE categories SET user_id = ? WHERE user_id = 'user-demo-123';`,
-                [session.userId],
-              );
-              await db.runAsync(
-                `UPDATE tags SET user_id = ? WHERE user_id = 'user-demo-123';`,
-                [session.userId],
-              );
+              await adoptGuestData(db, session.userId);
             } catch (_) {}
           }
-          loadDatabaseState(true);
+          await loadDatabaseState(true, session?.userId, session?.token);
         }}
         onContinueOffline={() => setBypassAuth(true)}
       />
@@ -895,10 +882,15 @@ export default function App() {
         <AuthModal
           visible={showAuthModal}
           baseUrl={getBackendUrl()}
-          onSuccess={(session) => {
+          onSuccess={async (session) => {
             setAuthSession(session);
             setShowAuthModal(false);
-            loadDatabaseState(true);
+            if (session?.userId && session.userId !== "user-demo-123") {
+              try {
+                await adoptGuestData(db, session.userId);
+              } catch (_) {}
+            }
+            await loadDatabaseState(true, session?.userId, session?.token);
             if (!isOnboardingCompleted(session.userId)) {
               setShowOnboardingModal(true);
             }

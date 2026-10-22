@@ -1,6 +1,6 @@
 ---
 fingerprint: offline-entries-disappear-after-login
-status: published
+status: resolved
 github_issue: https://github.com/mariete1223/proyecto-ai/issues/114
 first_seen: 2026-10-21
 last_seen: 2026-10-22
@@ -68,3 +68,4 @@ Frecuencia: Reportado en sesión móvil.
 
 - 2026-10-21: Registrado como borrador local `needs-triage`.
 - 2026-10-22: Actualizado con nueva evidencia sobre recuperación parcial (etiquetas/categorías sí, tareas del 21/10 no) y análisis de aislamiento de almacenamiento local.
+- 2026-10-22: Resuelto vía Issue #114. Se implementó `adoptGuestData` que adopta entradas huérfanas de cualquier usuario previo a la cuenta autenticada, remapea categorías/etiquetas, marca `PENDING_PUSH` y sincroniza en segundo plano de manera atómica al autenticarse.
