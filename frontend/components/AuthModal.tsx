@@ -319,6 +319,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </Text>
                 )}
               </Pressable>
+              <Pressable
+                style={styles.guestButton}
+                onPress={() => {
+                  setMode("login");
+                  setErrorMessage(null);
+                }}
+                testID="modal-btn-dismiss-verify"
+              >
+                <Text style={styles.guestButtonText}>
+                  Cerrar / Lo haré más tarde
+                </Text>
+              </Pressable>
             </View>
           ) : (
             <>

@@ -197,4 +197,74 @@ describe("AuthScreen Component", () => {
 
     expect(offlineMock).toHaveBeenCalledTimes(1);
   });
+
+  it("completes full flow: registration opens modal, user can dismiss it, and unverified login reopens it", async () => {
+    jest.spyOn(authService, "registerUser").mockResolvedValueOnce({
+      success: true,
+      message: "Cuenta creada exitosamente. Revisa tu correo.",
+    });
+
+    const screen = await render(
+      <AuthScreen baseUrl="http://localhost:8000" onSuccess={jest.fn()} />,
+    );
+
+    // Switch to register tab
+    await act(async () => {
+      fireEvent.press(screen.getByTestId("tab-auth-register"));
+    });
+
+    const emailInput = screen.getByPlaceholderText("tu@email.com");
+    const passwordInput = screen.getByPlaceholderText("Mínimo 8 caracteres");
+
+    await act(async () => {
+      fireEvent.changeText(emailInput, "flowuser@example.com");
+      fireEvent.changeText(passwordInput, "SecretPassword123!");
+    });
+
+    // Submit registration
+    await act(async () => {
+      fireEvent.press(screen.getByTestId("auth-btn-submit"));
+    });
+
+    // 1. Modal opens upon registration
+    await waitFor(() => {
+      expect(screen.getByTestId("verification-modal-card")).toBeTruthy();
+      expect(screen.getByText("Verifica tu cuenta")).toBeTruthy();
+    });
+
+    // 2. User dismisses the modal ("si la cierra y no lo hace, perfecto")
+    await act(async () => {
+      fireEvent.press(screen.getByTestId("btn-dismiss-verification"));
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("verification-modal-card")).toBeNull();
+    });
+
+    // 3. User attempts to login without having verified
+    jest.spyOn(authService, "loginUser").mockResolvedValueOnce({
+      success: false,
+      error: "Cuenta no verificada.",
+      isUnverified: true,
+    });
+
+    const loginPasswordInput = screen.getByPlaceholderText(
+      "Mínimo 8 caracteres",
+    );
+    await act(async () => {
+      fireEvent.changeText(loginPasswordInput, "SecretPassword123!");
+    });
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId("auth-btn-submit"));
+    });
+
+    // 4. Modal reopens automatically
+    await waitFor(() => {
+      expect(screen.getByTestId("verification-modal-card")).toBeTruthy();
+      expect(screen.getByText("Verifica tu cuenta")).toBeTruthy();
+    });
+
+    screen.unmount();
+  });
 });

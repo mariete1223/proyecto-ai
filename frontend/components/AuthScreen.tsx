@@ -20,6 +20,7 @@ import {
   verifyEmail,
 } from "../services/authService";
 import { theme } from "../styles/theme";
+import { VerificationModal } from "./VerificationModal";
 
 const appLogo = require("../assets/logo-small.png");
 
@@ -47,6 +48,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isUnverified, setIsUnverified] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationInitialError, setVerificationInitialError] = useState<
+    string | null
+  >(null);
+  const [verificationInitialMessage, setVerificationInitialMessage] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -188,12 +196,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           onSuccess(res.session);
         } else {
           if (res.isUnverified) {
-            setMode("verify");
             setIsUnverified(true);
-            setErrorMessage(
+            const unverifiedMsg =
               res.error ||
-                "Tu cuenta aún no está verificada. Por favor, introduce el token de verificación que te enviamos a tu correo para activarla y poder acceder.",
-            );
+              "Tu cuenta aún no está verificada. Por favor, introduce el token de verificación que te enviamos a tu correo para activarla y poder acceder.";
+            setErrorMessage(unverifiedMsg);
+            setVerificationInitialError(unverifiedMsg);
+            setVerificationInitialMessage(null);
+            setShowVerificationModal(true);
           } else {
             setErrorMessage(
               res.error ||
@@ -204,11 +214,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       } else {
         const res = await registerUser(baseUrl, cleanEmail, password);
         if (res.success) {
-          setInfoMessage(
+          const successMsg =
             res.message ||
-              "¡Cuenta creada! Hemos enviado un código a tu correo electrónico. Introdúcelo a continuación para activar tu cuenta.",
-          );
-          setMode("verify");
+            "¡Cuenta creada! Hemos enviado un código a tu correo electrónico. Introdúcelo a continuación para activar tu cuenta.";
+          setVerificationInitialMessage(successMsg);
+          setVerificationInitialError(null);
+          setShowVerificationModal(true);
+          setMode("login");
           setPassword("");
         } else {
           setErrorMessage(
@@ -367,14 +379,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           </Text>
 
           {/* Info / Success Feedback */}
-          {infoMessage && (
+          {infoMessage && !showVerificationModal && (
             <View style={styles.infoContainer} testID="auth-info-banner">
               <Text style={styles.infoText}>✉️ {infoMessage}</Text>
             </View>
           )}
 
           {/* Error Message & Unverified Account Actions */}
-          {errorMessage && (
+          {errorMessage && !showVerificationModal && (
             <View style={styles.errorContainer} testID="auth-error-banner">
               <Text style={styles.errorText}>{errorMessage}</Text>
               {isUnverified && (
@@ -429,6 +441,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     Confirmar Verificación
                   </Text>
                 )}
+              </Pressable>
+              <Pressable
+                style={styles.guestButton}
+                onPress={() => {
+                  setMode("login");
+                  setErrorMessage(null);
+                }}
+                testID="btn-dismiss-verify-mode"
+              >
+                <Text style={styles.guestButtonText}>
+                  Cerrar / Lo haré más tarde
+                </Text>
               </Pressable>
             </View>
           ) : (
@@ -507,6 +531,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           </View>
         </View>
       </ScrollView>
+
+      <VerificationModal
+        visible={showVerificationModal}
+        email={email}
+        baseUrl={baseUrl}
+        initialError={verificationInitialError}
+        initialMessage={verificationInitialMessage}
+        onClose={() => {
+          setShowVerificationModal(false);
+          setMode("login");
+        }}
+        onVerified={(verifiedEmail) => {
+          setShowVerificationModal(false);
+          setMode("login");
+          setEmail(verifiedEmail);
+          setInfoMessage(
+            "¡Cuenta verificada exitosamente! Ya puedes iniciar sesión con tus credenciales.",
+          );
+        }}
+        testIDPrefix="auth"
+      />
     </KeyboardAvoidingView>
   );
 };
