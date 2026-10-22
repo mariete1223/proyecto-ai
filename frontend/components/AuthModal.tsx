@@ -257,26 +257,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 Registrarse
               </Text>
             </Pressable>
-            <Pressable
-              style={[
-                styles.tabButton,
-                mode === "verify" && styles.tabButtonActive,
-              ]}
-              onPress={() => {
-                setMode("verify");
-                setErrorMessage(null);
-              }}
-              testID="modal-tab-verify"
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  mode === "verify" && styles.tabTextActive,
-                ]}
-              >
-                Verificar
-              </Text>
-            </Pressable>
           </View>
 
           {/* Info Banner */}

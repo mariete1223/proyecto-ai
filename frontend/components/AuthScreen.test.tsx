@@ -139,7 +139,17 @@ describe("AuthScreen Component", () => {
     });
   });
 
-  it("allows switching to verify mode and verifying a token", async () => {
+  it("does not render a verify tab in the top tab bar", async () => {
+    const { queryByTestId, getByTestId } = await render(
+      <AuthScreen baseUrl="http://localhost:8000" onSuccess={jest.fn()} />,
+    );
+
+    expect(getByTestId("tab-auth-login")).toBeTruthy();
+    expect(getByTestId("tab-auth-register")).toBeTruthy();
+    expect(queryByTestId("tab-auth-verify")).toBeNull();
+  });
+
+  it("allows opening verification modal and verifying a token", async () => {
     const verifySpy = jest
       .spyOn(authService, "verifyEmail")
       .mockResolvedValueOnce({
@@ -152,12 +162,12 @@ describe("AuthScreen Component", () => {
     );
 
     await act(async () => {
-      fireEvent.press(getByTestId("tab-auth-verify"));
+      fireEvent.press(getByTestId("btn-open-verify-modal"));
     });
 
     let tokenInput: any;
     await waitFor(() => {
-      tokenInput = getByPlaceholderText("Pega aquí el token de tu correo");
+      tokenInput = getByTestId("auth-input-verify-token");
       expect(tokenInput).toBeTruthy();
     });
 
@@ -174,7 +184,6 @@ describe("AuthScreen Component", () => {
         "http://localhost:8000",
         "valid-token-123",
       );
-      expect(getByTestId("auth-info-banner")).toBeTruthy();
     });
   });
 

@@ -41,10 +41,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const isSmallScreen = width < 480;
   const isTablet = width >= 480 && width < 900;
 
-  const [mode, setMode] = useState<"login" | "register" | "verify">("login");
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [verificationToken, setVerificationToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -96,8 +95,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         const tokenParam = params.get("token");
         if (tokenParam && tokenParam.trim()) {
           const cleanToken = tokenParam.trim();
-          setVerificationToken(cleanToken);
-          setMode("verify");
           setIsLoading(true);
           verifyEmail(baseUrl, cleanToken)
             .then((res) => {
@@ -165,51 +162,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     }
   };
 
-  const handleVerifyToken = async () => {
-    setErrorMessage(null);
-    setInfoMessage(null);
-    const cleanToken = verificationToken.trim();
-    if (!cleanToken) {
-      setErrorMessage(
-        "Por favor, introduce el token de verificación recibido.",
-      );
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const res = await verifyEmail(baseUrl, cleanToken);
-      if (res.success) {
-        setInfoMessage(
-          res.message ||
-            "¡Cuenta verificada exitosamente! Ya puedes iniciar sesión con tus credenciales.",
-        );
-        setMode("login");
-        setVerificationToken("");
-      } else {
-        setErrorMessage(
-          res.error || "Token de verificación inválido o expirado.",
-        );
-      }
-    } catch (err: unknown) {
-      setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : "Error al procesar la verificación.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSubmit = async () => {
     setErrorMessage(null);
     setInfoMessage(null);
     setIsUnverified(false);
-
-    if (mode === "verify") {
-      await handleVerifyToken();
-      return;
-    }
 
     const cleanEmail = email.trim();
     if (!cleanEmail || !cleanEmail.includes("@")) {
@@ -382,34 +338,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 Registrarse
               </Text>
             </Pressable>
-            <Pressable
-              style={[
-                styles.tabButton,
-                mode === "verify" && styles.tabButtonActive,
-              ]}
-              onPress={() => {
-                setMode("verify");
-                setErrorMessage(null);
-              }}
-              testID="tab-auth-verify"
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  mode === "verify" && styles.tabTextActive,
-                ]}
-              >
-                Verificar
-              </Text>
-            </Pressable>
           </View>
 
           <Text style={styles.modeDescription}>
             {mode === "login"
               ? "Introduce tus credenciales para acceder a tus notas, calendario y tareas privadas."
-              : mode === "register"
-                ? "Crea tu cuenta personal. Te enviaremos un email para confirmar tu dirección antes de iniciar sesión."
-                : "Introduce el código o token recibido en tu correo electrónico para activar tu cuenta."}
+              : "Crea tu cuenta personal. Te enviaremos un email para confirmar tu dirección antes de iniciar sesión."}
           </Text>
 
           {/* Info / Success Feedback */}
@@ -444,104 +378,68 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </View>
           )}
 
-          {/* Verification Code Form */}
-          {mode === "verify" ? (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Token o Código de Verificación</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Pega aquí el token de tu correo"
-                placeholderTextColor="#64748b"
-                value={verificationToken}
-                onChangeText={setVerificationToken}
-                autoCapitalize="none"
-                autoCorrect={false}
-                testID="auth-input-verify-token"
-                onSubmitEditing={handleVerifyToken}
-              />
-              <Pressable
-                style={[
-                  styles.primaryButton,
-                  isLoading && styles.buttonDisabled,
-                ]}
-                onPress={handleVerifyToken}
-                disabled={isLoading}
-                testID="auth-btn-verify-token"
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>
-                    Confirmar Verificación
-                  </Text>
-                )}
-              </Pressable>
-              <Pressable
-                style={styles.guestButton}
-                onPress={() => {
-                  setMode("login");
-                  setErrorMessage(null);
-                }}
-                testID="btn-dismiss-verify-mode"
-              >
-                <Text style={styles.guestButtonText}>
-                  Cerrar / Lo haré más tarde
-                </Text>
-              </Pressable>
-            </View>
-          ) : (
-            <>
-              {/* Inputs */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Correo Electrónico</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="tu@email.com"
-                  placeholderTextColor="#64748b"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  testID="auth-input-email"
-                  onSubmitEditing={handleSubmit}
-                />
-              </View>
+          {/* Inputs */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Correo Electrónico</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="tu@email.com"
+              placeholderTextColor="#64748b"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              testID="auth-input-email"
+              onSubmitEditing={handleSubmit}
+            />
+          </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Contraseña</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Mínimo 8 caracteres"
-                  placeholderTextColor="#64748b"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  testID="auth-input-password"
-                  onSubmitEditing={handleSubmit}
-                />
-              </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Contraseña</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Mínimo 8 caracteres"
+              placeholderTextColor="#64748b"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              testID="auth-input-password"
+              onSubmitEditing={handleSubmit}
+            />
+          </View>
 
-              {/* Submit Button */}
-              <Pressable
-                style={[
-                  styles.primaryButton,
-                  isLoading && styles.buttonDisabled,
-                ]}
-                onPress={handleSubmit}
-                disabled={isLoading}
-                testID="auth-btn-submit"
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>
-                    {mode === "login" ? "Acceder" : "Crear Cuenta"}
-                  </Text>
-                )}
-              </Pressable>
-            </>
+          {/* Submit Button */}
+          <Pressable
+            style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
+            onPress={handleSubmit}
+            disabled={isLoading}
+            testID="auth-btn-submit"
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.primaryButtonText}>
+                {mode === "login" ? "Acceder" : "Crear Cuenta"}
+              </Text>
+            )}
+          </Pressable>
+
+          {mode === "login" && (
+            <Pressable
+              style={styles.verifyLinkButton}
+              onPress={() => {
+                setVerificationInitialError(null);
+                setVerificationInitialMessage(null);
+                setShowVerificationModal(true);
+              }}
+              testID="btn-open-verify-modal"
+            >
+              <Text style={styles.verifyLinkText}>
+                ¿Tienes un código de verificación pendiente? Verificar cuenta
+              </Text>
+            </Pressable>
           )}
 
           {onContinueOffline && offlineDetected && (
@@ -804,5 +702,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     lineHeight: 16,
+  },
+  verifyLinkButton: {
+    marginTop: 2,
+    marginBottom: 14,
+    paddingVertical: 6,
+    alignItems: "center",
+  },
+  verifyLinkText: {
+    color: "#38BDF8",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });
