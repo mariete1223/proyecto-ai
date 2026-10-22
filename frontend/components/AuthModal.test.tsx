@@ -172,6 +172,7 @@ describe("AuthModal", () => {
         onSuccess={jest.fn()}
         onClose={jest.fn()}
         onContinueOffline={offlineMock}
+        isOffline={true}
       />,
     );
 
@@ -183,5 +184,19 @@ describe("AuthModal", () => {
     });
 
     expect(offlineMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not render offline button when online in AuthModal", async () => {
+    const { queryByTestId } = await render(
+      <AuthModal
+        visible={true}
+        baseUrl="http://localhost:8000"
+        onSuccess={jest.fn()}
+        onClose={jest.fn()}
+        isOffline={false}
+      />,
+    );
+
+    expect(queryByTestId("modal-btn-continue-offline")).toBeNull();
   });
 });

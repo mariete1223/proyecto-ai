@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -23,6 +24,7 @@ interface AuthModalProps {
   onSuccess: (session: AuthSession) => void;
   onClose: () => void;
   onContinueOffline?: () => void;
+  isOffline?: boolean;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -31,6 +33,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onSuccess,
   onClose,
   onContinueOffline,
+  isOffline,
 }) => {
   const [mode, setMode] = useState<"login" | "register" | "verify">("login");
   const [email, setEmail] = useState("");
@@ -41,6 +44,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isUnverified, setIsUnverified] = useState(false);
+
+  const [offlineDetected, setOfflineDetected] = useState<boolean>(() => {
+    if (typeof isOffline === "boolean") return isOffline;
+    if (
+      Platform.OS === "web" &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.onLine === "boolean"
+    ) {
+      return !navigator.onLine;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof isOffline === "boolean") {
+      setOfflineDetected(isOffline);
+    }
+  }, [isOffline]);
 
   const handleResend = async () => {
     const cleanEmail = email.trim();
@@ -164,6 +185,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       }
     } catch (err: unknown) {
+      setOfflineDetected(true);
       setErrorMessage(
         err instanceof Error ? err.message : "Error inesperado al conectar.",
       );
@@ -386,14 +408,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           )}
 
           {/* Offline / Guest Mode */}
-          {onContinueOffline && (
+          {onContinueOffline && offlineDetected && (
             <Pressable
               style={styles.guestButton}
               onPress={onContinueOffline}
               testID="modal-btn-continue-offline"
             >
               <Text style={styles.guestButtonText}>
-                Continuar en modo offline / invitado
+                📡 Sin conexión: Continuar en modo offline
               </Text>
             </Pressable>
           )}

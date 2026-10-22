@@ -185,6 +185,7 @@ describe("AuthScreen Component", () => {
         baseUrl="http://localhost:8000"
         onSuccess={jest.fn()}
         onContinueOffline={offlineMock}
+        isOffline={true}
       />,
     );
 
@@ -196,6 +197,18 @@ describe("AuthScreen Component", () => {
     });
 
     expect(offlineMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not render offline button when online", async () => {
+    const { queryByTestId } = await render(
+      <AuthScreen
+        baseUrl="http://localhost:8000"
+        onSuccess={jest.fn()}
+        isOffline={false}
+      />,
+    );
+
+    expect(queryByTestId("btn-continue-offline")).toBeNull();
   });
 
   it("completes full flow: registration opens modal, user can dismiss it, and unverified login reopens it", async () => {

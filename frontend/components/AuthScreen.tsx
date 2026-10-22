@@ -28,12 +28,14 @@ export interface AuthScreenProps {
   baseUrl: string;
   onSuccess: (session: AuthSession) => void;
   onContinueOffline?: () => void;
+  isOffline?: boolean;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({
   baseUrl,
   onSuccess,
   onContinueOffline,
+  isOffline,
 }) => {
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 480;
@@ -55,6 +57,37 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [verificationInitialMessage, setVerificationInitialMessage] = useState<
     string | null
   >(null);
+
+  const [offlineDetected, setOfflineDetected] = useState<boolean>(() => {
+    if (typeof isOffline === "boolean") return isOffline;
+    if (
+      Platform.OS === "web" &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.onLine === "boolean"
+    ) {
+      return !navigator.onLine;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof isOffline === "boolean") {
+      setOfflineDetected(isOffline);
+    }
+  }, [isOffline]);
+
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const handleOnline = () => setOfflineDetected(false);
+      const handleOffline = () => setOfflineDetected(true);
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+      return () => {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      };
+    }
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -229,6 +262,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         }
       }
     } catch (err: unknown) {
+      setOfflineDetected(true);
       setErrorMessage(
         err instanceof Error
           ? err.message
@@ -510,14 +544,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </>
           )}
 
-          {onContinueOffline && (
+          {onContinueOffline && offlineDetected && (
             <Pressable
               style={styles.guestButton}
               onPress={onContinueOffline}
               testID="btn-continue-offline"
             >
               <Text style={styles.guestButtonText}>
-                Continuar en modo offline / invitado
+                📡 Sin conexión: Continuar en modo offline
               </Text>
             </Pressable>
           )}

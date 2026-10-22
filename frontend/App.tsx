@@ -169,6 +169,7 @@ export default function App() {
     authStorage.loadSession(),
   );
   const [bypassAuth, setBypassAuth] = useState(false);
+  const [isBackendOffline, setIsBackendOffline] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const userId = authSession ? authSession.userId : "user-demo-123";
@@ -551,9 +552,7 @@ export default function App() {
       if (isMounted) {
         if (!authSession) {
           const isHealthy = await checkBackendHealth(defaultApiConfig);
-          if (!isHealthy) {
-            setBypassAuth(true);
-          }
+          setIsBackendOffline(!isHealthy);
         }
         await loadDatabaseState(true);
         setIsInitialized(true);
@@ -636,6 +635,7 @@ export default function App() {
           await loadDatabaseState(true, session?.userId, session?.token);
         }}
         onContinueOffline={() => setBypassAuth(true)}
+        isOffline={isBackendOffline}
       />
     );
   }
@@ -897,6 +897,7 @@ export default function App() {
           }}
           onClose={() => setShowAuthModal(false)}
           onContinueOffline={() => setShowAuthModal(false)}
+          isOffline={isBackendOffline}
         />
 
         {/* Modal de Onboarding y Bienvenida */}
