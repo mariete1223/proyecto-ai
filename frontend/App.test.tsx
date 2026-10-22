@@ -2,6 +2,7 @@ import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
 import React from "react";
 import App from "./App";
 import { authStorage } from "./services/authService";
+import * as webApi from "./services/webApi";
 
 describe("App", () => {
   beforeEach(() => {
@@ -94,22 +95,25 @@ describe("App", () => {
     });
   });
 
-  it("displays OfflineNoticeModal and banner when continuing in offline mode", async () => {
+  it("renders AuthScreen when unauthenticated and backend connection is healthy", async () => {
     authStorage.clearSession();
-    const { getByTestId, findByTestId, queryByTestId } = await render(<App />);
+    jest.spyOn(webApi, "checkBackendHealth").mockResolvedValueOnce(true);
 
-    // Initial render without session displays AuthScreen
-    expect(getByTestId("auth-screen")).toBeTruthy();
+    const { getByTestId, queryByTestId } = await render(<App />);
 
-    // Trigger onContinueOffline by passing offline simulation or pressing offline button
-    // When offline is detected and user continues offline:
-    const continueOfflineBtn = queryByTestId("btn-continue-offline");
-    if (continueOfflineBtn) {
-      await act(async () => {
-        fireEvent.press(continueOfflineBtn);
-      });
-      expect(await findByTestId("offline-notice-modal")).toBeTruthy();
-      expect(getByTestId("banner-offline-mode")).toBeTruthy();
-    }
+    await waitFor(() => {
+      expect(getByTestId("auth-screen")).toBeTruthy();
+      expect(queryByTestId("offline-notice-modal")).toBeNull();
+    });
+  });
+
+  it("automatically enters offline mode and displays OfflineNoticeModal when opening app without connection", async () => {
+    authStorage.clearSession();
+    jest.spyOn(webApi, "checkBackendHealth").mockResolvedValueOnce(false);
+
+    const { findByTestId, getByTestId } = await render(<App />);
+
+    expect(await findByTestId("offline-notice-modal")).toBeTruthy();
+    expect(getByTestId("banner-offline-mode")).toBeTruthy();
   });
 });

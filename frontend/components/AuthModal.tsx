@@ -386,19 +386,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </Pressable>
             </>
           )}
-
-          {/* Offline / Guest Mode */}
-          {onContinueOffline && offlineDetected && (
-            <Pressable
-              style={styles.guestButton}
-              onPress={onContinueOffline}
-              testID="modal-btn-continue-offline"
-            >
-              <Text style={styles.guestButtonText}>
-                📡 Sin conexión: Continuar en modo offline
-              </Text>
-            </Pressable>
-          )}
         </View>
       </View>
     </Modal>

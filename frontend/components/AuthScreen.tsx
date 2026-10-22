@@ -28,6 +28,7 @@ export interface AuthScreenProps {
   baseUrl: string;
   onSuccess: (session: AuthSession) => void;
   onContinueOffline?: () => void;
+  onOfflineDetected?: () => void;
   isOffline?: boolean;
 }
 
@@ -35,6 +36,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   baseUrl,
   onSuccess,
   onContinueOffline,
+  onOfflineDetected,
   isOffline,
 }) => {
   const { width } = useWindowDimensions();
@@ -219,6 +221,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       }
     } catch (err: unknown) {
       setOfflineDetected(true);
+      onOfflineDetected?.();
       setErrorMessage(
         err instanceof Error
           ? err.message
@@ -438,18 +441,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             >
               <Text style={styles.verifyLinkText}>
                 ¿Tienes un código de verificación pendiente? Verificar cuenta
-              </Text>
-            </Pressable>
-          )}
-
-          {onContinueOffline && offlineDetected && (
-            <Pressable
-              style={styles.guestButton}
-              onPress={onContinueOffline}
-              testID="btn-continue-offline"
-            >
-              <Text style={styles.guestButtonText}>
-                📡 Sin conexión: Continuar en modo offline
               </Text>
             </Pressable>
           )}

@@ -163,37 +163,13 @@ describe("AuthModal", () => {
     });
   });
 
-  it("calls onContinueOffline when guest/offline button is pressed in AuthModal", async () => {
-    const offlineMock = jest.fn();
-    const { getByTestId } = await render(
-      <AuthModal
-        visible={true}
-        baseUrl="http://localhost:8000"
-        onSuccess={jest.fn()}
-        onClose={jest.fn()}
-        onContinueOffline={offlineMock}
-        isOffline={true}
-      />,
-    );
-
-    const guestBtn = getByTestId("modal-btn-continue-offline");
-    expect(guestBtn).toBeTruthy();
-
-    await act(async () => {
-      fireEvent.press(guestBtn);
-    });
-
-    expect(offlineMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not render offline button when online in AuthModal", async () => {
+  it("does not render an offline button in AuthModal", async () => {
     const { queryByTestId } = await render(
       <AuthModal
         visible={true}
         baseUrl="http://localhost:8000"
         onSuccess={jest.fn()}
         onClose={jest.fn()}
-        isOffline={false}
       />,
     );
 

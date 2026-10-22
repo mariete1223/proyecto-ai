@@ -553,8 +553,26 @@ export default function App() {
 
       if (isMounted) {
         if (!authSession) {
-          const isHealthy = await checkBackendHealth(defaultApiConfig);
-          setIsBackendOffline(!isHealthy);
+          let isConnected = true;
+          if (
+            Platform.OS === "web" &&
+            typeof navigator !== "undefined" &&
+            typeof navigator.onLine === "boolean" &&
+            !navigator.onLine
+          ) {
+            isConnected = false;
+          } else {
+            const isHealthy = await checkBackendHealth(defaultApiConfig);
+            isConnected = isHealthy;
+          }
+
+          setIsBackendOffline(!isConnected);
+
+          if (!isConnected) {
+            // Sin conexión al abrir la app: activar automáticamente modo offline y mostrar aviso
+            setBypassAuth(true);
+            setShowOfflineNoticeModal(true);
+          }
         } else if (!isOnboardingCompleted(authSession.userId)) {
           // Solo mostrar la guía automáticamente la primera vez que se inicia sesión
           setShowOnboardingModal(true);
@@ -576,6 +594,28 @@ export default function App() {
     isFormOpenRef.current =
       showVoiceCaptureModal || showEntryFormModal || !!selectedEntryId;
   }, [showVoiceCaptureModal, showEntryFormModal, selectedEntryId]);
+
+  // Si se pierde la conexión mientras no hay sesión, activar automáticamente modo offline
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const handleOffline = () => {
+        setIsBackendOffline(true);
+        if (!authSession) {
+          setBypassAuth(true);
+          setShowOfflineNoticeModal(true);
+        }
+      };
+      const handleOnline = () => {
+        setIsBackendOffline(false);
+      };
+      window.addEventListener("offline", handleOffline);
+      window.addEventListener("online", handleOnline);
+      return () => {
+        window.removeEventListener("offline", handleOffline);
+        window.removeEventListener("online", handleOnline);
+      };
+    }
+  }, [authSession]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -639,7 +679,8 @@ export default function App() {
             setShowOnboardingModal(true);
           }
         }}
-        onContinueOffline={() => {
+        onOfflineDetected={() => {
+          setIsBackendOffline(true);
           setBypassAuth(true);
           setShowOfflineNoticeModal(true);
         }}
@@ -925,10 +966,6 @@ export default function App() {
             }
           }}
           onClose={() => setShowAuthModal(false)}
-          onContinueOffline={() => {
-            setShowAuthModal(false);
-            setShowOfflineNoticeModal(true);
-          }}
           isOffline={isBackendOffline}
         />
 

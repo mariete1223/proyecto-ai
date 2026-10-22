@@ -187,37 +187,46 @@ describe("AuthScreen Component", () => {
     });
   });
 
-  it("calls onContinueOffline when guest/offline button is pressed", async () => {
-    const offlineMock = jest.fn();
-    const { getByTestId } = await render(
-      <AuthScreen
-        baseUrl="http://localhost:8000"
-        onSuccess={jest.fn()}
-        onContinueOffline={offlineMock}
-        isOffline={true}
-      />,
-    );
-
-    const guestBtn = getByTestId("btn-continue-offline");
-    expect(guestBtn).toBeTruthy();
-
-    await act(async () => {
-      fireEvent.press(guestBtn);
-    });
-
-    expect(offlineMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not render offline button when online", async () => {
+  it("does not render an offline button on the screen", async () => {
     const { queryByTestId } = await render(
-      <AuthScreen
-        baseUrl="http://localhost:8000"
-        onSuccess={jest.fn()}
-        isOffline={false}
-      />,
+      <AuthScreen baseUrl="http://localhost:8000" onSuccess={jest.fn()} />,
     );
 
     expect(queryByTestId("btn-continue-offline")).toBeNull();
+  });
+
+  it("calls onOfflineDetected when a network connection error occurs during login", async () => {
+    const offlineMock = jest.fn();
+    jest
+      .spyOn(authService, "loginUser")
+      .mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    const { getByPlaceholderText, getByTestId } = await render(
+      <AuthScreen
+        baseUrl="http://localhost:8000"
+        onSuccess={jest.fn()}
+        onOfflineDetected={offlineMock}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.changeText(
+        getByPlaceholderText("tu@email.com"),
+        "offline@example.com",
+      );
+      fireEvent.changeText(
+        getByPlaceholderText("Mínimo 8 caracteres"),
+        "password123",
+      );
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("auth-btn-submit"));
+    });
+
+    await waitFor(() => {
+      expect(offlineMock).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("completes full flow: registration opens modal, user can dismiss it, and unverified login reopens it", async () => {
