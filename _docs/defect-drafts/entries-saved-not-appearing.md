@@ -1,7 +1,7 @@
 ---
-fingerprint: entries-saved-not-appearing
-status: needs-triage
-github_issue: null
+fingerprint: offline-entries-disappear-after-login
+status: published
+github_issue: https://github.com/mariete1223/proyecto-ai/issues/114
 first_seen: 2026-10-21
 last_seen: 2026-10-22
 ---
@@ -36,6 +36,7 @@ Frecuencia: Reportado en sesión móvil.
   - "he guardado antes cosas y no me aparecen en la app porque?"
   - "tenia cosas hoty a dia 21/10 esos me refiero"
   - "Solo se han recuerado alguna etiqueta y caategroia per las tareas que cree el 21/10 no se han recuperado"
+  - "offliine lo hice"
 - Inspección del backend (`backend/app.db`):
   - La tabla `entries` para `mariete1223@outlook.es` contiene únicamente 2 registros semilla del 13/10.
   - La tabla `entries` para la cuenta demo histórica contiene 8 registros, el último del 13/10.
