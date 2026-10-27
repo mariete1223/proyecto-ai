@@ -595,7 +595,7 @@ export default function App() {
       showVoiceCaptureModal || showEntryFormModal || !!selectedEntryId;
   }, [showVoiceCaptureModal, showEntryFormModal, selectedEntryId]);
 
-  // Si se pierde la conexión mientras no hay sesión, activar automáticamente modo offline
+  // Si cambia la conectividad en la web o se recupera el foco/visibilidad, sincronizar de fondo
   useEffect(() => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const handleOffline = () => {
@@ -607,31 +607,55 @@ export default function App() {
       };
       const handleOnline = () => {
         setIsBackendOffline(false);
+        syncSilentlyInBackground();
       };
+      const handleVisibilityChange = () => {
+        if (
+          typeof document !== "undefined" &&
+          document.visibilityState === "visible"
+        ) {
+          syncSilentlyInBackground();
+        }
+      };
+      const handleFocus = () => {
+        syncSilentlyInBackground();
+      };
+
       window.addEventListener("offline", handleOffline);
       window.addEventListener("online", handleOnline);
+      window.addEventListener("focus", handleFocus);
+      if (typeof document !== "undefined") {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      }
       return () => {
         window.removeEventListener("offline", handleOffline);
         window.removeEventListener("online", handleOnline);
+        window.removeEventListener("focus", handleFocus);
+        if (typeof document !== "undefined") {
+          document.removeEventListener(
+            "visibilitychange",
+            handleVisibilityChange,
+          );
+        }
       };
     }
-  }, [authSession]);
+  }, [authSession, syncSilentlyInBackground]);
 
   useEffect(() => {
     if (!isInitialized) return;
 
-    // En web: no hacemos auto-refresh por temporizador
+    // En web: usamos listeners de window/document
     if (Platform.OS === "web") {
       return () => {};
     }
 
-    // En móvil: AppState para detectar cuando vuelve al primer plano (sin polling repetitivo)
+    // En móvil: AppState para detectar cuando vuelve al primer plano
     const { AppState } = require("react-native");
     const subscription = AppState.addEventListener(
       "change",
       (state: string) => {
         if (state === "active") {
-          loadDatabaseState();
+          syncSilentlyInBackground();
         }
       },
     );
@@ -639,7 +663,7 @@ export default function App() {
     return () => {
       subscription?.remove();
     };
-  }, [isInitialized, loadDatabaseState]);
+  }, [isInitialized, syncSilentlyInBackground]);
 
   const handleTabChange = (
     tab: "CALENDAR" | "PENDING_TASKS" | "EXPLORER" | "CONFLICTS" | "LLM_IMPORT",

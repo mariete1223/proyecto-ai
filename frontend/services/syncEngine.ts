@@ -243,7 +243,41 @@ export async function getPendingLocalChanges(
     });
   }
 
-  // 5. Deletion Tombstones
+  // 5. Entry Tags
+  const etPending = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM entry_tags WHERE user_id = ? AND sync_status = 'PENDING_PUSH';`,
+    [userId],
+  );
+  const etError = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM entry_tags WHERE user_id = ? AND sync_status = 'ERROR';`,
+    [userId],
+  );
+  const entryTags = [...etPending, ...etError];
+  for (const et of entryTags) {
+    let etId = String(et.id);
+    if (!isUuid(etId)) {
+      const newUuid = generateUuid();
+      await db.runAsync(`UPDATE entry_tags SET id = ? WHERE id = ?;`, [
+        newUuid,
+        etId,
+      ]);
+      etId = newUuid;
+      et.id = newUuid;
+    }
+    const { sync_status, ...payload } = et;
+    payload.id = etId;
+    const version = typeof et.version === "number" ? et.version : 1;
+    changes.push({
+      change_id: generateUuid(),
+      entity_type: "ENTRY_TAG",
+      entity_id: etId,
+      action: version === 1 ? "CREATE" : "UPDATE",
+      base_version: version === 1 ? 0 : version - 1,
+      payload: payload as Record<string, unknown>,
+    });
+  }
+
+  // 6. Deletion Tombstones
   const tombstones = await db.getAllAsync<Record<string, unknown>>(
     `SELECT * FROM deletion_tombstones WHERE user_id = ? AND sync_status = 'PENDING_PUSH';`,
     [userId],
@@ -328,6 +362,18 @@ export async function processPushResults(
         } else {
           await db.runAsync(
             `UPDATE capture_corrections SET sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
+            [entityId, userId],
+          );
+        }
+      } else if (entityType === "ENTRY_TAG") {
+        if (appliedVersion) {
+          await db.runAsync(
+            `UPDATE entry_tags SET sync_status = 'SYNCED', version = ? WHERE id = ? AND user_id = ?;`,
+            [appliedVersion, entityId, userId],
+          );
+        } else {
+          await db.runAsync(
+            `UPDATE entry_tags SET sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
             [entityId, userId],
           );
         }
@@ -668,6 +714,50 @@ export async function applyRemoteChanges(
           );
         }
       }
+    } else if (entityType === "ENTRY_TAG") {
+      const entryId = String(payload.entry_id);
+      const tagId = String(payload.tag_id);
+      const existing = await db.getFirstAsync<{ id: string }>(
+        `SELECT id FROM entry_tags WHERE id = ? AND user_id = ?;`,
+        [entityId, userId],
+      );
+      if (existing) {
+        await db.runAsync(
+          `UPDATE entry_tags SET entry_id = ?, tag_id = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
+          [
+            entryId,
+            tagId,
+            payload.updated_at ?? new Date().toISOString(),
+            payload.version ?? 1,
+            entityId,
+            userId,
+          ],
+        );
+      } else {
+        const existingLink = await db.getFirstAsync<{ id: string }>(
+          `SELECT id FROM entry_tags WHERE entry_id = ? AND tag_id = ? AND user_id = ?;`,
+          [entryId, tagId, userId],
+        );
+        if (!existingLink) {
+          await db.runAsync(
+            `INSERT INTO entry_tags (id, user_id, entry_id, tag_id, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'SYNCED');`,
+            [
+              entityId,
+              userId,
+              entryId,
+              tagId,
+              payload.created_at ?? new Date().toISOString(),
+              payload.updated_at ?? new Date().toISOString(),
+              payload.version ?? 1,
+            ],
+          );
+        } else {
+          await db.runAsync(
+            `UPDATE entry_tags SET id = ?, sync_status = 'SYNCED', version = ? WHERE id = ? AND user_id = ?;`,
+            [entityId, payload.version ?? 1, existingLink.id, userId],
+          );
+        }
+      }
     }
   }
 
@@ -687,6 +777,11 @@ export async function applyRemoteChanges(
         userId,
         entityType as RemoteDeletionEntityType,
         entityId,
+      );
+    } else if (entityType === "ENTRY_TAG") {
+      await db.runAsync(
+        `DELETE FROM entry_tags WHERE id = ? AND user_id = ?;`,
+        [entityId, userId],
       );
     }
   }
