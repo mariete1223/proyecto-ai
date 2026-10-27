@@ -148,8 +148,8 @@ export function MobileMainLayout({
     Platform.OS === "web"
       ? ({
           paddingTop: isIosDevice
-            ? "max(56px, calc(env(safe-area-inset-top, 56px) + 8px))"
-            : "max(24px, calc(env(safe-area-inset-top, 24px) + 8px))",
+            ? "calc(env(safe-area-inset-top, 0px) + 24px)"
+            : "calc(env(safe-area-inset-top, 0px) + 12px)",
         } as any)
       : undefined;
 
@@ -157,8 +157,8 @@ export function MobileMainLayout({
     Platform.OS === "web"
       ? ({
           paddingBottom: isIosDevice
-            ? "calc(74px + max(28px, calc(env(safe-area-inset-bottom, 24px) + 10px)))"
-            : "calc(64px + max(12px, calc(env(safe-area-inset-bottom, 6px) + 6px)))",
+            ? "calc(env(safe-area-inset-bottom, 0px) + 115px)"
+            : "calc(env(safe-area-inset-bottom, 0px) + 90px)",
         } as any)
       : undefined;
 
@@ -166,11 +166,11 @@ export function MobileMainLayout({
     Platform.OS === "web"
       ? ({
           paddingBottom: isIosDevice
-            ? "max(28px, calc(env(safe-area-inset-bottom, 24px) + 10px))"
-            : "max(12px, calc(env(safe-area-inset-bottom, 6px) + 6px))",
+            ? "calc(env(safe-area-inset-bottom, 0px) + 30px)"
+            : "calc(env(safe-area-inset-bottom, 0px) + 14px)",
           height: isIosDevice
-            ? "calc(60px + max(28px, calc(env(safe-area-inset-bottom, 24px) + 10px)))"
-            : "calc(58px + max(12px, calc(env(safe-area-inset-bottom, 6px) + 6px)))",
+            ? "calc(env(safe-area-inset-bottom, 0px) + 88px)"
+            : "calc(env(safe-area-inset-bottom, 0px) + 72px)",
         } as any)
       : undefined;
 
@@ -188,7 +188,11 @@ export function MobileMainLayout({
       <StatusBar style="light" />
 
       {/* Mobile Top Bar */}
-      <View style={[styles.topHeader, webTopHeaderStyle]}>
+      <View
+        style={[styles.topHeader, webTopHeaderStyle]}
+        nativeID="vox-mobile-header"
+        {...({ id: "vox-mobile-header" } as any)}
+      >
         <View style={styles.brandRow}>
           <View style={styles.logoBadge}>
             <Image
@@ -243,7 +247,9 @@ export function MobileMainLayout({
       {/* Main Content Scroll Area with Horizontal Swipe PanResponder */}
       <View
         style={[styles.contentArea, webContentAreaStyle]}
+        nativeID="vox-mobile-content-area"
         testID="mobile-content-area"
+        {...({ id: "vox-mobile-content-area" } as any)}
       >
         <View
           style={[
@@ -262,7 +268,9 @@ export function MobileMainLayout({
       {/* Fixed Bottom Navigation Bar (Standard Mobile Bottom Tabs) */}
       <View
         style={[styles.bottomTabBar, webBottomTabBarStyle]}
+        nativeID="vox-mobile-bottom-bar"
         testID="mobile-bottom-tab-bar"
+        {...({ id: "vox-mobile-bottom-bar" } as any)}
       >
         <Pressable
           style={[
@@ -384,10 +392,10 @@ const styles = StyleSheet.create({
     paddingTop:
       Platform.OS === "web"
         ? isIosDevice
-          ? 56
-          : 28
-        : (RNStatusBar.currentHeight || 44) + 10,
-    paddingBottom: 12,
+          ? 64
+          : 36
+        : (RNStatusBar.currentHeight || 44) + 14,
+    paddingBottom: 14,
     paddingHorizontal: 14,
     backgroundColor: "#1e293b",
     flexDirection: "row",
@@ -477,7 +485,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 12,
     paddingTop: 12,
-    paddingBottom: isIosDevice ? 104 : 84, // Space for fixed bottom tab bar + safe margins
+    paddingBottom: isIosDevice ? 116 : 92, // Space for fixed bottom tab bar + safe margins
     width: "100%",
   },
   swipeContainer: {
@@ -490,14 +498,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: isIosDevice ? 88 : 70,
+    height: isIosDevice ? 90 : 72,
     backgroundColor: "#1e293b",
     borderTopWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingBottom: isIosDevice ? 28 : 10,
+    paddingBottom: isIosDevice ? 32 : 12,
     zIndex: 100,
     elevation: 8,
     shadowColor: "#000000",

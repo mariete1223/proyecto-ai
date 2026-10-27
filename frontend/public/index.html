@@ -83,6 +83,26 @@
         font-family: inherit;
       }
 
+      /* Safe area header and bottom navigation for mobile web */
+      #vox-mobile-header {
+        padding-top: 64px !important;
+        padding-top: calc(env(safe-area-inset-top, 0px) + 24px) !important;
+        padding-bottom: 14px !important;
+      }
+      #vox-mobile-bottom-bar {
+        padding-bottom: 30px !important;
+        padding-bottom: calc(
+          env(safe-area-inset-bottom, 0px) + 16px
+        ) !important;
+        min-height: 84px !important;
+      }
+      #vox-mobile-content-area {
+        padding-bottom: 116px !important;
+        padding-bottom: calc(
+          env(safe-area-inset-bottom, 0px) + 100px
+        ) !important;
+      }
+
       @keyframes vox-pulse {
         0%,
         100% {
