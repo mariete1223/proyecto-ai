@@ -758,5 +758,33 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
       expect(getByTestId("input-manual-date").props.value).toBe(todayStr);
       expect(getByTestId("voice-alert-reminder-notice")).toBeTruthy();
     });
+
+    it("displays all categories in voice command guide without toggle button (#116)", async () => {
+      // Create additional categories so there are more than 5
+      for (let i = 1; i <= 3; i++) {
+        await createLocalCategory(db, userId, {
+          name: `ExtraCat${i}`,
+          voice_command: `extracat${i}`,
+          color: `#${i}${i}0000`,
+        });
+      }
+
+      const allCats = await listCategories(db, userId);
+      expect(allCats.length).toBeGreaterThan(5);
+
+      const { queryByTestId, getByText } = await render(
+        <VoiceCaptureFlow db={db} userId={userId} />,
+      );
+
+      // Verify toggle button does not exist
+      expect(queryByTestId("btn-toggle-all-categories-help")).toBeNull();
+
+      // Verify all categories appear in the guide
+      for (const cat of allCats) {
+        expect(
+          getByText(`"${cat.voice_command || cat.name.toLowerCase()}"`),
+        ).toBeTruthy();
+      }
+    });
   });
 });

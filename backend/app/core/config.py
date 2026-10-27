@@ -2,6 +2,13 @@ from __future__ import annotations
 
 import os
 
+try:
+    from dotenv import find_dotenv, load_dotenv
+
+    load_dotenv(find_dotenv(usecwd=True))
+except ImportError:
+    pass
+
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
 

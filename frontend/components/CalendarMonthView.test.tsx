@@ -822,4 +822,70 @@ describe("CalendarMonthView Component (Task 35)", () => {
       expect(getByTestId(`day-has-reminder-${futureDayStr}`)).toBeTruthy();
     }
   });
+
+  it("opens month-year picker modal, displays category breakdown, and jumps to selected month (#117)", async () => {
+    // Create entries in March 2025 and June 2025
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      title: "Entrada Marzo 2025",
+      content: "Contenido de diario",
+      occurred_at: "2025-03-10T12:00:00Z",
+    });
+    await createLocalEntry(db, userId, {
+      category_id: catId,
+      title: "Entrada Junio 2025",
+      content: "Contenido de verano",
+      occurred_at: "2025-06-20T12:00:00Z",
+    });
+
+    const { getByTestId, queryByTestId, findByTestId } = await render(
+      <CalendarMonthView
+        db={db}
+        userId={userId}
+        initialDate={new Date("2026-09-15T12:00:00Z")}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("calendar-month-title")).toBeTruthy();
+    });
+
+    // Tap month title button to open picker
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-open-month-year-picker"));
+    });
+
+    const pickerModal = await findByTestId("month-year-picker-modal");
+    expect(pickerModal).toBeTruthy();
+
+    // Verify current year in picker is 2026, then navigate to 2025
+    expect(getByTestId("picker-current-year").props.children).toBe(2026);
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-picker-prev-year"));
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("picker-current-year").props.children).toBe(2025);
+    });
+
+    // Select March (index 2)
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-pick-month-2"));
+    });
+
+    // Picker modal should be closed
+    await waitFor(() => {
+      expect(queryByTestId("month-year-picker-modal")).toBeNull();
+    });
+
+    // Calendar title should now be Marzo 2025
+    expect(getByTestId("calendar-month-title").props.children).toBe(
+      "Marzo 2025",
+    );
+
+    // Day cell 2025-03-10 should be in the grid
+    await waitFor(() => {
+      expect(getByTestId("day-cell-2025-03-10")).toBeTruthy();
+    });
+  });
 });

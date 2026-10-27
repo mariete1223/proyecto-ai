@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -193,6 +195,22 @@ export function CalendarMonthView({
     useState<TaskPriority>("MEDIUM");
   const [isCreatingQuickEntry, setIsCreatingQuickEntry] =
     useState<boolean>(false);
+
+  // Month & Year picker state (#117)
+  const [showMonthYearPicker, setShowMonthYearPicker] =
+    useState<boolean>(false);
+  const [pickerYear, setPickerYear] = useState<number>(() =>
+    currentDate.getFullYear(),
+  );
+  const [yearlyCounts, setYearlyCounts] = useState<
+    Record<
+      number,
+      {
+        total: number;
+        categoryBreakdown: { name: string; color: string; count: number }[];
+      }
+    >
+  >({});
 
   // Toast message feedback
   const [reminderToastMessage, setReminderToastMessage] = useState<
@@ -551,6 +569,82 @@ export function CalendarMonthView({
     initialSelectedDateStr,
   ]);
 
+  useEffect(() => {
+    let mounted = true;
+    if (!showMonthYearPicker) return;
+
+    async function fetchYearlyData() {
+      try {
+        const startOfYear = `${pickerYear}-01-01T00:00:00.000Z`;
+        const endOfYear = `${pickerYear}-12-31T23:59:59.999Z`;
+        const yearEntries = await listLocalEntries(db, userId, {
+          start_at: startOfYear,
+          end_at: endOfYear,
+          include_yearly: true,
+        });
+
+        if (!mounted) return;
+
+        const catMap = new Map<string, Category>();
+        categories.forEach((c) => catMap.set(c.id, c));
+
+        const counts: Record<
+          number,
+          {
+            total: number;
+            categoryBreakdown: { name: string; color: string; count: number }[];
+          }
+        > = {};
+        for (let m = 0; m < 12; m++) {
+          counts[m] = { total: 0, categoryBreakdown: [] };
+        }
+
+        yearEntries.forEach((entry) => {
+          if (entry.occurred_at) {
+            const origDateKey = getEntryDateKey(entry.occurred_at);
+            const targetDateKey =
+              entry.reminder_recurrence === "YEARLY"
+                ? `${pickerYear}-${origDateKey.substring(5)}`
+                : origDateKey;
+
+            const entryYear = parseInt(targetDateKey.substring(0, 4), 10);
+            if (entryYear === pickerYear) {
+              const entryMonth =
+                parseInt(targetDateKey.substring(5, 7), 10) - 1;
+              if (counts[entryMonth]) {
+                counts[entryMonth].total += 1;
+                const cat = catMap.get(entry.category_id);
+                const catName = cat?.name || "Sin categoría";
+                const catColor = cat?.color || "#94A3B8";
+                const existing = counts[entryMonth].categoryBreakdown.find(
+                  (c) => c.name === catName,
+                );
+                if (existing) {
+                  existing.count += 1;
+                } else {
+                  counts[entryMonth].categoryBreakdown.push({
+                    name: catName,
+                    color: catColor,
+                    count: 1,
+                  });
+                }
+              }
+            }
+          }
+        });
+
+        setYearlyCounts(counts);
+      } catch {
+        // Fallback
+      }
+    }
+
+    fetchYearlyData();
+    return () => {
+      mounted = false;
+    };
+  }, [db, userId, showMonthYearPicker, pickerYear, categories, refreshSignal]);
+
   const prevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
     setSelectedDayEntries(null);
@@ -636,9 +730,19 @@ export function CalendarMonthView({
           <Text style={styles.navButtonText}>{"<"}</Text>
         </Pressable>
 
-        <Text style={styles.monthTitle} testID="calendar-month-title">
-          {`${MONTH_NAMES[month]} ${year}`}
-        </Text>
+        <Pressable
+          testID="btn-open-month-year-picker"
+          style={styles.monthTitleButton}
+          onPress={() => {
+            setPickerYear(year);
+            setShowMonthYearPicker(true);
+          }}
+        >
+          <Text style={styles.monthTitle} testID="calendar-month-title">
+            {`${MONTH_NAMES[month]} ${year}`}
+          </Text>
+          <Text style={styles.monthTitleDropdownIcon}> ▾</Text>
+        </Pressable>
 
         <Pressable
           testID="btn-next-month"
@@ -1608,6 +1712,130 @@ export function CalendarMonthView({
           </View>
         </View>
       </View>
+
+      {/* Month & Year Picker Modal (#117) */}
+      {showMonthYearPicker && (
+        <Modal
+          visible={showMonthYearPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowMonthYearPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View
+              style={styles.pickerModalContent}
+              testID="month-year-picker-modal"
+            >
+              <View style={styles.pickerModalHeader}>
+                <Text style={styles.pickerModalTitle}>
+                  📅 Navegar por Diario / Calendario
+                </Text>
+                <Pressable
+                  testID="btn-close-month-year-picker"
+                  style={styles.pickerCloseBtn}
+                  onPress={() => setShowMonthYearPicker(false)}
+                >
+                  <Text style={styles.pickerCloseBtnText}>✕</Text>
+                </Pressable>
+              </View>
+
+              {/* Year Selector Row */}
+              <View style={styles.pickerYearRow}>
+                <Pressable
+                  testID="btn-picker-prev-year"
+                  style={styles.pickerYearBtn}
+                  onPress={() => setPickerYear((prev) => prev - 1)}
+                >
+                  <Text style={styles.pickerYearBtnText}>◀</Text>
+                </Pressable>
+                <Text
+                  style={styles.pickerYearText}
+                  testID="picker-current-year"
+                >
+                  {pickerYear}
+                </Text>
+                <Pressable
+                  testID="btn-picker-next-year"
+                  style={styles.pickerYearBtn}
+                  onPress={() => setPickerYear((prev) => prev + 1)}
+                >
+                  <Text style={styles.pickerYearBtnText}>▶</Text>
+                </Pressable>
+              </View>
+
+              <ScrollView
+                style={styles.pickerMonthsScrollView}
+                contentContainerStyle={styles.pickerMonthsGrid}
+              >
+                {MONTH_NAMES.map((mName, mIdx) => {
+                  const mData = yearlyCounts[mIdx] || {
+                    total: 0,
+                    categoryBreakdown: [],
+                  };
+                  const isCurrent = year === pickerYear && month === mIdx;
+                  return (
+                    <Pressable
+                      key={mName}
+                      testID={`btn-pick-month-${mIdx}`}
+                      style={[
+                        styles.pickerMonthCard,
+                        isCurrent && styles.pickerMonthCardActive,
+                      ]}
+                      onPress={() => {
+                        setCurrentDate(new Date(pickerYear, mIdx, 1));
+                        setSelectedDayEntries(null);
+                        setShowQuickAddForm(false);
+                        setShowQuickVoice(false);
+                        setShowMonthYearPicker(false);
+                      }}
+                    >
+                      <View style={styles.pickerMonthCardHeader}>
+                        <Text
+                          style={[
+                            styles.pickerMonthName,
+                            isCurrent && styles.pickerMonthNameActive,
+                          ]}
+                        >
+                          {mName}
+                        </Text>
+                        <Text style={styles.pickerMonthBadge}>
+                          {mData.total > 0 ? `${mData.total}` : "0"}
+                        </Text>
+                      </View>
+                      {mData.categoryBreakdown.length > 0 ? (
+                        <View style={styles.pickerCatBreakdownWrap}>
+                          {mData.categoryBreakdown.slice(0, 3).map((cb) => (
+                            <View key={cb.name} style={styles.pickerCatPill}>
+                              <View
+                                style={[
+                                  styles.pickerCatPillDot,
+                                  { backgroundColor: cb.color },
+                                ]}
+                              />
+                              <Text style={styles.pickerCatPillText}>
+                                {cb.name}: {cb.count}
+                              </Text>
+                            </View>
+                          ))}
+                          {mData.categoryBreakdown.length > 3 && (
+                            <Text style={styles.pickerCatMoreText}>
+                              +{mData.categoryBreakdown.length - 3} más
+                            </Text>
+                          )}
+                        </View>
+                      ) : (
+                        <Text style={styles.pickerNoEntriesText}>
+                          Sin registros
+                        </Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -1631,6 +1859,171 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#F8FAFC",
+  },
+  monthTitleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 4,
+  },
+  monthTitleDropdownIcon: {
+    color: "#38BDF8",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  pickerModalContent: {
+    backgroundColor: "#1E293B",
+    borderRadius: 16,
+    borderColor: "#334155",
+    borderWidth: 1,
+    width: "100%",
+    maxWidth: 580,
+    maxHeight: "85%",
+    padding: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  pickerModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  pickerModalTitle: {
+    color: "#F8FAFC",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  pickerCloseBtn: {
+    padding: 6,
+  },
+  pickerCloseBtnText: {
+    color: "#94A3B8",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  pickerYearRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+    borderColor: "#334155",
+    borderWidth: 1,
+  },
+  pickerYearBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: "#1E293B",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  pickerYearBtnText: {
+    color: "#38BDF8",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  pickerYearText: {
+    color: "#F8FAFC",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  pickerMonthsScrollView: {
+    maxHeight: 400,
+  },
+  pickerMonthsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "space-between",
+    paddingBottom: 12,
+  },
+  pickerMonthCard: {
+    width: "48%",
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    borderColor: "#334155",
+    borderWidth: 1,
+    padding: 10,
+    minHeight: 80,
+  },
+  pickerMonthCardActive: {
+    borderColor: "#38BDF8",
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+  },
+  pickerMonthCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  pickerMonthName: {
+    color: "#F8FAFC",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  pickerMonthNameActive: {
+    color: "#38BDF8",
+  },
+  pickerMonthBadge: {
+    backgroundColor: "#1E293B",
+    color: "#38BDF8",
+    fontSize: 11,
+    fontWeight: "bold",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  pickerCatBreakdownWrap: {
+    gap: 3,
+  },
+  pickerCatPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  pickerCatPillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  pickerCatPillText: {
+    color: "#94A3B8",
+    fontSize: 11,
+  },
+  pickerCatMoreText: {
+    color: "#64748B",
+    fontSize: 10,
+    fontStyle: "italic",
+    marginTop: 1,
+  },
+  pickerNoEntriesText: {
+    color: "#475569",
+    fontSize: 11,
+    fontStyle: "italic",
+    marginTop: 4,
   },
   navButton: {
     backgroundColor: "#0F172A",

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   createLocalCategory,
   deleteLocalCategory,
+  isSystemProtectedCategory,
   listCategories,
   updateLocalCategory,
 } from "../db/categories";
@@ -91,6 +92,8 @@ export function ClassificationExplorer({
   const [sortOrder, setSortOrder] = useState<"NEWEST" | "OLDEST" | "ALPHA">(
     "NEWEST",
   );
+  const [startDateFilter, setStartDateFilter] = useState<string>("");
+  const [endDateFilter, setEndDateFilter] = useState<string>("");
   const [categoryCounts, setCategoryCounts] = useState<{
     [catId: string]: number;
   }>({});
@@ -544,11 +547,33 @@ export function ClassificationExplorer({
   const activeTag = tagsWithUsage.find((t) => t.tag.id === selectedTagId)?.tag;
 
   const filteredAndSortedEntries = associatedEntries
-    .filter(
-      (e) =>
+    .filter((e) => {
+      const matchesSearch =
+        !searchQuery.trim() ||
         e.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (e.title && e.title.toLowerCase().includes(searchQuery.toLowerCase())),
-    )
+        (e.title && e.title.toLowerCase().includes(searchQuery.toLowerCase()));
+      if (!matchesSearch) return false;
+
+      const entryDateIso = e.occurred_at || e.created_at;
+      const entryDateStr = entryDateIso ? entryDateIso.substring(0, 10) : "";
+
+      const cleanStart = startDateFilter.trim();
+      const cleanEnd = endDateFilter.trim();
+
+      if (cleanStart) {
+        if (!entryDateStr || entryDateStr < cleanStart) {
+          return false;
+        }
+      }
+
+      if (cleanEnd) {
+        if (!entryDateStr || entryDateStr > cleanEnd) {
+          return false;
+        }
+      }
+
+      return true;
+    })
     .sort((a, b) => {
       if (sortOrder === "NEWEST") {
         const timeA = a.occurred_at || a.created_at;
@@ -1107,31 +1132,42 @@ export function ClassificationExplorer({
                 ✏️ Editar / Renombrar
               </Text>
             </Pressable>
-            {confirmDeleteCatId === activeCategory.id ? (
-              <View style={styles.confirmDeleteInline}>
-                <Text style={styles.confirmDeleteText}>¿Borrar?</Text>
+            {!isSystemProtectedCategory(activeCategory) ? (
+              confirmDeleteCatId === activeCategory.id ? (
+                <View style={styles.confirmDeleteInline}>
+                  <Text style={styles.confirmDeleteText}>¿Borrar?</Text>
+                  <Pressable
+                    testID="btn-confirm-delete-cat"
+                    style={styles.confirmDeleteBtn}
+                    onPress={() => handleDeleteCategory(activeCategory.id)}
+                  >
+                    <Text style={styles.confirmDeleteBtnText}>Sí</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.cancelDeleteBtn}
+                    onPress={() => setConfirmDeleteCatId(null)}
+                  >
+                    <Text style={styles.cancelDeleteBtnText}>No</Text>
+                  </Pressable>
+                </View>
+              ) : (
                 <Pressable
-                  testID="btn-confirm-delete-cat"
-                  style={styles.confirmDeleteBtn}
-                  onPress={() => handleDeleteCategory(activeCategory.id)}
+                  testID="btn-delete-cat"
+                  style={styles.actionBtnDanger}
+                  onPress={() => setConfirmDeleteCatId(activeCategory.id)}
                 >
-                  <Text style={styles.confirmDeleteBtnText}>Sí</Text>
+                  <Text style={styles.actionBtnDangerText}>🗑️ Borrar</Text>
                 </Pressable>
-                <Pressable
-                  style={styles.cancelDeleteBtn}
-                  onPress={() => setConfirmDeleteCatId(null)}
-                >
-                  <Text style={styles.cancelDeleteBtnText}>No</Text>
-                </Pressable>
-              </View>
+              )
             ) : (
-              <Pressable
-                testID="btn-delete-cat"
-                style={styles.actionBtnDanger}
-                onPress={() => setConfirmDeleteCatId(activeCategory.id)}
+              <View
+                style={styles.protectedCategoryBadge}
+                testID="badge-protected-cat"
               >
-                <Text style={styles.actionBtnDangerText}>🗑️ Borrar</Text>
-              </Pressable>
+                <Text style={styles.protectedCategoryBadgeText}>
+                  🔒 Categoría del sistema
+                </Text>
+              </View>
             )}
           </View>
         </View>
@@ -1252,6 +1288,46 @@ export function ClassificationExplorer({
             </Text>
           </Pressable>
         </View>
+      </View>
+
+      {/* Date Range Filter Bar (#118) */}
+      <View style={styles.dateRangeFilterRow} testID="date-range-filter-row">
+        <View style={styles.dateRangeInputGroup}>
+          <Text style={styles.dateRangeLabel}>📅 Desde:</Text>
+          <TextInput
+            testID="input-date-range-start"
+            style={styles.dateRangeInput}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor="#64748B"
+            value={startDateFilter}
+            onChangeText={setStartDateFilter}
+          />
+        </View>
+
+        <View style={styles.dateRangeInputGroup}>
+          <Text style={styles.dateRangeLabel}>📅 Hasta:</Text>
+          <TextInput
+            testID="input-date-range-end"
+            style={styles.dateRangeInput}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor="#64748B"
+            value={endDateFilter}
+            onChangeText={setEndDateFilter}
+          />
+        </View>
+
+        {(startDateFilter.trim() !== "" || endDateFilter.trim() !== "") && (
+          <Pressable
+            testID="btn-clear-date-filter"
+            style={styles.clearDateFilterBtn}
+            onPress={() => {
+              setStartDateFilter("");
+              setEndDateFilter("");
+            }}
+          >
+            <Text style={styles.clearDateFilterBtnText}>✕ Limpiar</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Associated Entries List */}
@@ -1684,6 +1760,50 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     fontWeight: "bold",
   },
+  dateRangeFilterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+  },
+  dateRangeInputGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  dateRangeLabel: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  dateRangeInput: {
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 6,
+    color: "#F8FAFC",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 12,
+    width: 105,
+  },
+  clearDateFilterBtn: {
+    backgroundColor: "#334155",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  clearDateFilterBtnText: {
+    color: "#F8FAFC",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
   sectionTitle: {
     fontSize: 15,
     fontWeight: "600",
@@ -1881,6 +2001,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 5,
+  },
+  protectedCategoryBadge: {
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  protectedCategoryBadgeText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
   },
   actionBtnDangerText: {
     color: "#F87171",

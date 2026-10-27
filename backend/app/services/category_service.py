@@ -25,6 +25,22 @@ class InvalidCategoryDataError(ValueError):
     """Raised when category validation fails."""
 
 
+class ProtectedCategoryError(ValueError):
+    """Raised when attempting to delete a system protected category."""
+
+
+PROTECTED_SYSTEM_CATEGORY_NAMES: set[str] = {
+    "nota",
+    "notas",
+    "tarea",
+    "tareas",
+    "evento",
+    "eventos",
+    "alerta",
+    "alertas",
+}
+
+
 INITIAL_CATEGORIES: list[dict[str, Any]] = [
     {
         "kind": CategoryKind.TASK,
@@ -269,5 +285,12 @@ def update_category(
 def delete_category(db: Session, user_id: uuid.UUID, category_id: uuid.UUID) -> None:
     """Delete a user's category by ID."""
     category = get_category_by_id(db, user_id, category_id)
+    if (
+        category.name_normalized in PROTECTED_SYSTEM_CATEGORY_NAMES
+        or category.voice_command_normalized in PROTECTED_SYSTEM_CATEGORY_NAMES
+    ):
+        raise ProtectedCategoryError(
+            "Las categorías del sistema (Tarea, Alerta, Evento, Nota) no se pueden eliminar."
+        )
     db.delete(category)
     db.flush()

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   createLocalCategory,
   deleteLocalCategory,
+  isSystemProtectedCategory,
   listCategories,
   updateLocalCategory,
 } from "../db/categories";
@@ -256,31 +257,42 @@ export function CategoryManager({
                   <Text style={styles.editButtonText}>Editar</Text>
                 </Pressable>
 
-                {deletingCatId === cat.id ? (
-                  <View style={styles.deleteConfirmRow}>
-                    <Text style={styles.confirmDeleteText}>¿Eliminar?</Text>
+                {!isSystemProtectedCategory(cat) ? (
+                  deletingCatId === cat.id ? (
+                    <View style={styles.deleteConfirmRow}>
+                      <Text style={styles.confirmDeleteText}>¿Eliminar?</Text>
+                      <Pressable
+                        testID={`btn-confirm-delete-cat-${cat.id}`}
+                        style={styles.confirmDeleteBtn}
+                        onPress={() => handleDeleteCategory(cat.id)}
+                      >
+                        <Text style={styles.confirmDeleteBtnText}>Sí</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.cancelDeleteBtn}
+                        onPress={() => setDeletingCatId(null)}
+                      >
+                        <Text style={styles.cancelDeleteBtnText}>No</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
                     <Pressable
-                      testID={`btn-confirm-delete-cat-${cat.id}`}
-                      style={styles.confirmDeleteBtn}
-                      onPress={() => handleDeleteCategory(cat.id)}
+                      testID={`btn-delete-cat-${cat.id}`}
+                      style={styles.deleteButton}
+                      onPress={() => setDeletingCatId(cat.id)}
                     >
-                      <Text style={styles.confirmDeleteBtnText}>Sí</Text>
+                      <Text style={styles.deleteButtonText}>Eliminar</Text>
                     </Pressable>
-                    <Pressable
-                      style={styles.cancelDeleteBtn}
-                      onPress={() => setDeletingCatId(null)}
-                    >
-                      <Text style={styles.cancelDeleteBtnText}>No</Text>
-                    </Pressable>
-                  </View>
+                  )
                 ) : (
-                  <Pressable
-                    testID={`btn-delete-cat-${cat.id}`}
-                    style={styles.deleteButton}
-                    onPress={() => setDeletingCatId(cat.id)}
+                  <View
+                    style={styles.systemProtectedBadge}
+                    testID={`badge-protected-cat-${cat.id}`}
                   >
-                    <Text style={styles.deleteButtonText}>Eliminar</Text>
-                  </Pressable>
+                    <Text style={styles.systemProtectedBadgeText}>
+                      🔒 Sistema
+                    </Text>
+                  </View>
                 )}
               </View>
             </View>
@@ -507,6 +519,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginTop: 8,
+  },
+  systemProtectedBadge: {
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  systemProtectedBadgeText: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "600",
   },
   deleteButton: {
     backgroundColor: "#7F1D1D",

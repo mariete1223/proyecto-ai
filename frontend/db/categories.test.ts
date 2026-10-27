@@ -154,7 +154,7 @@ describe("Local Categories Storage Layer", () => {
     expect(names).toContain("Alerta");
   });
 
-  it("does not recreate Proyectos or Alerta after they are deleted", async () => {
+  it("does not recreate Proyectos after it is deleted and protects Alerta", async () => {
     await ensureCanonicalCategories(db, userId);
     let categories = await listCategories(db, userId);
     expect(categories.length).toBe(5);
@@ -164,26 +164,29 @@ describe("Local Categories Storage Layer", () => {
     expect(proyectos).toBeDefined();
     expect(alerta).toBeDefined();
 
-    // Borrar Proyectos y Alerta
+    // Proyectos se puede borrar
     await deleteLocalCategory(db, userId, proyectos!.id);
-    await deleteLocalCategory(db, userId, alerta!.id);
 
-    // Verificar que se registraron los tombstones
+    // Alerta está protegida y no se puede borrar
+    await expect(deleteLocalCategory(db, userId, alerta!.id)).rejects.toThrow(
+      /no se pueden eliminar/i,
+    );
+
+    // Verificar que se registró el tombstone de Proyectos
     const tombstones = await db.getAllAsync<{ entity_id: string }>(
       `SELECT entity_id FROM deletion_tombstones WHERE user_id = ? AND entity_type = 'CATEGORY';`,
       [userId],
     );
     const tombstoneIds = tombstones.map((t) => t.entity_id);
     expect(tombstoneIds).toContain(proyectos!.id);
-    expect(tombstoneIds).toContain(alerta!.id);
 
     // Volver a llamar a ensureCanonicalCategories (como ocurre en refrescos / arranques)
     await ensureCanonicalCategories(db, userId);
 
     categories = await listCategories(db, userId);
     expect(categories.find((c) => c.name === "Proyectos")).toBeUndefined();
-    expect(categories.find((c) => c.name === "Alerta")).toBeUndefined();
-    expect(categories.length).toBe(3);
+    expect(categories.find((c) => c.name === "Alerta")).toBeDefined();
+    expect(categories.length).toBe(4);
   });
 
   it("prevents creating or updating categories with duplicate colors for same user", async () => {
@@ -216,5 +219,49 @@ describe("Local Categories Storage Layer", () => {
         color: "#FF0000",
       }),
     ).rejects.toThrow("El color ya está en uso por otra categoría.");
+  });
+
+  it("prevents deletion of system protected categories (Tarea, Alerta, Evento, Nota) (#115)", async () => {
+    await ensureCanonicalCategories(db, userId);
+
+    const cats = await listCategories(db, userId);
+    const tareasCat = cats.find(
+      (c) => c.voice_command.toLowerCase() === "tarea",
+    );
+    const alertaCat = cats.find(
+      (c) => c.voice_command.toLowerCase() === "alerta",
+    );
+    const eventoCat = cats.find(
+      (c) => c.voice_command.toLowerCase() === "evento",
+    );
+    const notaCat = cats.find((c) => c.voice_command.toLowerCase() === "nota");
+
+    expect(tareasCat).toBeDefined();
+    expect(alertaCat).toBeDefined();
+    expect(eventoCat).toBeDefined();
+    expect(notaCat).toBeDefined();
+
+    await expect(
+      deleteLocalCategory(db, userId, tareasCat!.id),
+    ).rejects.toThrow(/no se pueden eliminar/i);
+    await expect(
+      deleteLocalCategory(db, userId, alertaCat!.id),
+    ).rejects.toThrow(/no se pueden eliminar/i);
+    await expect(
+      deleteLocalCategory(db, userId, eventoCat!.id),
+    ).rejects.toThrow(/no se pueden eliminar/i);
+    await expect(deleteLocalCategory(db, userId, notaCat!.id)).rejects.toThrow(
+      /no se pueden eliminar/i,
+    );
+
+    // Custom category can be deleted normally
+    const custom = await createLocalCategory(db, userId, {
+      name: "Personalizada",
+      voice_command: "personalizada",
+      color: "#123456",
+    });
+    await expect(
+      deleteLocalCategory(db, userId, custom.id),
+    ).resolves.toBeUndefined();
   });
 });

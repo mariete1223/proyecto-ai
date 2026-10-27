@@ -300,50 +300,6 @@ export async function updateLocalCategory(
   };
 }
 
-export async function deleteLocalCategory(
-  db: DatabaseAdapter,
-  userId: string,
-  categoryId: string,
-): Promise<void> {
-  const existing = await getCategoryById(db, userId, categoryId);
-  if (!existing) {
-    throw new Error("Category not found.");
-  }
-
-  // Reasignar entradas asociadas a otra categoría existente si hay
-  const allCats = await db.getAllAsync<Category>(
-    `SELECT * FROM categories WHERE user_id = ? AND id != ?;`,
-    [userId, categoryId],
-  );
-  if (allCats.length > 0) {
-    const fallbackId = allCats[0].id;
-    await db.runAsync(
-      `UPDATE entries SET category_id = ?, updated_at = ?, version = version + 1, sync_status = 'PENDING_PUSH' WHERE category_id = ? AND user_id = ?;`,
-      [fallbackId, new Date().toISOString(), categoryId, userId],
-    );
-  }
-
-  // Registrar tombstone para sincronización
-  const now = new Date().toISOString();
-  await db.runAsync(
-    `INSERT INTO deletion_tombstones (id, user_id, entity_type, entity_id, deleted_at, deleted_version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?);`,
-    [
-      generateUuid(),
-      userId,
-      "CATEGORY",
-      categoryId,
-      now,
-      existing.version + 1,
-      "PENDING_PUSH",
-    ],
-  );
-
-  await db.runAsync(`DELETE FROM categories WHERE id = ? AND user_id = ?;`, [
-    categoryId,
-    userId,
-  ]);
-}
-
 export const CANONICAL_CATEGORIES = {
   NOTAS: {
     id: "740d7f77-ae95-4898-a80b-4a31bc58061b",
@@ -386,6 +342,101 @@ export const CANONICAL_CATEGORIES = {
     icon: "bell",
   },
 };
+
+export const PROTECTED_SYSTEM_CATEGORY_NAMES = new Set([
+  "nota",
+  "notas",
+  "tarea",
+  "tareas",
+  "evento",
+  "eventos",
+  "alerta",
+  "alertas",
+]);
+
+export function isSystemProtectedCategory(
+  category?: {
+    id?: string;
+    name?: string;
+    name_normalized?: string;
+    voice_command?: string;
+    voice_command_normalized?: string;
+  } | null,
+): boolean {
+  if (!category) return false;
+  if (
+    category.id === CANONICAL_CATEGORIES.NOTAS.id ||
+    category.id === CANONICAL_CATEGORIES.TAREAS.id ||
+    category.id === CANONICAL_CATEGORIES.EVENTOS.id ||
+    category.id === CANONICAL_CATEGORIES.ALERTA.id
+  ) {
+    return true;
+  }
+  const nameNorm = (category.name_normalized || category.name || "")
+    .toLowerCase()
+    .trim();
+  const vcNorm = (
+    category.voice_command_normalized ||
+    category.voice_command ||
+    ""
+  )
+    .toLowerCase()
+    .trim();
+  return (
+    PROTECTED_SYSTEM_CATEGORY_NAMES.has(nameNorm) ||
+    PROTECTED_SYSTEM_CATEGORY_NAMES.has(vcNorm)
+  );
+}
+
+export async function deleteLocalCategory(
+  db: DatabaseAdapter,
+  userId: string,
+  categoryId: string,
+): Promise<void> {
+  const existing = await getCategoryById(db, userId, categoryId);
+  if (!existing) {
+    throw new Error("Category not found.");
+  }
+
+  if (isSystemProtectedCategory(existing)) {
+    throw new Error(
+      "Las categorías del sistema (Notas, Tareas, Eventos, Alertas) no se pueden eliminar.",
+    );
+  }
+
+  // Reasignar entradas asociadas a otra categoría existente si hay
+  const allCats = await db.getAllAsync<Category>(
+    `SELECT * FROM categories WHERE user_id = ? AND id != ?;`,
+    [userId, categoryId],
+  );
+  if (allCats.length > 0) {
+    const fallbackId = allCats[0].id;
+    await db.runAsync(
+      `UPDATE entries SET category_id = ?, updated_at = ?, version = version + 1, sync_status = 'PENDING_PUSH' WHERE category_id = ? AND user_id = ?;`,
+      [fallbackId, new Date().toISOString(), categoryId, userId],
+    );
+  }
+
+  // Registrar tombstone para sincronización
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `INSERT INTO deletion_tombstones (id, user_id, entity_type, entity_id, deleted_at, deleted_version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+    [
+      generateUuid(),
+      userId,
+      "CATEGORY",
+      categoryId,
+      now,
+      existing.version + 1,
+      "PENDING_PUSH",
+    ],
+  );
+
+  await db.runAsync(`DELETE FROM categories WHERE id = ? AND user_id = ?;`, [
+    categoryId,
+    userId,
+  ]);
+}
 
 export async function ensureCanonicalCategories(
   database: DatabaseAdapter,

@@ -264,4 +264,66 @@ describe("ClassificationExplorer Component (Task 37)", () => {
       expect(getByTestId(`tag-dot-${customTag.id}`)).toBeTruthy();
     });
   });
+
+  it("filters entries by date range (Desde / Hasta) and allows clearing filter (#118)", async () => {
+    // Create entries with different occurred_at dates in catTrabajo
+    await createLocalEntry(db, userId, {
+      category_id: catTrabajoId,
+      title: "Entrada Enero",
+      content: "Trabajo de Enero",
+      occurred_at: "2026-01-15T10:00:00Z",
+    });
+    await createLocalEntry(db, userId, {
+      category_id: catTrabajoId,
+      title: "Entrada Junio",
+      content: "Trabajo de Junio",
+      occurred_at: "2026-06-15T10:00:00Z",
+    });
+    await createLocalEntry(db, userId, {
+      category_id: catTrabajoId,
+      title: "Entrada Diciembre",
+      content: "Trabajo de Diciembre",
+      occurred_at: "2026-12-15T10:00:00Z",
+    });
+
+    const { getByTestId, queryByText, getByText } = await render(
+      <ClassificationExplorer db={db} userId={userId} pageSize={10} />,
+    );
+
+    // Select category Trabajo
+    await act(async () => {
+      fireEvent.press(getByTestId(`explore-cat-${catTrabajoId}`));
+    });
+
+    // Initial render: all entries in Trabajo are visible
+    await waitFor(() => {
+      expect(getByText(/Trabajo de Enero/i)).toBeTruthy();
+      expect(getByText(/Trabajo de Junio/i)).toBeTruthy();
+      expect(getByText(/Trabajo de Diciembre/i)).toBeTruthy();
+    });
+
+    // Filter from 2026-05-01 to 2026-07-01 (should only show Junio)
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-date-range-start"), "2026-05-01");
+      fireEvent.changeText(getByTestId("input-date-range-end"), "2026-07-01");
+    });
+
+    await waitFor(() => {
+      expect(queryByText(/Trabajo de Enero/i)).toBeNull();
+      expect(getByText(/Trabajo de Junio/i)).toBeTruthy();
+      expect(queryByText(/Trabajo de Diciembre/i)).toBeNull();
+    });
+
+    // Clear filter button appears and resets the filter
+    expect(getByTestId("btn-clear-date-filter")).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-clear-date-filter"));
+    });
+
+    await waitFor(() => {
+      expect(getByText(/Trabajo de Enero/i)).toBeTruthy();
+      expect(getByText(/Trabajo de Junio/i)).toBeTruthy();
+      expect(getByText(/Trabajo de Diciembre/i)).toBeTruthy();
+    });
+  });
 });

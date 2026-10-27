@@ -60,7 +60,6 @@ export function VoiceCaptureFlow({
   const [voiceState, setVoiceState] = useState<VoiceRecognitionState>("IDLE");
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [showAllHelpCategories, setShowAllHelpCategories] = useState(false);
 
   const [currentStep, setCurrentStep] = useState<"DICTATE" | "RESULT">(
     "DICTATE",
@@ -658,18 +657,6 @@ export function VoiceCaptureFlow({
               <Text style={styles.guideHeader}>
                 💡 Comandos de Voz Disponibles:
               </Text>
-              {categories.length > 5 && (
-                <Pressable
-                  testID="btn-toggle-all-categories-help"
-                  onPress={() => setShowAllHelpCategories((prev) => !prev)}
-                >
-                  <Text style={styles.toggleHelpText}>
-                    {showAllHelpCategories
-                      ? "Ver menos"
-                      : `Ver todas (${categories.length})`}
-                  </Text>
-                </Pressable>
-              )}
             </View>
 
             <View style={styles.guideGrid}>
@@ -687,10 +674,7 @@ export function VoiceCaptureFlow({
                   style={styles.catCommandsWrap}
                   testID="help-category-commands"
                 >
-                  {(showAllHelpCategories
-                    ? categories
-                    : categories.slice(0, 5)
-                  ).map((cat) => (
+                  {categories.map((cat) => (
                     <View
                       key={cat.id}
                       style={[

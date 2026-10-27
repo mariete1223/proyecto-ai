@@ -15,6 +15,7 @@ from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.services.category_service import (
     CategoryAlreadyExistsError,
     CategoryNotFoundError,
+    ProtectedCategoryError,
     create_category,
     delete_category,
     get_category_by_id,
@@ -279,3 +280,20 @@ def test_update_category_duplicate_color_raises_error(db_session: Session) -> No
         update_category(db_session, user.id, cat2.id, CategoryUpdate(color="#111111"))
 
     assert "color already exists" in str(exc_info.value)
+
+
+def test_delete_protected_category_raises(db_session: Session) -> None:
+    user = create_user(db_session, "protected_cat_user@example.com", "Password123!")
+    cats = seed_initial_categories(db_session, user.id)
+    tarea_cat = next(c for c in cats if c.name == "Tarea")
+    alerta_cat = next(c for c in cats if c.name == "Alerta")
+    evento_cat = next(c for c in cats if c.name == "Evento")
+
+    with pytest.raises(ProtectedCategoryError):
+        delete_category(db_session, user.id, tarea_cat.id)
+
+    with pytest.raises(ProtectedCategoryError):
+        delete_category(db_session, user.id, alerta_cat.id)
+
+    with pytest.raises(ProtectedCategoryError):
+        delete_category(db_session, user.id, evento_cat.id)
