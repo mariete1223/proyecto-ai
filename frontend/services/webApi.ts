@@ -20,18 +20,16 @@ export async function checkBackendHealth(
   config: WebApiConfig,
 ): Promise<boolean> {
   const fetchImpl = config.fetchFn ?? fetch;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
   try {
     const controller =
       typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timeoutId = controller
-      ? setTimeout(() => controller.abort(), 7000)
-      : null;
+    timeoutId = controller ? setTimeout(() => controller.abort(), 7000) : null;
     const res = await fetchImpl(`${config.baseUrl}/health`, {
       method: "GET",
       headers: { "ngrok-skip-browser-warning": "true" },
       signal: controller?.signal,
     });
-    if (timeoutId) clearTimeout(timeoutId);
     return res.ok;
   } catch (err) {
     console.warn(
@@ -39,6 +37,8 @@ export async function checkBackendHealth(
       (err as Error)?.message || err,
     );
     return false;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 

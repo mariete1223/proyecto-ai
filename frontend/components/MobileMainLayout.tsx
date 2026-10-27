@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   GestureResponderEvent,
   Image,
+  Modal,
   PanResponder,
   PanResponderGestureState,
   Platform,
@@ -119,6 +120,7 @@ export function MobileMainLayout({
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(
     null,
   );
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -232,15 +234,48 @@ export function MobileMainLayout({
             </Text>
           </Pressable>
 
-          <Pressable
-            style={styles.authChip}
-            onPress={currentUserEmail ? onLogout : onOpenAuth}
-            testID="btn-mobile-auth"
-          >
-            <Text style={styles.authChipText}>
-              {currentUserEmail ? "👤 Salir" : "👤 Entrar"}
-            </Text>
-          </Pressable>
+          {currentUserEmail ? (
+            <Pressable
+              style={[
+                styles.statusChip,
+                isBackendConnected === true
+                  ? styles.statusChipConnected
+                  : isBackendConnected === false
+                    ? styles.statusChipOffline
+                    : undefined,
+              ]}
+              onPress={() => setShowAccountModal(true)}
+              testID="btn-connection-status"
+              accessibilityRole="button"
+              accessibilityLabel="Estado de conexión y cuenta"
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  isBackendConnected === true
+                    ? styles.dotConnected
+                    : isBackendConnected === false
+                      ? styles.dotDisconnected
+                      : styles.dotPending,
+                ]}
+              />
+              <Text style={styles.statusText}>
+                {isBackendConnected === true
+                  ? "Online"
+                  : isBackendConnected === false
+                    ? "Offline"
+                    : "..."}
+              </Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={styles.authChip}
+              onPress={onOpenAuth}
+              testID="btn-mobile-auth"
+            >
+              <Text style={styles.authChipText}>👤 Entrar</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -367,6 +402,86 @@ export function MobileMainLayout({
           </Text>
         </Pressable>
       </View>
+
+      {/* Account & Connection Modal */}
+      <Modal
+        visible={showAccountModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAccountModal(false)}
+        testID="modal-account-status"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.accountCard}>
+            <View style={styles.accountCardHeader}>
+              <Text style={styles.accountCardTitle}>Conexión y Cuenta</Text>
+              <Pressable
+                style={styles.closeCardBtn}
+                onPress={() => setShowAccountModal(false)}
+                testID="btn-close-account-modal"
+              >
+                <Text style={styles.closeCardBtnText}>✕</Text>
+              </Pressable>
+            </View>
+
+            {/* Connection status section */}
+            <View style={styles.statusDetailRow}>
+              <View
+                style={[
+                  styles.statusDotLarge,
+                  isBackendConnected === true
+                    ? styles.dotConnected
+                    : styles.dotDisconnected,
+                ]}
+              />
+              <View style={styles.statusDetailCol}>
+                <Text style={styles.statusDetailTitle}>
+                  {isBackendConnected === true
+                    ? "Conectado al servidor"
+                    : isBackendConnected === false
+                      ? "Sin conexión (Modo Offline)"
+                      : "Comprobando conexión..."}
+                </Text>
+                <Text style={styles.statusDetailSubtitle}>
+                  {isBackendConnected === true
+                    ? "Sincronización en tiempo real activa"
+                    : "Tus datos se guardan en el móvil y se enviarán al volver la conexión"}
+                </Text>
+              </View>
+            </View>
+
+            {/* User section */}
+            {currentUserEmail && (
+              <View style={styles.userEmailRow}>
+                <Text style={styles.userLabelText}>Sesión activa:</Text>
+                <Text style={styles.userEmailText}>{currentUserEmail}</Text>
+              </View>
+            )}
+
+            {/* Actions */}
+            <View style={styles.accountActionsRow}>
+              {currentUserEmail && (
+                <Pressable
+                  style={styles.logoutBtn}
+                  onPress={() => {
+                    setShowAccountModal(false);
+                    onLogout?.();
+                  }}
+                  testID="btn-confirm-logout"
+                >
+                  <Text style={styles.logoutBtnText}>🚪 Cerrar Sesión</Text>
+                </Pressable>
+              )}
+              <Pressable
+                style={styles.closeModalBtn}
+                onPress={() => setShowAccountModal(false)}
+              >
+                <Text style={styles.closeModalBtnText}>Volver</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -549,6 +664,138 @@ const styles = StyleSheet.create({
   authChipText: {
     color: "#93C5FD",
     fontSize: 10,
+    fontWeight: "600",
+  },
+  statusChipConnected: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "rgba(16, 185, 129, 0.4)",
+  },
+  statusChipOffline: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "rgba(239, 68, 68, 0.4)",
+  },
+  statusDotLarge: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginTop: 3,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  accountCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: "#1e293b",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  accountCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+  },
+  accountCardTitle: {
+    color: "#f8fafc",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  closeCardBtn: {
+    padding: 6,
+  },
+  closeCardBtnText: {
+    color: "#94a3b8",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  statusDetailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+    marginBottom: 14,
+  },
+  statusDetailCol: {
+    flex: 1,
+  },
+  statusDetailTitle: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  statusDetailSubtitle: {
+    color: "#94a3b8",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  userEmailRow: {
+    marginBottom: 18,
+    paddingHorizontal: 4,
+  },
+  userLabelText: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  userEmailText: {
+    color: "#38bdf8",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  accountActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 6,
+  },
+  logoutBtn: {
+    flex: 1,
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.4)",
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutBtnText: {
+    color: "#f87171",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  closeModalBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeModalBtnText: {
+    color: "#cbd5e1",
+    fontSize: 13,
     fontWeight: "600",
   },
 });

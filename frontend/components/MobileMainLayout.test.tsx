@@ -1,6 +1,12 @@
-import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
 import { Text, View } from "react-native";
+import { checkBackendHealth } from "../services/webApi";
 import {
   getSwipePanResponderConfig,
   MobileMainLayout,
@@ -8,13 +14,25 @@ import {
   ORDERED_MOBILE_TABS,
 } from "./MobileMainLayout";
 
-describe("MobileMainLayout Component", () => {
-  const defaultApiConfig = {
-    baseUrl: "http://localhost:8000",
-    fetchFn: jest.fn().mockResolvedValue({ ok: true, status: 200 } as Response),
+jest.mock("../services/webApi", () => {
+  const actual = jest.requireActual("../services/webApi");
+  return {
+    ...actual,
+    checkBackendHealth: jest.fn(),
   };
+});
+
+describe("MobileMainLayout Component", () => {
+  let defaultApiConfig: { baseUrl: string };
+
+  beforeEach(() => {
+    (checkBackendHealth as jest.Mock).mockReset();
+    (checkBackendHealth as jest.Mock).mockResolvedValue(true);
+    defaultApiConfig = { baseUrl: "http://localhost:8000" };
+  });
 
   afterEach(() => {
+    cleanup();
     jest.clearAllMocks();
   });
 
@@ -70,11 +88,77 @@ describe("MobileMainLayout Component", () => {
       expect(getByTestId("mobile-tab-calendar")).toBeTruthy();
     });
 
-    fireEvent.press(getByTestId("mobile-tab-calendar"));
+    await act(async () => {
+      fireEvent.press(getByTestId("mobile-tab-calendar"));
+    });
     expect(onTabChange).toHaveBeenCalledWith("CALENDAR");
 
-    fireEvent.press(getByTestId("mobile-tab-tasks"));
+    await act(async () => {
+      fireEvent.press(getByTestId("mobile-tab-tasks"));
+    });
     expect(onTabChange).toHaveBeenCalledWith("PENDING_TASKS");
+  });
+
+  it("renders connection status chip when user is logged in and opens modal to log out", async () => {
+    const onLogout = jest.fn();
+    const { getByTestId, getByText, queryByText } = await render(
+      <MobileMainLayout
+        apiConfig={defaultApiConfig}
+        activeTab="VOICE_CAPTURE"
+        onTabChange={jest.fn()}
+        currentUserEmail="user@test.com"
+        onLogout={onLogout}
+      >
+        <View />
+      </MobileMainLayout>,
+    );
+
+    // Initial health check resolves to true
+    await waitFor(() => {
+      expect(getByTestId("btn-connection-status")).toBeTruthy();
+      expect(getByText("Online")).toBeTruthy();
+    });
+
+    // Does not show direct 'Salir' button in header
+    expect(queryByText("👤 Salir")).toBeNull();
+
+    // Clicking connection status opens modal
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-connection-status"));
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("modal-account-status")).toBeTruthy();
+      expect(getByText("Conexión y Cuenta")).toBeTruthy();
+      expect(getByText("user@test.com")).toBeTruthy();
+      expect(getByText("Conectado al servidor")).toBeTruthy();
+    });
+
+    // Clicking logout invokes onLogout
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-confirm-logout"));
+    });
+    expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders offline chip when backend check fails", async () => {
+    (checkBackendHealth as jest.Mock).mockResolvedValue(false);
+
+    const { getByTestId, getByText } = await render(
+      <MobileMainLayout
+        apiConfig={defaultApiConfig}
+        activeTab="VOICE_CAPTURE"
+        onTabChange={jest.fn()}
+        currentUserEmail="user@test.com"
+      >
+        <View />
+      </MobileMainLayout>,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("btn-connection-status")).toBeTruthy();
+      expect(getByText("Offline")).toBeTruthy();
+    });
   });
 
   describe("Horizontal Swipe Navigation Logic", () => {
