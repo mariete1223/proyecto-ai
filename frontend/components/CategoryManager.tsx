@@ -284,16 +284,7 @@ export function CategoryManager({
                       <Text style={styles.deleteButtonText}>Eliminar</Text>
                     </Pressable>
                   )
-                ) : (
-                  <View
-                    style={styles.systemProtectedBadge}
-                    testID={`badge-protected-cat-${cat.id}`}
-                  >
-                    <Text style={styles.systemProtectedBadgeText}>
-                      🔒 Sistema
-                    </Text>
-                  </View>
-                )}
+                ) : null}
               </View>
             </View>
           ))

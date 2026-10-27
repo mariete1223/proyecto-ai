@@ -1159,16 +1159,7 @@ export function ClassificationExplorer({
                   <Text style={styles.actionBtnDangerText}>🗑️ Borrar</Text>
                 </Pressable>
               )
-            ) : (
-              <View
-                style={styles.protectedCategoryBadge}
-                testID="badge-protected-cat"
-              >
-                <Text style={styles.protectedCategoryBadgeText}>
-                  🔒 Categoría del sistema
-                </Text>
-              </View>
-            )}
+            ) : null}
           </View>
         </View>
       )}

@@ -144,6 +144,36 @@ export function MobileMainLayout({
       ? ({ minHeight: "100dvh", height: "100dvh" } as any)
       : undefined;
 
+  const webTopHeaderStyle =
+    Platform.OS === "web"
+      ? ({
+          paddingTop: isIosDevice
+            ? "max(56px, calc(env(safe-area-inset-top, 56px) + 8px))"
+            : "max(24px, calc(env(safe-area-inset-top, 24px) + 8px))",
+        } as any)
+      : undefined;
+
+  const webContentAreaStyle =
+    Platform.OS === "web"
+      ? ({
+          paddingBottom: isIosDevice
+            ? "calc(74px + max(28px, calc(env(safe-area-inset-bottom, 24px) + 10px)))"
+            : "calc(64px + max(12px, calc(env(safe-area-inset-bottom, 6px) + 6px)))",
+        } as any)
+      : undefined;
+
+  const webBottomTabBarStyle =
+    Platform.OS === "web"
+      ? ({
+          paddingBottom: isIosDevice
+            ? "max(28px, calc(env(safe-area-inset-bottom, 24px) + 10px))"
+            : "max(12px, calc(env(safe-area-inset-bottom, 6px) + 6px))",
+          height: isIosDevice
+            ? "calc(60px + max(28px, calc(env(safe-area-inset-bottom, 24px) + 10px)))"
+            : "calc(58px + max(12px, calc(env(safe-area-inset-bottom, 6px) + 6px)))",
+        } as any)
+      : undefined;
+
   const panResponder = useMemo(
     () =>
       PanResponder.create(getSwipePanResponderConfig(activeTab, onTabChange)),
@@ -158,7 +188,7 @@ export function MobileMainLayout({
       <StatusBar style="light" />
 
       {/* Mobile Top Bar */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, webTopHeaderStyle]}>
         <View style={styles.brandRow}>
           <View style={styles.logoBadge}>
             <Image
@@ -211,7 +241,10 @@ export function MobileMainLayout({
       </View>
 
       {/* Main Content Scroll Area with Horizontal Swipe PanResponder */}
-      <View style={styles.contentArea} testID="mobile-content-area">
+      <View
+        style={[styles.contentArea, webContentAreaStyle]}
+        testID="mobile-content-area"
+      >
         <View
           style={[
             styles.swipeContainer,
@@ -227,7 +260,10 @@ export function MobileMainLayout({
       </View>
 
       {/* Fixed Bottom Navigation Bar (Standard Mobile Bottom Tabs) */}
-      <View style={styles.bottomTabBar} testID="mobile-bottom-tab-bar">
+      <View
+        style={[styles.bottomTabBar, webBottomTabBarStyle]}
+        testID="mobile-bottom-tab-bar"
+      >
         <Pressable
           style={[
             styles.tabItem,
@@ -327,10 +363,12 @@ export function MobileMainLayout({
   );
 }
 
-const isIosDevice =
+export const isIosDevice =
   Platform.OS === "web"
     ? typeof navigator !== "undefined" &&
-      /iPhone|iPad|iPod/i.test(navigator?.userAgent || "")
+      (/iPhone|iPad|iPod/i.test(navigator?.userAgent || "") ||
+        (navigator?.platform === "MacIntel" &&
+          (navigator?.maxTouchPoints || 0) > 1))
     : Platform.OS === "ios";
 
 const styles = StyleSheet.create({
@@ -346,11 +384,11 @@ const styles = StyleSheet.create({
     paddingTop:
       Platform.OS === "web"
         ? isIosDevice
-          ? 52
+          ? 56
           : 28
-        : (RNStatusBar.currentHeight || 44) + 6,
-    paddingBottom: 10,
-    paddingHorizontal: 12,
+        : (RNStatusBar.currentHeight || 44) + 10,
+    paddingBottom: 12,
+    paddingHorizontal: 14,
     backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
@@ -439,7 +477,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 12,
     paddingTop: 12,
-    paddingBottom: isIosDevice ? 98 : 78, // Space for fixed bottom tab bar + home swipe bar
+    paddingBottom: isIosDevice ? 104 : 84, // Space for fixed bottom tab bar + safe margins
     width: "100%",
   },
   swipeContainer: {
@@ -452,14 +490,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: isIosDevice ? 84 : 66,
+    height: isIosDevice ? 88 : 70,
     backgroundColor: "#1e293b",
     borderTopWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingBottom: isIosDevice ? 24 : 6,
+    paddingBottom: isIosDevice ? 28 : 10,
     zIndex: 100,
     elevation: 8,
     shadowColor: "#000000",
