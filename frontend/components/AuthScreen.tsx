@@ -20,6 +20,7 @@ import {
   verifyEmail,
 } from "../services/authService";
 import { theme } from "../styles/theme";
+import { isDeviceOffline } from "../services/webApi";
 import { VerificationModal } from "./VerificationModal";
 
 const appLogo = require("../assets/logo-small.png");
@@ -220,8 +221,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         }
       }
     } catch (err: unknown) {
-      setOfflineDetected(true);
-      onOfflineDetected?.();
+      if (isDeviceOffline()) {
+        setOfflineDetected(true);
+        onOfflineDetected?.();
+      }
       setErrorMessage(
         err instanceof Error
           ? err.message
@@ -353,6 +356,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           {infoMessage && !showVerificationModal && (
             <View style={styles.infoContainer} testID="auth-info-banner">
               <Text style={styles.infoText}>✉️ {infoMessage}</Text>
+            </View>
+          )}
+
+          {/* Server Unreachable Notice */}
+          {(isOffline || offlineDetected) && !errorMessage && !infoMessage && (
+            <View
+              style={styles.serverOfflineNotice}
+              testID="banner-backend-unreachable"
+            >
+              <Text style={styles.serverOfflineNoticeText}>
+                ⚠️ El servidor no responde o no está disponible en este momento.
+                Comprueba tu conexión o inténtalo en unos instantes.
+              </Text>
             </View>
           )}
 
@@ -704,6 +720,20 @@ const styles = StyleSheet.create({
     color: "#38BDF8",
     fontSize: 13,
     fontWeight: "600",
+    textAlign: "center",
+  },
+  serverOfflineNotice: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "rgba(245, 158, 11, 0.4)",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  serverOfflineNoticeText: {
+    color: "#FDE68A",
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: "center",
   },
 });

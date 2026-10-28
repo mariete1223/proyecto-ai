@@ -35,14 +35,11 @@ def get_current_user(
         )
 
     if credentials.credentials == "demo-token":
-        import os
-
-        if os.environ.get("DISABLE_DEMO_TOKEN") == "1":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Demo token is disabled.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Demo token is disabled. Please authenticate.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
         demo_user = db.execute(
             select(User).where(User.email_normalized == "demo@example.com")

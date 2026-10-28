@@ -11,6 +11,16 @@ export function isWebPlatform(): boolean {
   return Platform.OS === "web";
 }
 
+export function isDeviceOffline(): boolean {
+  if (
+    typeof navigator !== "undefined" &&
+    typeof navigator.onLine === "boolean"
+  ) {
+    return !navigator.onLine;
+  }
+  return false;
+}
+
 const getHeaders = (token?: string) => ({
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
   "ngrok-skip-browser-warning": "true",

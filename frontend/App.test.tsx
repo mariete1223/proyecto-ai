@@ -109,13 +109,38 @@ describe("App", () => {
     });
   });
 
-  it("automatically enters offline mode and displays OfflineNoticeModal when opening app without connection", async () => {
+  it("renders AuthScreen without bypassing to guest mode when backend health fails but device is online (#131)", async () => {
     authStorage.clearSession();
     jest.spyOn(webApi, "checkBackendHealth").mockResolvedValueOnce(false);
 
-    const { findByTestId, getByTestId } = await render(<App />);
+    const { getByTestId, queryByTestId } = await render(<App />);
 
-    expect(await findByTestId("offline-notice-modal")).toBeTruthy();
-    expect(getByTestId("banner-offline-mode")).toBeTruthy();
+    await waitFor(() => {
+      expect(getByTestId("auth-screen")).toBeTruthy();
+      expect(queryByTestId("offline-notice-modal")).toBeNull();
+    });
+  });
+
+  it("automatically enters offline mode and displays OfflineNoticeModal when device has no internet connection (navigator.onLine = false) (#131)", async () => {
+    authStorage.clearSession();
+    const originalOnLine = navigator.onLine;
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      value: false,
+    });
+
+    try {
+      jest.spyOn(webApi, "checkBackendHealth").mockResolvedValueOnce(false);
+
+      const { findByTestId, getByTestId } = await render(<App />);
+
+      expect(await findByTestId("offline-notice-modal")).toBeTruthy();
+      expect(getByTestId("banner-offline-mode")).toBeTruthy();
+    } finally {
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        value: originalOnLine,
+      });
+    }
   });
 });

@@ -261,13 +261,17 @@ export function MobileMainLayout({
               </Text>
             </Pressable>
           ) : (
-            <Pressable
-              style={styles.authChip}
-              onPress={onOpenAuth}
+            <View
+              style={[
+                styles.statusChip,
+                { borderColor: "rgba(239, 68, 68, 0.3)" },
+              ]}
               testID="btn-mobile-auth"
+              accessibilityLabel="Modo local sin conexión"
             >
-              <Text style={styles.authChipText}>👤 Entrar</Text>
-            </Pressable>
+              <View style={[styles.statusDot, styles.dotDisconnected]} />
+              <Text style={styles.statusText}>Modo Local</Text>
+            </View>
           )}
         </View>
       </View>

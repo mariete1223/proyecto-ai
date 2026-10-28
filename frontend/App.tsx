@@ -58,7 +58,7 @@ import {
 
 import { performSync } from "./services/syncEngine";
 import { notificationService } from "./services/notificationService";
-import { checkBackendHealth } from "./services/webApi";
+import { checkBackendHealth, isDeviceOffline } from "./services/webApi";
 import { AuthModal } from "./components/AuthModal";
 import { AuthScreen } from "./components/AuthScreen";
 import { OfflineNoticeModal } from "./components/OfflineNoticeModal";
@@ -175,7 +175,7 @@ export default function App() {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showOfflineNoticeModal, setShowOfflineNoticeModal] = useState(false);
   const userId = authSession ? authSession.userId : "user-demo-123";
-  const userToken = authSession ? authSession.token : "demo-token";
+  const userToken = authSession?.token;
   const [isInitialized, setIsInitialized] = useState(false);
   const { width } = useWindowDimensions();
   const isMobileScreen = Platform.OS !== "web" || width < 768;
@@ -352,14 +352,16 @@ export default function App() {
 
       // Si hay un formulario abierto y no se fuerza recarga, solo sincronizar en background sin tocar el estado de React.
       if (isFormOpenRef.current && !forceReload) {
-        try {
-          await performSync(db, {
-            apiBaseUrl: getBackendUrl(),
-            token: activeToken,
-            userId: activeUserId,
-          });
-        } catch (_) {
-          // silencioso
+        if (activeToken && activeUserId && activeUserId !== "user-demo-123") {
+          try {
+            await performSync(db, {
+              apiBaseUrl: getBackendUrl(),
+              token: activeToken,
+              userId: activeUserId,
+            });
+          } catch (_) {
+            // silencioso
+          }
         }
         return;
       }
@@ -377,18 +379,20 @@ export default function App() {
         await ensureCanonicalCategories(db, activeUserId);
         await deduplicateAndHealEntries(db, activeUserId);
 
-        // 2. Sincronizar con el backend
-        try {
-          const syncRes = await performSync(db, {
-            apiBaseUrl: getBackendUrl(),
-            token: activeToken,
-            userId: activeUserId,
-          });
-          if (!syncRes.success && syncRes.error) {
-            console.warn("[Sync] Engine returned warning:", syncRes.error);
+        // 2. Sincronizar con el backend SOLO si el usuario está autenticado con token válido
+        if (activeToken && activeUserId && activeUserId !== "user-demo-123") {
+          try {
+            const syncRes = await performSync(db, {
+              apiBaseUrl: getBackendUrl(),
+              token: activeToken,
+              userId: activeUserId,
+            });
+            if (!syncRes.success && syncRes.error) {
+              console.warn("[Sync] Engine returned warning:", syncRes.error);
+            }
+          } catch (syncErr) {
+            console.warn("[Sync] Perform sync error:", syncErr);
           }
-        } catch (syncErr) {
-          console.warn("[Sync] Perform sync error:", syncErr);
         }
 
         // 3. Post-sync: deduplicar entradas recibidas
@@ -443,6 +447,9 @@ export default function App() {
   // No altera isSyncing visualmente ni dispara lastSyncTime a menos que lleguen cambios remotos nuevos del servidor.
   const syncSilentlyInBackground = useCallback(async () => {
     try {
+      if (!userToken || !userId || userId === "user-demo-123") {
+        return;
+      }
       if (authSession?.token) {
         notificationService.setAuth(getBackendUrl(), authSession.token);
       }
@@ -544,25 +551,23 @@ export default function App() {
 
       if (isMounted) {
         if (!authSession) {
-          let isConnected = true;
-          if (
-            Platform.OS === "web" &&
-            typeof navigator !== "undefined" &&
-            typeof navigator.onLine === "boolean" &&
-            !navigator.onLine
-          ) {
-            isConnected = false;
-          } else {
-            const isHealthy = await checkBackendHealth(defaultApiConfig);
-            isConnected = isHealthy;
+          const deviceOffline = isDeviceOffline();
+
+          let isHealthy = false;
+          if (!deviceOffline) {
+            isHealthy = await checkBackendHealth(defaultApiConfig);
           }
 
-          setIsBackendOffline(!isConnected);
+          setIsBackendOffline(!isHealthy);
 
-          if (!isConnected) {
-            // Sin conexión al abrir la app: activar automáticamente modo offline y mostrar aviso
+          // SOLO si el dispositivo carece por completo de conexión a internet (sin wifi ni datos)
+          // se autoriza el modo local offline sin sesión
+          if (deviceOffline) {
             setBypassAuth(true);
             setShowOfflineNoticeModal(true);
+          } else {
+            // Si el dispositivo tiene conexión a internet (wifi o datos), NUNCA se elude el login a modo invitado
+            setBypassAuth(false);
           }
         } else if (!isOnboardingCompleted(authSession.userId)) {
           // Solo mostrar la guía automáticamente la primera vez que se inicia sesión
@@ -598,7 +603,13 @@ export default function App() {
       };
       const handleOnline = () => {
         setIsBackendOffline(false);
-        syncSilentlyInBackground();
+        // Si el usuario estaba en modo local sin sesión previa, al recuperar la conexión a internet (wifi/datos)
+        // requerimos que inicie sesión o se registre para no operar como invitado online
+        if (!authSession) {
+          setBypassAuth(false);
+        } else {
+          syncSilentlyInBackground();
+        }
       };
       const handleVisibilityChange = () => {
         if (
@@ -695,9 +706,14 @@ export default function App() {
           }
         }}
         onOfflineDetected={() => {
-          setIsBackendOffline(true);
-          setBypassAuth(true);
-          setShowOfflineNoticeModal(true);
+          const deviceOffline = isDeviceOffline();
+          if (deviceOffline) {
+            setIsBackendOffline(true);
+            setBypassAuth(true);
+            setShowOfflineNoticeModal(true);
+          } else {
+            setIsBackendOffline(true);
+          }
         }}
         isOffline={isBackendOffline}
       />

@@ -195,13 +195,13 @@ describe("AuthScreen Component", () => {
     expect(queryByTestId("btn-continue-offline")).toBeNull();
   });
 
-  it("calls onOfflineDetected when a network connection error occurs during login", async () => {
+  it("does not call onOfflineDetected when network error occurs but device has internet (navigator.onLine = true) (#131)", async () => {
     const offlineMock = jest.fn();
     jest
       .spyOn(authService, "loginUser")
       .mockRejectedValueOnce(new Error("Failed to fetch"));
 
-    const { getByPlaceholderText, getByTestId } = await render(
+    const { getByPlaceholderText, getByTestId, findByText } = await render(
       <AuthScreen
         baseUrl="http://localhost:8000"
         onSuccess={jest.fn()}
@@ -224,9 +224,55 @@ describe("AuthScreen Component", () => {
       fireEvent.press(getByTestId("auth-btn-submit"));
     });
 
-    await waitFor(() => {
-      expect(offlineMock).toHaveBeenCalledTimes(1);
+    expect(await findByText("Failed to fetch")).toBeTruthy();
+    expect(offlineMock).not.toHaveBeenCalled();
+  });
+
+  it("calls onOfflineDetected when a network connection error occurs and device has no internet (navigator.onLine = false) (#131)", async () => {
+    const offlineMock = jest.fn();
+    const originalOnLine = navigator.onLine;
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      value: false,
     });
+
+    try {
+      jest
+        .spyOn(authService, "loginUser")
+        .mockRejectedValueOnce(new Error("Failed to fetch"));
+
+      const { getByPlaceholderText, getByTestId } = await render(
+        <AuthScreen
+          baseUrl="http://localhost:8000"
+          onSuccess={jest.fn()}
+          onOfflineDetected={offlineMock}
+        />,
+      );
+
+      await act(async () => {
+        fireEvent.changeText(
+          getByPlaceholderText("tu@email.com"),
+          "offline@example.com",
+        );
+        fireEvent.changeText(
+          getByPlaceholderText("Mínimo 8 caracteres"),
+          "password123",
+        );
+      });
+
+      await act(async () => {
+        fireEvent.press(getByTestId("auth-btn-submit"));
+      });
+
+      await waitFor(() => {
+        expect(offlineMock).toHaveBeenCalledTimes(1);
+      });
+    } finally {
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        value: originalOnLine,
+      });
+    }
   });
 
   it("completes full flow: registration opens modal, user can dismiss it, and unverified login reopens it", async () => {
