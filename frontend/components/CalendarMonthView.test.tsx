@@ -827,6 +827,50 @@ describe("CalendarMonthView Component (Task 35)", () => {
     }
   });
 
+  it("renders reminder bell in day cell and reminder badge in day detail for alert entries (#132)", async () => {
+    const alertCat = await createLocalCategory(db, userId, {
+      id: "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
+      name: "Alerta",
+      voice_command: "alerta",
+    });
+
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + 3);
+    const targetY = targetDate.getFullYear();
+    const targetM = String(targetDate.getMonth() + 1).padStart(2, "0");
+    const targetD = String(targetDate.getDate()).padStart(2, "0");
+    const targetDateStr = `${targetY}-${targetM}-${targetD}`;
+
+    const alertEntry = await createLocalEntry(db, userId, {
+      category_id: alertCat.id,
+      title: "Anticonceptivo",
+      content: "Tiene que ponérselo",
+      occurred_at: targetDate.toISOString(),
+      reminder_enabled: true,
+      reminder_offset_minutes: 0,
+    });
+
+    const { getByTestId, findByTestId } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={targetDate} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("calendar-grid")).toBeTruthy();
+    });
+
+    // Expect bell in day cell
+    expect(getByTestId(`day-has-reminder-${targetDateStr}`)).toBeTruthy();
+
+    // Click on the day cell to open detail panel
+    fireEvent.press(getByTestId(`day-cell-${targetDateStr}`));
+
+    // Expect reminder badge on entry card
+    const reminderBadge = await findByTestId(
+      `entry-reminder-badge-${alertEntry.id}`,
+    );
+    expect(reminderBadge).toBeTruthy();
+  });
+
   it("opens month-year picker modal, displays category breakdown, and jumps to selected month (#117)", async () => {
     // Create entries in March 2025 and June 2025
     await createLocalEntry(db, userId, {

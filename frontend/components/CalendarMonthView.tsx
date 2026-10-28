@@ -82,7 +82,11 @@ export function isEntryReminderPending(
   entry: Entry,
   now: Date = new Date(),
 ): boolean {
-  if (!entry.reminder_enabled) return false;
+  const hasReminder = Boolean(
+    entry.reminder_enabled ||
+      entry.category_id === "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
+  );
+  if (!hasReminder) return false;
 
   // Si tiene recurrencia activa (ej. YEARLY, DAILY, etc.)
   if (entry.reminder_recurrence && entry.reminder_recurrence !== "NONE") {
@@ -1294,13 +1298,23 @@ export function CalendarMonthView({
                         </Text>
                       </View>
 
-                      {ent.reminder_enabled ? (
+                      {ent.reminder_enabled || isCategoryAlert(cat) ? (
                         <View
                           style={styles.reminderBadge}
                           testID={`entry-reminder-badge-${ent.id}`}
                         >
                           <Text style={styles.reminderBadgeText}>
-                            🔔 {formatReminderSummary(ent)}
+                            🔔{" "}
+                            {formatReminderSummary(
+                              ent.reminder_enabled
+                                ? ent
+                                : {
+                                    ...ent,
+                                    reminder_enabled: true,
+                                    reminder_offset_minutes:
+                                      ent.reminder_offset_minutes ?? 0,
+                                  },
+                            )}
                           </Text>
                         </View>
                       ) : null}

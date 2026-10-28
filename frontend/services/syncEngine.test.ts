@@ -200,19 +200,103 @@ describe("SyncEngine Service (Task 40)", () => {
     expect(conflictRow?.server_entity).toContain("Version remota en servidor");
   });
 
-  it("handles offline network failures gracefully without throwing", async () => {
-    const mockOfflineFetch = jest
-      .fn()
-      .mockRejectedValue(new TypeError("Failed to fetch"));
+  it("persists reminder fields when pulling new and updated entries from server (#132)", async () => {
+    const alertCat = await createLocalCategory(db, userId, {
+      id: "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
+      name: "Alerta",
+      voice_command: "alerta",
+    });
+
+    const mockFetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/v1/sync/push")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ results: [] }),
+        });
+      }
+
+      if (url.includes("/api/v1/sync/pull")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              changes: [
+                {
+                  entity_type: "ENTRY",
+                  entity_id: "entry-remote-alert-1",
+                  action: "CREATE",
+                  payload: {
+                    category_id: alertCat.id,
+                    title: "Anticonceptivo",
+                    occurred_at: "2026-10-31T09:00:00.000Z",
+                    content: "Tiene que ponérselo",
+                    reminder_enabled: true,
+                    reminder_offset_minutes: 0,
+                    reminder_recurrence: "NONE",
+                    reminder_offsets_minutes: [0],
+                    version: 1,
+                  },
+                },
+                {
+                  entity_type: "ENTRY",
+                  entity_id: "entry-remote-alert-implicit",
+                  action: "CREATE",
+                  payload: {
+                    category_id: alertCat.id,
+                    title: "Alerta implícita sin flag",
+                    occurred_at: "2026-10-31T12:00:00.000Z",
+                    content: "Aviso importante",
+                    version: 1,
+                  },
+                },
+              ],
+              tombstones: [],
+              next_cursor: "cursor-reminders-123",
+              has_more: false,
+            }),
+        });
+      }
+
+      return Promise.reject(new Error("Unknown endpoint"));
+    });
 
     const res = await syncEngine(db, {
       apiBaseUrl,
       token,
       userId,
-      fetchFn: mockOfflineFetch as unknown as typeof fetch,
+      fetchFn: mockFetch as unknown as typeof fetch,
     });
 
-    expect(res.success).toBe(false);
-    expect(res.error).toBe("Failed to fetch");
+    expect(res.success).toBe(true);
+    expect(res.pulled_changes).toBe(2);
+
+    const savedAlert = await db.getFirstAsync<{
+      reminder_enabled: number;
+      reminder_offset_minutes: number;
+      reminder_recurrence: string;
+      reminder_offsets_minutes: string;
+    }>(
+      `SELECT reminder_enabled, reminder_offset_minutes, reminder_recurrence, reminder_offsets_minutes FROM entries WHERE id = ? AND user_id = ?;`,
+      ["entry-remote-alert-1", userId],
+    );
+
+    expect(savedAlert).toBeTruthy();
+    expect(savedAlert?.reminder_enabled).toBe(1);
+    expect(savedAlert?.reminder_offset_minutes).toBe(0);
+    expect(savedAlert?.reminder_recurrence).toBe("NONE");
+    expect(savedAlert?.reminder_offsets_minutes).toBe("[0]");
+
+    // Verify implicit alert entry also receives reminder_enabled = 1
+    const savedImplicit = await db.getFirstAsync<{
+      reminder_enabled: number;
+      reminder_offset_minutes: number;
+    }>(
+      `SELECT reminder_enabled, reminder_offset_minutes FROM entries WHERE id = ? AND user_id = ?;`,
+      ["entry-remote-alert-implicit", userId],
+    );
+    expect(savedImplicit).toBeTruthy();
+    expect(savedImplicit?.reminder_enabled).toBe(1);
+    expect(savedImplicit?.reminder_offset_minutes).toBe(0);
   });
 });
+

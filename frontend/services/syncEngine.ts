@@ -641,10 +641,16 @@ export async function applyRemoteChanges(
       const existing = await db.getFirstAsync<{
         id: string;
         title?: string | null;
-      }>(`SELECT id, title FROM entries WHERE id = ? AND user_id = ?;`, [
-        entityId,
-        userId,
-      ]);
+        reminder_enabled?: number | null;
+        reminder_time?: string | null;
+        reminder_end_time?: string | null;
+        reminder_recurrence?: string | null;
+        reminder_offset_minutes?: number | null;
+        reminder_offsets_minutes?: string | null;
+      }>(
+        `SELECT id, title, reminder_enabled, reminder_time, reminder_end_time, reminder_recurrence, reminder_offset_minutes, reminder_offsets_minutes FROM entries WHERE id = ? AND user_id = ?;`,
+        [entityId, userId],
+      );
       const titleToUse =
         payload.title !== undefined &&
         payload.title !== null &&
@@ -652,9 +658,90 @@ export async function applyRemoteChanges(
           ? String(payload.title).trim()
           : (existing?.title ?? null);
 
+      const ALERT_CAT_ID = "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9";
+      let isAlertCategory = payload.category_id === ALERT_CAT_ID;
+      if (!isAlertCategory && payload.category_id) {
+        const cat = await db.getFirstAsync<{
+          name?: string | null;
+          name_normalized?: string | null;
+        }>(
+          `SELECT name, name_normalized FROM categories WHERE id = ?;`,
+          [payload.category_id],
+        );
+        if (
+          cat &&
+          (cat.name_normalized === "alerta" ||
+            cat.name?.trim().toLowerCase() === "alerta")
+        ) {
+          isAlertCategory = true;
+        }
+      }
+
+      let reminderEnabled: number;
+      if (isAlertCategory) {
+        reminderEnabled = 1;
+      } else if (
+        payload.reminder_enabled !== undefined &&
+        payload.reminder_enabled !== null
+      ) {
+        reminderEnabled = payload.reminder_enabled ? 1 : 0;
+      } else if (
+        existing?.reminder_enabled !== undefined &&
+        existing?.reminder_enabled !== null
+      ) {
+        reminderEnabled = existing.reminder_enabled ? 1 : 0;
+      } else {
+        reminderEnabled = 0;
+      }
+
+      const reminderTime =
+        payload.reminder_time !== undefined
+          ? (payload.reminder_time ? String(payload.reminder_time) : null)
+          : (existing?.reminder_time ?? null);
+
+      const reminderEndTime =
+        payload.reminder_end_time !== undefined
+          ? (payload.reminder_end_time ? String(payload.reminder_end_time) : null)
+          : (existing?.reminder_end_time ?? null);
+
+      const reminderRecurrence =
+        payload.reminder_recurrence !== undefined
+          ? (payload.reminder_recurrence ? String(payload.reminder_recurrence) : null)
+          : (isAlertCategory ? "NONE" : (existing?.reminder_recurrence ?? null));
+
+      let reminderOffsetMinutes: number | null = null;
+      if (
+        payload.reminder_offset_minutes !== undefined &&
+        payload.reminder_offset_minutes !== null
+      ) {
+        reminderOffsetMinutes = Number(payload.reminder_offset_minutes);
+      } else if (
+        existing?.reminder_offset_minutes !== undefined &&
+        existing?.reminder_offset_minutes !== null
+      ) {
+        reminderOffsetMinutes = Number(existing.reminder_offset_minutes);
+      } else if (isAlertCategory) {
+        reminderOffsetMinutes = 0;
+      }
+
+      let reminderOffsetsMinutesStr: string | null = null;
+      if (Array.isArray(payload.reminder_offsets_minutes)) {
+        reminderOffsetsMinutesStr = JSON.stringify(
+          payload.reminder_offsets_minutes,
+        );
+      } else if (typeof payload.reminder_offsets_minutes === "string") {
+        reminderOffsetsMinutesStr = payload.reminder_offsets_minutes;
+      } else if (existing?.reminder_offsets_minutes) {
+        reminderOffsetsMinutesStr = existing.reminder_offsets_minutes;
+      } else if (isAlertCategory && reminderEnabled) {
+        reminderOffsetsMinutesStr = JSON.stringify([
+          reminderOffsetMinutes ?? 0,
+        ]);
+      }
+
       if (existing) {
         await db.runAsync(
-          `UPDATE entries SET category_id = ?, title = ?, occurred_at = ?, content = ?, task_status = ?, task_recurrence = ?, task_priority = ?, capture_session_id = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
+          `UPDATE entries SET category_id = ?, title = ?, occurred_at = ?, content = ?, task_status = ?, task_recurrence = ?, task_priority = ?, capture_session_id = ?, reminder_enabled = ?, reminder_time = ?, reminder_end_time = ?, reminder_recurrence = ?, reminder_offset_minutes = ?, reminder_offsets_minutes = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
           [
             payload.category_id,
             titleToUse,
@@ -664,6 +751,12 @@ export async function applyRemoteChanges(
             payload.task_recurrence ?? null,
             payload.task_priority ?? null,
             payload.capture_session_id ?? null,
+            reminderEnabled,
+            reminderTime,
+            reminderEndTime,
+            reminderRecurrence,
+            reminderOffsetMinutes,
+            reminderOffsetsMinutesStr,
             payload.updated_at ?? new Date().toISOString(),
             payload.version ?? 1,
             entityId,
@@ -690,7 +783,7 @@ export async function applyRemoteChanges(
               : (existingByContent.title ?? null);
           // Re-identificar la entrada local con el ID del servidor para no duplicar
           await db.runAsync(
-            `UPDATE entries SET id = ?, category_id = ?, title = ?, occurred_at = ?, task_status = ?, task_recurrence = ?, task_priority = ?, capture_session_id = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
+            `UPDATE entries SET id = ?, category_id = ?, title = ?, occurred_at = ?, task_status = ?, task_recurrence = ?, task_priority = ?, capture_session_id = ?, reminder_enabled = ?, reminder_time = ?, reminder_end_time = ?, reminder_recurrence = ?, reminder_offset_minutes = ?, reminder_offsets_minutes = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
             [
               entityId,
               payload.category_id,
@@ -700,6 +793,12 @@ export async function applyRemoteChanges(
               payload.task_recurrence ?? null,
               payload.task_priority ?? null,
               payload.capture_session_id ?? null,
+              reminderEnabled,
+              reminderTime,
+              reminderEndTime,
+              reminderRecurrence,
+              reminderOffsetMinutes,
+              reminderOffsetsMinutesStr,
               payload.updated_at ?? new Date().toISOString(),
               payload.version ?? 1,
               existingByContent.id,
@@ -713,7 +812,7 @@ export async function applyRemoteChanges(
           );
         } else {
           await db.runAsync(
-            `INSERT INTO entries (id, user_id, category_id, title, occurred_at, content, task_status, task_recurrence, task_priority, capture_session_id, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED');`,
+            `INSERT INTO entries (id, user_id, category_id, title, occurred_at, content, task_status, task_recurrence, task_priority, capture_session_id, reminder_enabled, reminder_time, reminder_end_time, reminder_recurrence, reminder_offset_minutes, reminder_offsets_minutes, created_at, updated_at, version, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED');`,
             [
               entityId,
               userId,
@@ -725,6 +824,12 @@ export async function applyRemoteChanges(
               payload.task_recurrence ?? null,
               payload.task_priority ?? null,
               payload.capture_session_id ?? null,
+              reminderEnabled,
+              reminderTime,
+              reminderEndTime,
+              reminderRecurrence,
+              reminderOffsetMinutes,
+              reminderOffsetsMinutesStr,
               payload.created_at ?? new Date().toISOString(),
               payload.updated_at ?? new Date().toISOString(),
               payload.version ?? 1,
