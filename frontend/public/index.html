@@ -85,21 +85,17 @@
 
       /* Safe area header and bottom navigation for mobile web */
       #vox-mobile-header {
-        padding-top: 64px !important;
-        padding-top: calc(env(safe-area-inset-top, 0px) + 24px) !important;
-        padding-bottom: 14px !important;
+        padding-top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+        padding-bottom: 8px !important;
       }
       #vox-mobile-bottom-bar {
-        padding-bottom: 30px !important;
-        padding-bottom: calc(
-          env(safe-area-inset-bottom, 0px) + 16px
-        ) !important;
-        min-height: 84px !important;
+        padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+        min-height: 56px !important;
+        height: calc(env(safe-area-inset-bottom, 0px) + 56px) !important;
       }
       #vox-mobile-content-area {
-        padding-bottom: 116px !important;
         padding-bottom: calc(
-          env(safe-area-inset-bottom, 0px) + 100px
+          env(safe-area-inset-bottom, 0px) + 68px
         ) !important;
       }
 
