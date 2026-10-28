@@ -81,11 +81,12 @@ function isCategoryAlert(cat?: Category | null): boolean {
 export function isEntryReminderPending(
   entry: Entry,
   now: Date = new Date(),
+  category?: Category | null,
 ): boolean {
-  const hasReminder = Boolean(
-    entry.reminder_enabled ||
-      entry.category_id === "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
-  );
+  const isAlert =
+    isCategoryAlert(category) ||
+    entry.category_id === "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9";
+  const hasReminder = Boolean(entry.reminder_enabled || isAlert);
   if (!hasReminder) return false;
 
   // Si tiene recurrencia activa (ej. YEARLY, DAILY, etc.)
@@ -801,7 +802,11 @@ export function CalendarMonthView({
             dayEntries.length - MAX_VISIBLE_CALENDAR_DOTS,
           );
           const hasReminders = dayEntries.some((e) =>
-            isEntryReminderPending(e),
+            isEntryReminderPending(
+              e,
+              undefined,
+              categoryMap.get(e.category_id),
+            ),
           );
           const isSelected = selectedDayEntries?.dateStr === cell.dateStr;
           const isToday = toLocalDateString() === cell.dateStr;
