@@ -1034,6 +1034,7 @@ export default function App() {
         currentUserEmail={authSession ? authSession.email : null}
         onOpenAuth={() => setShowAuthModal(true)}
         onOpenOnboarding={() => setShowOnboardingModal(true)}
+        onOpenOfflineNotice={() => setShowOfflineNoticeModal(true)}
         onLogout={() => {
           authStorage.clearSession();
           setAuthSession(null);

@@ -101,6 +101,7 @@ export interface MobileMainLayoutProps {
   onOpenAuth?: () => void;
   onLogout?: () => void;
   onOpenOnboarding?: () => void;
+  onOpenOfflineNotice?: () => void;
   children: React.ReactNode;
 }
 
@@ -115,6 +116,7 @@ export function MobileMainLayout({
   onOpenAuth,
   onLogout,
   onOpenOnboarding,
+  onOpenOfflineNotice,
   children,
 }: MobileMainLayoutProps) {
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(
@@ -252,7 +254,12 @@ export function MobileMainLayout({
                       : styles.dotPending,
                 ]}
               />
-              <Text style={styles.statusText}>
+              <Text
+                style={[
+                  styles.statusText,
+                  isBackendConnected === false && styles.statusTextOffline,
+                ]}
+              >
                 {isBackendConnected === true
                   ? "Online"
                   : isBackendConnected === false
@@ -261,17 +268,18 @@ export function MobileMainLayout({
               </Text>
             </Pressable>
           ) : (
-            <View
-              style={[
-                styles.statusChip,
-                { borderColor: "rgba(239, 68, 68, 0.3)" },
-              ]}
-              testID="btn-mobile-auth"
-              accessibilityLabel="Modo local sin conexión"
+            <Pressable
+              style={[styles.statusChip, styles.statusChipOffline]}
+              onPress={onOpenOfflineNotice}
+              testID="btn-mobile-offline-mode"
+              accessibilityRole="button"
+              accessibilityLabel="Modo offline sin conexión"
             >
               <View style={[styles.statusDot, styles.dotDisconnected]} />
-              <Text style={styles.statusText}>Modo Local</Text>
-            </View>
+              <Text style={[styles.statusText, styles.statusTextOffline]}>
+                Offline
+              </Text>
+            </Pressable>
           )}
         </View>
       </View>
@@ -588,6 +596,9 @@ const styles = StyleSheet.create({
     color: "#cbd5e1",
     fontSize: 10,
     fontWeight: "600",
+  },
+  statusTextOffline: {
+    color: "#F87171",
   },
   contentArea: {
     flex: 1,

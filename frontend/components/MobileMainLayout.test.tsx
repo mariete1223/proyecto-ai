@@ -193,6 +193,32 @@ describe("MobileMainLayout Component", () => {
     });
   });
 
+  it("renders Offline chip in red when unauthenticated in offline mode and triggers onOpenOfflineNotice on click", async () => {
+    const onOpenOfflineNoticeMock = jest.fn();
+
+    const { getByTestId, getByText } = await render(
+      <MobileMainLayout
+        apiConfig={defaultApiConfig}
+        activeTab="VOICE_CAPTURE"
+        onTabChange={jest.fn()}
+        currentUserEmail={null}
+        onOpenOfflineNotice={onOpenOfflineNoticeMock}
+      >
+        <View />
+      </MobileMainLayout>,
+    );
+
+    const offlineChip = getByTestId("btn-mobile-offline-mode");
+    expect(offlineChip).toBeTruthy();
+    expect(getByText("Offline")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(offlineChip);
+    });
+
+    expect(onOpenOfflineNoticeMock).toHaveBeenCalledTimes(1);
+  });
+
   describe("Horizontal Swipe Navigation Logic", () => {
     it("recognizes dominant horizontal moves in both bubble and capture phases and ignores vertical scrolls", () => {
       const onTabChange = jest.fn();
