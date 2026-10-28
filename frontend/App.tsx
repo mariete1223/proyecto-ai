@@ -178,11 +178,7 @@ export default function App() {
   const userToken = authSession ? authSession.token : "demo-token";
   const [isInitialized, setIsInitialized] = useState(false);
   const { width } = useWindowDimensions();
-  const isMobileScreen =
-    Platform.OS !== "web" ||
-    width < 768 ||
-    (typeof navigator !== "undefined" &&
-      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  const isMobileScreen = Platform.OS !== "web" || width < 768;
 
   const [activeTab, setActiveTab] = useState<
     | "VOICE_CAPTURE"
@@ -193,13 +189,8 @@ export default function App() {
     | "LLM_IMPORT"
   >(() => {
     if (Platform.OS !== "web") return "VOICE_CAPTURE";
-    if (typeof window !== "undefined") {
-      if (
-        window.innerWidth < 768 ||
-        /Mobi|Android|iPhone|iPad|iPod/i.test(navigator?.userAgent || "")
-      ) {
-        return "VOICE_CAPTURE";
-      }
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      return "VOICE_CAPTURE";
     }
     return "CALENDAR";
   });

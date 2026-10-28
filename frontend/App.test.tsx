@@ -6,6 +6,7 @@ import * as webApi from "./services/webApi";
 
 describe("App", () => {
   beforeEach(() => {
+    jest.spyOn(webApi, "checkBackendHealth").mockResolvedValue(true);
     authStorage.saveSession({
       token: "test-mock-token",
       email: "tester@voxdaily.com",
@@ -14,13 +15,14 @@ describe("App", () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     authStorage.clearSession();
   });
 
   it("renders the starter screen", async () => {
-    const { getByText } = await render(<App />);
+    const { findByText } = await render(<App />);
 
-    expect(getByText("VoxDaily")).toBeTruthy();
+    expect(await findByText("VoxDaily")).toBeTruthy();
   });
 
   it("navigates to calendar tab after manual entry is created (#87)", async () => {
