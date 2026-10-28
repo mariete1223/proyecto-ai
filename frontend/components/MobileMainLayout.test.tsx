@@ -72,6 +72,37 @@ describe("MobileMainLayout Component", () => {
     });
   });
 
+  it("applies compact dimensions to top header, content area and bottom tab bar to avoid wasting vertical screen space (#123)", async () => {
+    const { getByTestId } = await render(
+      <MobileMainLayout
+        apiConfig={defaultApiConfig}
+        activeTab="VOICE_CAPTURE"
+        onTabChange={jest.fn()}
+      >
+        <View />
+      </MobileMainLayout>,
+    );
+
+    await waitFor(() => {
+      const bottomBar = getByTestId("mobile-bottom-tab-bar");
+      const bottomStyle = Array.isArray(bottomBar.props.style)
+        ? Object.assign({}, ...bottomBar.props.style)
+        : bottomBar.props.style;
+
+      // Bottom bar must not have oversized height or bottom padding
+      expect(bottomStyle.height).toBeLessThanOrEqual(64);
+      expect(bottomStyle.paddingBottom).toBeLessThanOrEqual(8);
+
+      const contentArea = getByTestId("mobile-content-area");
+      const contentStyle = Array.isArray(contentArea.props.style)
+        ? Object.assign({}, ...contentArea.props.style)
+        : contentArea.props.style;
+
+      expect(contentStyle.paddingTop).toBeLessThanOrEqual(10);
+      expect(contentStyle.paddingBottom).toBeLessThanOrEqual(75);
+    });
+  });
+
   it("handles tab clicks on bottom navigation bar", async () => {
     const onTabChange = jest.fn();
     const { getByTestId } = await render(

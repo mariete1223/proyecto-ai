@@ -150,8 +150,9 @@ export function MobileMainLayout({
     Platform.OS === "web"
       ? ({
           paddingTop: isIosDevice
-            ? "calc(env(safe-area-inset-top, 0px) + 24px)"
-            : "calc(env(safe-area-inset-top, 0px) + 12px)",
+            ? "calc(env(safe-area-inset-top, 0px) + 8px)"
+            : "calc(env(safe-area-inset-top, 0px) + 6px)",
+          paddingBottom: "8px",
         } as any)
       : undefined;
 
@@ -159,20 +160,18 @@ export function MobileMainLayout({
     Platform.OS === "web"
       ? ({
           paddingBottom: isIosDevice
-            ? "calc(env(safe-area-inset-bottom, 0px) + 115px)"
-            : "calc(env(safe-area-inset-bottom, 0px) + 90px)",
+            ? "calc(env(safe-area-inset-bottom, 0px) + 68px)"
+            : "calc(env(safe-area-inset-bottom, 0px) + 60px)",
         } as any)
       : undefined;
 
   const webBottomTabBarStyle =
     Platform.OS === "web"
       ? ({
-          paddingBottom: isIosDevice
-            ? "calc(env(safe-area-inset-bottom, 0px) + 30px)"
-            : "calc(env(safe-area-inset-bottom, 0px) + 14px)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
           height: isIosDevice
-            ? "calc(env(safe-area-inset-bottom, 0px) + 88px)"
-            : "calc(env(safe-area-inset-bottom, 0px) + 72px)",
+            ? "calc(env(safe-area-inset-bottom, 0px) + 56px)"
+            : "calc(env(safe-area-inset-bottom, 0px) + 52px)",
         } as any)
       : undefined;
 
@@ -507,11 +506,11 @@ const styles = StyleSheet.create({
     paddingTop:
       Platform.OS === "web"
         ? isIosDevice
-          ? 64
-          : 36
-        : (RNStatusBar.currentHeight || 44) + 14,
-    paddingBottom: 14,
-    paddingHorizontal: 14,
+          ? 40
+          : 24
+        : (RNStatusBar.currentHeight || 20) + 8,
+    paddingBottom: 8,
+    paddingHorizontal: 12,
     backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
@@ -599,8 +598,8 @@ const styles = StyleSheet.create({
   contentArea: {
     flex: 1,
     paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: isIosDevice ? 116 : 92, // Space for fixed bottom tab bar + safe margins
+    paddingTop: 8,
+    paddingBottom: isIosDevice ? 72 : 62, // Space for fixed compact bottom tab bar
     width: "100%",
   },
   swipeContainer: {
@@ -613,14 +612,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: isIosDevice ? 90 : 72,
+    height: isIosDevice ? 64 : 54,
     backgroundColor: "#1e293b",
     borderTopWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingBottom: isIosDevice ? 32 : 12,
+    paddingBottom: isIosDevice ? 8 : 2,
     zIndex: 100,
     elevation: 8,
     shadowColor: "#000000",
@@ -632,7 +631,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 6,
+    paddingVertical: 3,
   },
   activeTabItem: {
     backgroundColor: "rgba(59, 130, 246, 0.12)",
