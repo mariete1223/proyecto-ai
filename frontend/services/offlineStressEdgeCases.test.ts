@@ -10,6 +10,7 @@ import {
 } from "../db/categories";
 import { createLocalTag, deleteLocalTag, listTags } from "../db/tags";
 import {
+  adoptGuestData,
   createLocalEntry,
   deleteLocalEntry,
   getEntryById,
@@ -786,6 +787,59 @@ Fin de la nota.`;
     expect(tagsAfterSync.some((t) => t.id === testTag.id)).toBe(false);
     expect(tagsAfterSync.some((t) => t.name.toLowerCase() === "probando")).toBe(
       false,
+    );
+  });
+
+  // =========================================================================
+  // EDGE CASE 8: adoptGuestData no adopta ni resucita entidades eliminadas (#130)
+  // =========================================================================
+  it("Edge Case 8: adoptGuestData ignores and purges guest entities that already have deletion tombstones (#130)", async () => {
+    const guestId = "user-demo-123";
+    const loggedInId = "verified-user-999";
+
+    // 1. Crear categoría y etiqueta como invitado
+    const tempCat = await createLocalCategory(db, guestId, {
+      name: "Recuerdos Antiguos",
+      kind: "STANDARD",
+      voice_command: "recuerdos",
+      color: "#F59E0B",
+    });
+
+    const tempTag = await createLocalTag(db, guestId, {
+      name: "Para Borrar",
+      color: "#EC4899",
+    });
+
+    // 2. El usuario las elimina mientras estaba en modo invitado
+    await deleteLocalCategory(db, guestId, tempCat.id);
+    await deleteLocalTag(db, guestId, tempTag.id);
+
+    // 3. El usuario inicia sesión y se ejecuta adoptGuestData
+    const res = await adoptGuestData(db, loggedInId, guestId);
+
+    // 4. Verificar que no se adoptaron ni resucitaron
+    expect(res.adoptedCategories).toBe(0);
+    expect(res.adoptedTags).toBe(0);
+
+    const loggedInCats = await listCategories(db, loggedInId);
+    expect(loggedInCats.some((c) => c.name === "Recuerdos Antiguos")).toBe(
+      false,
+    );
+
+    const loggedInTags = await listTags(db, loggedInId);
+    expect(loggedInTags.some((t) => t.name === "Para Borrar")).toBe(false);
+
+    // 5. Verificar que los tombstones se migraron al usuario logueado en PENDING_PUSH
+    const tombstones = await db.getAllAsync<{
+      user_id: string;
+      sync_status: string;
+    }>(
+      `SELECT user_id, sync_status FROM deletion_tombstones WHERE user_id = ?;`,
+      [loggedInId],
+    );
+    expect(tombstones.length).toBeGreaterThanOrEqual(2);
+    expect(tombstones.every((t) => t.sync_status === "PENDING_PUSH")).toBe(
+      true,
     );
   });
 });

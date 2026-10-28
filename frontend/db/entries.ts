@@ -632,6 +632,18 @@ export async function adoptGuestData(
     }
   }
 
+  // 1b. Cargar tombstones de eliminación para no resucitar entidades borradas (#130)
+  const localTombstones = await db.getAllAsync<{
+    entity_type: string;
+    entity_id: string;
+  }>(
+    `SELECT entity_type, entity_id FROM deletion_tombstones WHERE user_id = ? OR user_id = ?;`,
+    [targetUserId, guestUserId],
+  );
+  const deletedSet = new Set(
+    localTombstones.map((t) => `${t.entity_type}:${t.entity_id}`),
+  );
+
   // 2. Adoptar categorías huérfanas / de invitado
   const guestCategories = await db.getAllAsync<{
     id: string;
@@ -642,6 +654,10 @@ export async function adoptGuestData(
   ]);
   let adoptedCategories = 0;
   for (const gc of guestCategories) {
+    if (deletedSet.has(`CATEGORY:${gc.id}`)) {
+      await db.runAsync(`DELETE FROM categories WHERE id = ?;`, [gc.id]);
+      continue;
+    }
     const norm = (gc.name_normalized || gc.name || "").trim().toLowerCase();
     const existingTargetId = targetCatMap.get(norm);
     if (existingTargetId && existingTargetId !== gc.id) {
@@ -681,6 +697,10 @@ export async function adoptGuestData(
   ]);
   let adoptedTags = 0;
   for (const gt of guestTags) {
+    if (deletedSet.has(`TAG:${gt.id}`)) {
+      await db.runAsync(`DELETE FROM tags WHERE id = ?;`, [gt.id]);
+      continue;
+    }
     const norm = (gt.name_normalized || gt.name || "").trim().toLowerCase();
     const existingTagId = targetTagMap.get(norm);
     if (existingTagId && existingTagId !== gt.id) {
@@ -707,6 +727,10 @@ export async function adoptGuestData(
 
   const fallbackCat = targetCategories[0]?.id || CANONICAL_CATEGORIES.TAREAS.id;
   for (const ge of guestEntries) {
+    if (deletedSet.has(`ENTRY:${ge.id}`)) {
+      await db.runAsync(`DELETE FROM entries WHERE id = ?;`, [ge.id]);
+      continue;
+    }
     let catId = ge.category_id;
     if (
       !catId ||
