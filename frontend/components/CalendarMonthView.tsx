@@ -199,6 +199,10 @@ export function CalendarMonthView({
     useState<TaskPriority>("MEDIUM");
   const [isCreatingQuickEntry, setIsCreatingQuickEntry] =
     useState<boolean>(false);
+  // Day detail view mode (Google Calendar timeline vs compact list #133)
+  const [dayDetailViewMode, setDayDetailViewMode] = useState<
+    "timeline" | "list"
+  >("timeline");
 
   // Month & Year picker state (#117)
   const [showMonthYearPicker, setShowMonthYearPicker] =
@@ -949,6 +953,48 @@ export function CalendarMonthView({
             </View>
           </View>
 
+          {/* Mode Toggle: Timeline vs List (#133) */}
+          <View style={styles.viewModeToggleRow} testID="day-view-mode-toggle">
+            <Pressable
+              testID="btn-view-mode-timeline"
+              style={[
+                styles.viewModeToggleBtn,
+                dayDetailViewMode === "timeline" &&
+                  styles.viewModeToggleBtnActive,
+              ]}
+              onPress={() => setDayDetailViewMode("timeline")}
+            >
+              <Text
+                style={[
+                  styles.viewModeToggleBtnText,
+                  dayDetailViewMode === "timeline" &&
+                    styles.viewModeToggleBtnTextActive,
+                ]}
+              >
+                ⏱️ Horas
+              </Text>
+            </Pressable>
+
+            <Pressable
+              testID="btn-view-mode-list"
+              style={[
+                styles.viewModeToggleBtn,
+                dayDetailViewMode === "list" && styles.viewModeToggleBtnActive,
+              ]}
+              onPress={() => setDayDetailViewMode("list")}
+            >
+              <Text
+                style={[
+                  styles.viewModeToggleBtnText,
+                  dayDetailViewMode === "list" &&
+                    styles.viewModeToggleBtnTextActive,
+                ]}
+              >
+                📋 Lista
+              </Text>
+            </Pressable>
+          </View>
+
           {/* Toast feedback banner */}
           {reminderToastMessage && (
             <View style={styles.toastBanner} testID="calendar-toast-banner">
@@ -1118,6 +1164,7 @@ export function CalendarMonthView({
                 {Platform.OS === "web" ? (
                   React.createElement("input", {
                     type: "time",
+                    "data-testid": "input-quick-add-time",
                     value: quickAddTime,
                     onChange: (e: any) => setQuickAddTime(e.target.value),
                     style: {
@@ -1133,6 +1180,7 @@ export function CalendarMonthView({
                   })
                 ) : (
                   <TextInput
+                    testID="input-quick-add-time"
                     style={styles.quickAddTimeInputNative}
                     value={quickAddTime}
                     onChangeText={setQuickAddTime}
@@ -1241,15 +1289,40 @@ export function CalendarMonthView({
             </View>
           )}
 
-          {selectedDayEntries.items.length === 0 ? (
-            <Text style={styles.noEntriesText}>
-              No hay entradas fechadas en este día.
-            </Text>
-          ) : (
-            selectedDayEntries.items.map((ent) => {
+          {/* Timeline groupings & calculations (#133) */}
+          {(() => {
+            const untimedEntries: Entry[] = [];
+            const hourlyEntriesMap = new Map<number, Entry[]>();
+
+            selectedDayEntries.items.forEach((ent) => {
+              if (!ent.occurred_at || ent.occurred_at.length <= 10) {
+                untimedEntries.push(ent);
+                return;
+              }
+              const norm = normalizeUtcIso(ent.occurred_at) || ent.occurred_at;
+              const d = new Date(norm);
+              if (isNaN(d.getTime())) {
+                untimedEntries.push(ent);
+              } else {
+                const h = d.getHours();
+                const list = hourlyEntriesMap.get(h) || [];
+                list.push(ent);
+                hourlyEntriesMap.set(h, list);
+              }
+            });
+
+            const busyHoursCount = hourlyEntriesMap.size;
+            const freeHoursCount = 24 - busyHoursCount;
+
+            const renderEntryCard = (
+              ent: Entry,
+              isTimeline: boolean = false,
+              exactTimeLabel?: string,
+            ) => {
               const cat = categoryMap.get(ent.category_id);
               const isTask = cat?.kind === "TASK" && !isCategoryAlert(cat);
               const isCompleted = isTask && ent.task_status === "DONE";
+              const catColor = cat?.color || "#38BDF8";
               const timeNorm =
                 normalizeUtcIso(ent.occurred_at) || ent.occurred_at;
               const timeStr = timeNorm
@@ -1259,6 +1332,7 @@ export function CalendarMonthView({
                   })
                 : "Sin hora";
 
+              const displayTime = exactTimeLabel || timeStr;
               const isEditingReminder = editingReminderEntryId === ent.id;
 
               return (
@@ -1267,6 +1341,8 @@ export function CalendarMonthView({
                   testID={`entry-item-${ent.id}`}
                   style={[
                     styles.entryRow,
+                    isTimeline && styles.timelineEventCard,
+                    isTimeline && { borderLeftColor: catColor },
                     isCompleted && styles.entryRowCompleted,
                   ]}
                 >
@@ -1287,10 +1363,21 @@ export function CalendarMonthView({
                     )}
 
                     <View style={styles.entryBadgesRow}>
+                      {isTimeline && (
+                        <Text
+                          style={[
+                            styles.timelineEventTimeBadge,
+                            { color: catColor },
+                          ]}
+                        >
+                          {displayTime}
+                        </Text>
+                      )}
+
                       <View
                         style={[
                           styles.catBadge,
-                          { backgroundColor: cat?.color || "#38BDF8" },
+                          { backgroundColor: catColor },
                         ]}
                       >
                         <Text style={styles.catBadgeText}>
@@ -1360,9 +1447,13 @@ export function CalendarMonthView({
                         </View>
                       )}
                     </View>
-                    <Text style={styles.entryTimeText}>📅 {timeStr}</Text>
+
+                    {!isTimeline && (
+                      <Text style={styles.entryTimeText}>📅 {timeStr}</Text>
+                    )}
                   </View>
 
+                  {/* Title & Content */}
                   {ent.title ? (
                     <>
                       <Text
@@ -1410,6 +1501,41 @@ export function CalendarMonthView({
                     </View>
                   )}
 
+                  {/* Inline Title Editor (#89) */}
+                  {editingTitleEntryId === ent.id && (
+                    <View
+                      style={styles.quickTitleEditorBox}
+                      testID={`quick-title-editor-${ent.id}`}
+                    >
+                      <TextInput
+                        testID={`input-quick-title-${ent.id}`}
+                        style={styles.quickTitleInput}
+                        placeholder="Escribe un título..."
+                        placeholderTextColor="#64748B"
+                        value={quickTitleText}
+                        onChangeText={setQuickTitleText}
+                        autoFocus
+                      />
+                      <View style={styles.quickTitleActions}>
+                        <Pressable
+                          testID={`btn-save-quick-title-${ent.id}`}
+                          style={styles.saveTitleBtn}
+                          onPress={() => handleQuickSaveTitle(ent)}
+                        >
+                          <Text style={styles.saveTitleBtnText}>Guardar</Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.cancelTitleBtn}
+                          onPress={() => setEditingTitleEntryId(null)}
+                        >
+                          <Text style={styles.cancelTitleBtnText}>
+                            Cancelar
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+
                   {/* QUICK REMINDER DRAWER */}
                   {isEditingReminder ? (
                     <View
@@ -1430,7 +1556,8 @@ export function CalendarMonthView({
                           { label: "⏰ 1 hora antes", offset: 60 },
                           { label: "📅 1 día antes", offset: 1440 },
                         ].map((preset) => {
-                          const baseIso = ent.occurred_at || ent.reminder_time;
+                          const baseIso =
+                            ent.occurred_at || ent.reminder_time;
                           let isPast = false;
                           if (baseIso) {
                             const baseNorm =
@@ -1479,6 +1606,53 @@ export function CalendarMonthView({
                         })}
                       </View>
 
+                      {/* Recurrence chips */}
+                      <Text
+                        style={[
+                          styles.quickReminderSubhead,
+                          { marginTop: 10 },
+                        ]}
+                      >
+                        Repetición del aviso
+                      </Text>
+                      <View
+                        style={styles.quickReminderRecurrenceRow}
+                        testID="quick-reminder-recurrence-row"
+                      >
+                        {[
+                          { label: "Una vez", val: "NONE" },
+                          { label: "Diario", val: "DAILY" },
+                          { label: "Semanal", val: "WEEKLY" },
+                          { label: "Mensual", val: "MONTHLY" },
+                          { label: "Anual", val: "YEARLY" },
+                        ].map((rec) => (
+                          <Pressable
+                            key={rec.val}
+                            testID={`preset-rec-${rec.val}-${ent.id}`}
+                            style={[
+                              styles.quickRecurrenceChip,
+                              selectedReminderRecurrence === rec.val &&
+                                styles.quickRecurrenceChipActive,
+                            ]}
+                            onPress={() =>
+                              setSelectedReminderRecurrence(
+                                rec.val as ReminderRecurrence,
+                              )
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.quickRecurrenceChipText,
+                                selectedReminderRecurrence === rec.val &&
+                                  styles.quickRecurrenceChipTextActive,
+                              ]}
+                            >
+                              {rec.label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+
                       {(() => {
                         const baseIso = ent.occurred_at || ent.reminder_time;
                         let isSelectedConfigPast = false;
@@ -1493,24 +1667,34 @@ export function CalendarMonthView({
                         }
                         return (
                           <View
-                            style={[
-                              styles.quickReminderLivePreviewBox,
-                              isSelectedConfigPast && {
-                                borderColor: "rgba(239, 68, 68, 0.4)",
-                                backgroundColor: "rgba(239, 68, 68, 0.1)",
-                              },
-                            ]}
-                            testID={`live-reminder-preview-${ent.id}`}
+                            style={{
+                              marginTop: 6,
+                              marginBottom: 8,
+                              padding: 6,
+                              backgroundColor: isSelectedConfigPast
+                                ? "#7F1D1D33"
+                                : "#1E293B",
+                              borderRadius: 6,
+                            }}
                           >
-                            <Text style={styles.quickReminderLivePreviewText}>
+                            <Text
+                              style={{
+                                color: isSelectedConfigPast
+                                  ? "#FCA5A5"
+                                  : "#94A3B8",
+                                fontSize: 11,
+                              }}
+                            >
                               {isSelectedConfigPast
                                 ? "⚠️ Aviso en el pasado: "
-                                : "⏰ Sonará a las: "}
+                                : "🕒 Resumen: "}
                               <Text
-                                style={[
-                                  styles.quickReminderLivePreviewHighlight,
-                                  isSelectedConfigPast && { color: "#F87171" },
-                                ]}
+                                style={{
+                                  fontWeight: "600",
+                                  color: isSelectedConfigPast
+                                    ? "#F87171"
+                                    : "#E2E8F0",
+                                }}
                               >
                                 {formatReminderSummary({
                                   ...ent,
@@ -1538,128 +1722,67 @@ export function CalendarMonthView({
                         );
                       })()}
 
-                      <Text style={styles.quickReminderSubhead}>
-                        Frecuencia de repetición:
-                      </Text>
-                      <View
-                        style={styles.quickReminderRecurrenceRow}
-                        testID="quick-reminder-recurrence-row"
-                      >
-                        {[
-                          { id: "NONE", label: "Una vez" },
-                          { id: "EVERY_2_HOURS", label: "Cada 2h" },
-                          { id: "EVERY_4_HOURS", label: "Cada 4h" },
-                          { id: "DAILY", label: "Diario" },
-                          { id: "WEEKLY", label: "Semanal" },
-                          { id: "YEARLY", label: "Anual" },
-                        ].map((rec) => (
+                      {/* Drawer Actions */}
+                      <View style={styles.quickReminderActionRow}>
+                        <Pressable
+                          testID={`btn-save-reminder-${ent.id}`}
+                          style={styles.saveReminderActionBtn}
+                          onPress={() =>
+                            handleQuickSaveReminder(
+                              ent,
+                              true,
+                              selectedReminderOffset,
+                              selectedReminderRecurrence,
+                            )
+                          }
+                        >
+                          <Text style={styles.saveReminderActionBtnText}>
+                            💾 Guardar
+                          </Text>
+                        </Pressable>
+
+                        {ent.reminder_enabled ? (
                           <Pressable
-                            key={rec.id}
-                            testID={`preset-rec-${rec.id}-${ent.id}`}
-                            style={[
-                              styles.reminderRecurrenceChip,
-                              selectedReminderRecurrence === rec.id &&
-                                styles.reminderRecurrenceChipActive,
-                            ]}
+                            testID={`btn-disable-reminder-${ent.id}`}
+                            style={styles.disableReminderActionBtn}
                             onPress={() =>
-                              setSelectedReminderRecurrence(
-                                rec.id as ReminderRecurrence,
-                              )
+                              handleQuickSaveReminder(ent, false)
                             }
                           >
                             <Text
-                              style={[
-                                styles.reminderRecurrenceChipText,
-                                selectedReminderRecurrence === rec.id &&
-                                  styles.reminderRecurrenceChipTextActive,
-                              ]}
+                              style={styles.disableReminderActionBtnText}
                             >
-                              {rec.label}
+                              🔕 Desactivar
                             </Text>
                           </Pressable>
-                        ))}
+                        ) : null}
+
+                        <Pressable
+                          testID={`btn-advanced-reminder-${ent.id}`}
+                          style={styles.advancedReminderBtn}
+                          onPress={() => {
+                            setEditingReminderEntryId(null);
+                            onSelectEntry?.(ent.id);
+                          }}
+                        >
+                          <Text style={styles.advancedReminderBtnText}>
+                            ⚙️ Pantalla Completa
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          style={styles.cancelReminderActionBtn}
+                          onPress={() => setEditingReminderEntryId(null)}
+                        >
+                          <Text style={styles.cancelReminderActionBtnText}>
+                            ✕ Cerrar
+                          </Text>
+                        </Pressable>
                       </View>
-
-                      {(() => {
-                        const baseIso = ent.occurred_at || ent.reminder_time;
-                        let isSelectedConfigPast = false;
-                        if (baseIso && selectedReminderRecurrence === "NONE") {
-                          const baseNorm = normalizeUtcIso(baseIso) || baseIso;
-                          const d = new Date(baseNorm);
-                          if (!isNaN(d.getTime())) {
-                            isSelectedConfigPast =
-                              d.getTime() - selectedReminderOffset * 60000 <
-                              Date.now();
-                          }
-                        }
-                        return (
-                          <View style={styles.quickReminderDrawerActions}>
-                            <Pressable
-                              testID={`btn-save-reminder-${ent.id}`}
-                              style={[
-                                styles.saveReminderActionBtn,
-                                isSelectedConfigPast && {
-                                  backgroundColor: "#475569",
-                                  opacity: 0.6,
-                                },
-                              ]}
-                              onPress={() =>
-                                handleQuickSaveReminder(
-                                  ent,
-                                  true,
-                                  selectedReminderOffset,
-                                  selectedReminderRecurrence,
-                                )
-                              }
-                            >
-                              <Text style={styles.saveReminderActionBtnText}>
-                                💾 Guardar Aviso
-                              </Text>
-                            </Pressable>
-
-                            {ent.reminder_enabled ? (
-                              <Pressable
-                                testID={`btn-disable-reminder-${ent.id}`}
-                                style={styles.disableReminderActionBtn}
-                                onPress={() =>
-                                  handleQuickSaveReminder(ent, false)
-                                }
-                              >
-                                <Text
-                                  style={styles.disableReminderActionBtnText}
-                                >
-                                  🔕 Desactivar
-                                </Text>
-                              </Pressable>
-                            ) : null}
-
-                            <Pressable
-                              testID={`btn-advanced-reminder-${ent.id}`}
-                              style={styles.advancedReminderBtn}
-                              onPress={() => {
-                                setEditingReminderEntryId(null);
-                                onSelectEntry?.(ent.id);
-                              }}
-                            >
-                              <Text style={styles.advancedReminderBtnText}>
-                                ⚙️ Pantalla Completa
-                              </Text>
-                            </Pressable>
-
-                            <Pressable
-                              style={styles.cancelReminderActionBtn}
-                              onPress={() => setEditingReminderEntryId(null)}
-                            >
-                              <Text style={styles.cancelReminderActionBtnText}>
-                                ✕ Cerrar
-                              </Text>
-                            </Pressable>
-                          </View>
-                        );
-                      })()}
                     </View>
                   ) : null}
 
+                  {/* Delete confirmation or Card Footer Actions */}
                   {deletingEntryId === ent.id ? (
                     <View
                       style={styles.deleteConfirmBox}
@@ -1775,10 +1898,116 @@ export function CalendarMonthView({
                   )}
                 </View>
               );
-            })
-          )}
+            };
+
+            if (dayDetailViewMode === "timeline") {
+              return (
+                <View style={styles.timelineContainer} testID="day-timeline-view">
+                  {/* Summary Bar */}
+                  <View style={styles.timelineSummaryBar}>
+                    <Text style={styles.timelineSummaryText}>
+                      {busyHoursCount > 0
+                        ? `⏱️ ${busyHoursCount}h con actividad • ${freeHoursCount}h libres`
+                        : "⏱️ Todo el día libre (24h disponibles)"}
+                    </Text>
+                    <Text style={styles.timelineFreeHint}>
+                      Toca en un hueco libre para programar
+                    </Text>
+                  </View>
+
+                  {/* All-Day / Untimed entries section */}
+                  {untimedEntries.length > 0 && (
+                    <View
+                      style={styles.timelineAllDayBox}
+                      testID="timeline-all-day-section"
+                    >
+                      <Text style={styles.timelineAllDayTitle}>
+                        📌 Todo el día / Sin hora ({untimedEntries.length})
+                      </Text>
+                      <View style={styles.timelineAllDayItems}>
+                        {untimedEntries.map((ent) =>
+                          renderEntryCard(ent, true, "Todo el día"),
+                        )}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* 24-Hour Timeline Grid */}
+                  <ScrollView
+                    style={styles.timelineScrollView}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator
+                  >
+                    {Array.from({ length: 24 }, (_, hour) => {
+                      const hourEntries = hourlyEntriesMap.get(hour) || [];
+                      const hasEvents = hourEntries.length > 0;
+                      const hourLabel = `${String(hour).padStart(2, "0")}:00`;
+
+                      return (
+                        <View
+                          key={hour}
+                          style={styles.timelineHourRow}
+                          testID={`timeline-hour-row-${hour}`}
+                        >
+                          {/* Hour gutter */}
+                          <View style={styles.timelineGutter}>
+                            <Text style={styles.timelineGutterText}>
+                              {hourLabel}
+                            </Text>
+                          </View>
+
+                          {/* Slot Content */}
+                          <View style={styles.timelineSlotContent}>
+                            {hasEvents ? (
+                              <View style={styles.timelineEventsList}>
+                                {hourEntries.map((ent) =>
+                                  renderEntryCard(ent, true),
+                                )}
+                              </View>
+                            ) : (
+                              <Pressable
+                                testID={`timeline-slot-${hour}`}
+                                style={styles.timelineFreeSlot}
+                                onPress={() => {
+                                  const hh = String(hour).padStart(2, "0");
+                                  setQuickAddTime(`${hh}:00`);
+                                  setShowQuickAddForm(true);
+                                  setShowQuickVoice(false);
+                                  if (!quickAddCatId && categories.length > 0) {
+                                    setQuickAddCatId(categories[0].id);
+                                  }
+                                }}
+                              >
+                                <Text style={styles.timelineFreeSlotText}>
+                                  + Hueco libre
+                                </Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              );
+            }
+
+            return (
+              <View testID="day-list-view">
+                {selectedDayEntries.items.length === 0 ? (
+                  <Text style={styles.noEntriesText}>
+                    No hay entradas fechadas en este día.
+                  </Text>
+                ) : (
+                  selectedDayEntries.items.map((ent) =>
+                    renderEntryCard(ent, false),
+                  )
+                )}
         </View>
-      )}
+      );
+    })()}
+  </View>
+)}
 
       {/* Month Summary Sidebar / Panel */}
       <View style={styles.monthSummaryCard} testID="calendar-month-summary">
@@ -3059,5 +3288,135 @@ const styles = StyleSheet.create({
     color: "#38BDF8",
     fontSize: 12,
     fontWeight: "700",
+  },
+  // Day detail view mode toggle & Google Calendar timeline (#133)
+  viewModeToggleRow: {
+    flexDirection: "row",
+    backgroundColor: "#1E293B",
+    borderRadius: 6,
+    padding: 3,
+    marginBottom: 10,
+    alignSelf: "flex-start",
+  },
+  viewModeToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 5,
+  },
+  viewModeToggleBtnActive: {
+    backgroundColor: "#0284C7",
+  },
+  viewModeToggleBtnText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  viewModeToggleBtnTextActive: {
+    color: "#FFFFFF",
+  },
+  timelineContainer: {
+    marginTop: 4,
+  },
+  timelineSummaryBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginBottom: 8,
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  timelineSummaryText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  timelineFreeHint: {
+    color: "#64748B",
+    fontSize: 11,
+    fontStyle: "italic",
+  },
+  timelineAllDayBox: {
+    backgroundColor: "rgba(30, 41, 59, 0.5)",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 10,
+  },
+  timelineAllDayTitle: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "bold",
+    marginBottom: 6,
+  },
+  timelineAllDayItems: {
+    flexDirection: "column",
+    gap: 6,
+  },
+  timelineScrollView: {
+    maxHeight: 480,
+  },
+  timelineHourRow: {
+    flexDirection: "row",
+    minHeight: 48,
+    borderTopWidth: 1,
+    borderTopColor: "#1E293B",
+    alignItems: "stretch",
+  },
+  timelineGutter: {
+    width: 48,
+    paddingTop: 6,
+    paddingRight: 6,
+    alignItems: "flex-end",
+  },
+  timelineGutterText: {
+    color: "#64748B",
+    fontSize: 11,
+    fontWeight: "600",
+    fontFamily: "monospace",
+  },
+  timelineSlotContent: {
+    flex: 1,
+    paddingLeft: 8,
+    paddingVertical: 4,
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(51, 65, 85, 0.35)",
+  },
+  timelineFreeSlot: {
+    flex: 1,
+    minHeight: 34,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "rgba(51, 65, 85, 0.35)",
+    borderStyle: "dashed",
+  },
+  timelineFreeSlotText: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  timelineEventsList: {
+    flexDirection: "column",
+    gap: 6,
+  },
+  timelineEventCard: {
+    borderLeftWidth: 4,
+  },
+  timelineEventTimeBadge: {
+    fontSize: 11,
+    fontWeight: "bold",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    borderColor: "#334155",
   },
 });

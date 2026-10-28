@@ -1024,4 +1024,82 @@ describe("CalendarMonthView Component (Task 35)", () => {
     // Warning preview message about past event should be displayed
     expect(getByText(/Aviso en el pasado/)).toBeTruthy();
   });
+
+  it("renders Google Calendar daily timeline view with hours and free slots, and allows toggling to list view (#133)", async () => {
+    // Create an entry at 14:00 on 2026-09-15
+    const timelineEntry = await createLocalEntry(db, userId, {
+      category_id: catId,
+      title: "Reunión de Estrategia",
+      content: "Planificar Q4 a las 14:00",
+      occurred_at: "2026-09-15T14:00:00Z",
+    });
+
+    const { getByTestId, getByText, queryByTestId } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("day-cell-2026-09-15")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("day-cell-2026-09-15"));
+    });
+
+    // 1. Verify day detail panel is open and defaults to timeline view
+    await waitFor(() => {
+      expect(getByTestId("day-detail-panel")).toBeTruthy();
+      expect(getByTestId("day-timeline-view")).toBeTruthy();
+      expect(getByTestId("day-view-mode-toggle")).toBeTruthy();
+    });
+
+    // 2. Verify summary bar with metric
+    expect(getByText(/con actividad •/)).toBeTruthy();
+
+    // 3. Verify the 14:00 hour slot contains the entry
+    const hour = new Date(timelineEntry.occurred_at!).getHours();
+    expect(getByTestId(`timeline-hour-row-${hour}`)).toBeTruthy();
+    expect(getByTestId(`entry-item-${timelineEntry.id}`)).toBeTruthy();
+    expect(getByText(/Reunión de Estrategia/)).toBeTruthy();
+
+    // 4. Verify free slots are present for unoccupied hours (e.g. 10:00)
+    const freeSlotHour = (hour + 2) % 24;
+    const freeSlotBtn = getByTestId(`timeline-slot-${freeSlotHour}`);
+    expect(freeSlotBtn).toBeTruthy();
+
+    // 5. Tapping a free slot opens quick add form pre-filled with that hour
+    await act(async () => {
+      fireEvent.press(freeSlotBtn);
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("quick-add-form-card")).toBeTruthy();
+      const timeInput = getByTestId("input-quick-add-time");
+      const expectedTimePrefix = `${String(freeSlotHour).padStart(2, "0")}:00`;
+      expect(timeInput.props.value).toBe(expectedTimePrefix);
+    });
+
+    // 6. Switch to list mode and verify day-list-view is shown
+    const listModeBtn = getByTestId("btn-view-mode-list");
+    await act(async () => {
+      fireEvent.press(listModeBtn);
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("day-list-view")).toBeTruthy();
+      expect(queryByTestId("day-timeline-view")).toBeNull();
+      expect(getByTestId(`entry-item-${timelineEntry.id}`)).toBeTruthy();
+    });
+
+    // 7. Switch back to timeline mode
+    const timelineModeBtn = getByTestId("btn-view-mode-timeline");
+    await act(async () => {
+      fireEvent.press(timelineModeBtn);
+    });
+
+    await waitFor(() => {
+      expect(getByTestId("day-timeline-view")).toBeTruthy();
+      expect(queryByTestId("day-list-view")).toBeNull();
+    });
+  });
 });
