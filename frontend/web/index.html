@@ -72,6 +72,14 @@
         flex: 1;
         background-color: #0f172a !important;
       }
+      @media all and (display-mode: standalone) {
+        html,
+        body,
+        #root {
+          height: 100vh !important;
+          min-height: 100vh !important;
+        }
+      }
       input,
       select,
       textarea,
