@@ -401,10 +401,14 @@ describe("CalendarMonthView Component (Task 35)", () => {
   });
 
   it("configures and saves quick reminder preset directly from calendar", async () => {
+    const futureDate = new Date(Date.now() + 86400000 * 3);
+    const futureIso = futureDate.toISOString();
+    const dateKey = futureIso.slice(0, 10);
+
     const reminderEntry = await createLocalEntry(db, userId, {
       category_id: catId,
       content: "Dentista revisión anual",
-      occurred_at: "2026-09-15T16:00:00Z",
+      occurred_at: futureIso,
       reminder_enabled: false,
     });
 
@@ -420,17 +424,17 @@ describe("CalendarMonthView Component (Task 35)", () => {
       <CalendarMonthView
         db={db}
         userId={userId}
-        initialDate={refDate}
+        initialDate={futureDate}
         onEntryUpdated={onEntryUpdatedMock}
       />,
     );
 
     await waitFor(() => {
-      expect(getByTestId("day-cell-2026-09-15")).toBeTruthy();
+      expect(getByTestId(`day-cell-${dateKey}`)).toBeTruthy();
     });
 
     await act(async () => {
-      fireEvent.press(getByTestId("day-cell-2026-09-15"));
+      fireEvent.press(getByTestId(`day-cell-${dateKey}`));
     });
 
     expect(await findByTestId("day-detail-panel")).toBeTruthy();
@@ -887,5 +891,93 @@ describe("CalendarMonthView Component (Task 35)", () => {
     await waitFor(() => {
       expect(getByTestId("day-cell-2025-03-10")).toBeTruthy();
     });
+  }, 15000);
+
+  it("handles recurrence chips wrapping to avoid screen overflow on mobile (#127)", async () => {
+    // Create an entry
+    const entry = await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Reunión con cliente",
+      occurred_at: "2026-09-15T15:00:00Z",
+    });
+
+    const { getByTestId } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
+    );
+
+    await waitFor(() => {
+      expect(getByTestId("day-cell-2026-09-15")).toBeTruthy();
+    });
+
+    // Open day detail
+    await act(async () => {
+      fireEvent.press(getByTestId("day-cell-2026-09-15"));
+    });
+
+    // Open quick reminder drawer
+    await waitFor(() => {
+      expect(getByTestId(`btn-open-quick-reminder-${entry.id}`)).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId(`btn-open-quick-reminder-${entry.id}`));
+    });
+
+    await waitFor(() => {
+      expect(getByTestId(`quick-reminder-drawer-${entry.id}`)).toBeTruthy();
+    });
+
+    // Verify recurrence row has flexWrap: wrap
+    const recurrenceRow = getByTestId("quick-reminder-recurrence-row");
+    expect(recurrenceRow).toBeTruthy();
+    const rowStyle = Array.isArray(recurrenceRow.props.style)
+      ? Object.assign({}, ...recurrenceRow.props.style)
+      : recurrenceRow.props.style;
+    expect(rowStyle.flexWrap).toBe("wrap");
+  });
+
+  it("disables exact time preset when event time has already passed today for one-time reminders (#128)", async () => {
+    // Create an entry that occurred in the past (e.g. 1 hour ago)
+    const pastDate = new Date(Date.now() - 3600000);
+    const pastIso = pastDate.toISOString();
+    const pastEntry = await createLocalEntry(db, userId, {
+      category_id: catId,
+      content: "Cita que ya ocurrió hoy",
+      occurred_at: pastIso,
+    });
+
+    const { getByTestId, getByText } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={pastDate} />,
+    );
+
+    const dateKey = pastIso.slice(0, 10);
+    await waitFor(() => {
+      expect(getByTestId(`day-cell-${dateKey}`)).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId(`day-cell-${dateKey}`));
+    });
+
+    await waitFor(() => {
+      expect(
+        getByTestId(`btn-open-quick-reminder-${pastEntry.id}`),
+      ).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId(`btn-open-quick-reminder-${pastEntry.id}`));
+    });
+
+    await waitFor(() => {
+      expect(getByTestId(`quick-reminder-drawer-${pastEntry.id}`)).toBeTruthy();
+    });
+
+    // The 'A la hora exacta' (offset: 0) preset button must be disabled for one-time past events
+    const exactPreset = getByTestId(`preset-offset-0-${pastEntry.id}`);
+    expect(exactPreset.props.accessibilityState?.disabled).toBe(true);
+
+    // Warning preview message about past event should be displayed
+    expect(getByText(/Aviso en el pasado/)).toBeTruthy();
   });
 });

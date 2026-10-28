@@ -289,6 +289,23 @@ export function CalendarMonthView({
     recurrence: ReminderRecurrence = "NONE",
   ) => {
     try {
+      if (enabled && recurrence === "NONE") {
+        const baseIso = entry.occurred_at || entry.reminder_time;
+        if (baseIso) {
+          const baseNorm = normalizeUtcIso(baseIso) || baseIso;
+          const d = new Date(baseNorm);
+          if (!isNaN(d.getTime())) {
+            const triggerTime = d.getTime() - offsetMinutes * 60000;
+            if (triggerTime < Date.now()) {
+              showToast(
+                "⚠️ La hora de este aviso ya ha pasado hoy. Elige repetición o edita la hora.",
+              );
+              return;
+            }
+          }
+        }
+      }
+
       const updateData: UpdateEntryData = {
         reminder_enabled: enabled,
         reminder_offset_minutes: offsetMinutes,
@@ -1401,14 +1418,19 @@ export function CalendarMonthView({
                         ].map((preset) => {
                           const baseIso = ent.occurred_at || ent.reminder_time;
                           let isPast = false;
-                          if (baseIso && preset.offset > 0) {
+                          if (baseIso) {
                             const baseNorm =
                               normalizeUtcIso(baseIso) || baseIso;
                             const d = new Date(baseNorm);
                             if (!isNaN(d.getTime())) {
-                              isPast =
-                                d.getTime() - preset.offset * 60000 <
-                                Date.now();
+                              const isRecurring =
+                                selectedReminderRecurrence &&
+                                selectedReminderRecurrence !== "NONE";
+                              if (!isRecurring) {
+                                isPast =
+                                  d.getTime() - preset.offset * 60000 <
+                                  Date.now();
+                              }
                             }
                           }
                           return (
@@ -1443,29 +1465,72 @@ export function CalendarMonthView({
                         })}
                       </View>
 
-                      <View
-                        style={styles.quickReminderLivePreviewBox}
-                        testID={`live-reminder-preview-${ent.id}`}
-                      >
-                        <Text style={styles.quickReminderLivePreviewText}>
-                          ⏰ Sonará a las:{" "}
-                          <Text
-                            style={styles.quickReminderLivePreviewHighlight}
+                      {(() => {
+                        const baseIso = ent.occurred_at || ent.reminder_time;
+                        let isSelectedConfigPast = false;
+                        if (baseIso && selectedReminderRecurrence === "NONE") {
+                          const baseNorm = normalizeUtcIso(baseIso) || baseIso;
+                          const d = new Date(baseNorm);
+                          if (!isNaN(d.getTime())) {
+                            isSelectedConfigPast =
+                              d.getTime() - selectedReminderOffset * 60000 <
+                              Date.now();
+                          }
+                        }
+                        return (
+                          <View
+                            style={[
+                              styles.quickReminderLivePreviewBox,
+                              isSelectedConfigPast && {
+                                borderColor: "rgba(239, 68, 68, 0.4)",
+                                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                              },
+                            ]}
+                            testID={`live-reminder-preview-${ent.id}`}
                           >
-                            {formatReminderSummary({
-                              ...ent,
-                              reminder_enabled: true,
-                              reminder_offset_minutes: selectedReminderOffset,
-                              reminder_recurrence: selectedReminderRecurrence,
-                            })}
-                          </Text>
-                        </Text>
-                      </View>
+                            <Text style={styles.quickReminderLivePreviewText}>
+                              {isSelectedConfigPast
+                                ? "⚠️ Aviso en el pasado: "
+                                : "⏰ Sonará a las: "}
+                              <Text
+                                style={[
+                                  styles.quickReminderLivePreviewHighlight,
+                                  isSelectedConfigPast && { color: "#F87171" },
+                                ]}
+                              >
+                                {formatReminderSummary({
+                                  ...ent,
+                                  reminder_enabled: true,
+                                  reminder_offset_minutes:
+                                    selectedReminderOffset,
+                                  reminder_recurrence:
+                                    selectedReminderRecurrence,
+                                })}
+                              </Text>
+                            </Text>
+                            {isSelectedConfigPast && (
+                              <Text
+                                style={{
+                                  color: "#FCA5A5",
+                                  fontSize: 10,
+                                  marginTop: 3,
+                                }}
+                              >
+                                La hora programada ya ocurrió hoy. Elige una
+                                frecuencia periódica o edita la fecha/hora.
+                              </Text>
+                            )}
+                          </View>
+                        );
+                      })()}
 
                       <Text style={styles.quickReminderSubhead}>
                         Frecuencia de repetición:
                       </Text>
-                      <View style={styles.quickReminderRecurrenceRow}>
+                      <View
+                        style={styles.quickReminderRecurrenceRow}
+                        testID="quick-reminder-recurrence-row"
+                      >
                         {[
                           { id: "NONE", label: "Una vez" },
                           { id: "EVERY_2_HOURS", label: "Cada 2h" },
@@ -1501,58 +1566,83 @@ export function CalendarMonthView({
                         ))}
                       </View>
 
-                      <View style={styles.quickReminderDrawerActions}>
-                        <Pressable
-                          testID={`btn-save-reminder-${ent.id}`}
-                          style={styles.saveReminderActionBtn}
-                          onPress={() =>
-                            handleQuickSaveReminder(
-                              ent,
-                              true,
-                              selectedReminderOffset,
-                              selectedReminderRecurrence,
-                            )
+                      {(() => {
+                        const baseIso = ent.occurred_at || ent.reminder_time;
+                        let isSelectedConfigPast = false;
+                        if (baseIso && selectedReminderRecurrence === "NONE") {
+                          const baseNorm = normalizeUtcIso(baseIso) || baseIso;
+                          const d = new Date(baseNorm);
+                          if (!isNaN(d.getTime())) {
+                            isSelectedConfigPast =
+                              d.getTime() - selectedReminderOffset * 60000 <
+                              Date.now();
                           }
-                        >
-                          <Text style={styles.saveReminderActionBtnText}>
-                            💾 Guardar Aviso
-                          </Text>
-                        </Pressable>
+                        }
+                        return (
+                          <View style={styles.quickReminderDrawerActions}>
+                            <Pressable
+                              testID={`btn-save-reminder-${ent.id}`}
+                              style={[
+                                styles.saveReminderActionBtn,
+                                isSelectedConfigPast && {
+                                  backgroundColor: "#475569",
+                                  opacity: 0.6,
+                                },
+                              ]}
+                              onPress={() =>
+                                handleQuickSaveReminder(
+                                  ent,
+                                  true,
+                                  selectedReminderOffset,
+                                  selectedReminderRecurrence,
+                                )
+                              }
+                            >
+                              <Text style={styles.saveReminderActionBtnText}>
+                                💾 Guardar Aviso
+                              </Text>
+                            </Pressable>
 
-                        {ent.reminder_enabled ? (
-                          <Pressable
-                            testID={`btn-disable-reminder-${ent.id}`}
-                            style={styles.disableReminderActionBtn}
-                            onPress={() => handleQuickSaveReminder(ent, false)}
-                          >
-                            <Text style={styles.disableReminderActionBtnText}>
-                              🔕 Desactivar
-                            </Text>
-                          </Pressable>
-                        ) : null}
+                            {ent.reminder_enabled ? (
+                              <Pressable
+                                testID={`btn-disable-reminder-${ent.id}`}
+                                style={styles.disableReminderActionBtn}
+                                onPress={() =>
+                                  handleQuickSaveReminder(ent, false)
+                                }
+                              >
+                                <Text
+                                  style={styles.disableReminderActionBtnText}
+                                >
+                                  🔕 Desactivar
+                                </Text>
+                              </Pressable>
+                            ) : null}
 
-                        <Pressable
-                          testID={`btn-advanced-reminder-${ent.id}`}
-                          style={styles.advancedReminderBtn}
-                          onPress={() => {
-                            setEditingReminderEntryId(null);
-                            onSelectEntry?.(ent.id);
-                          }}
-                        >
-                          <Text style={styles.advancedReminderBtnText}>
-                            ⚙️ Pantalla Completa
-                          </Text>
-                        </Pressable>
+                            <Pressable
+                              testID={`btn-advanced-reminder-${ent.id}`}
+                              style={styles.advancedReminderBtn}
+                              onPress={() => {
+                                setEditingReminderEntryId(null);
+                                onSelectEntry?.(ent.id);
+                              }}
+                            >
+                              <Text style={styles.advancedReminderBtnText}>
+                                ⚙️ Pantalla Completa
+                              </Text>
+                            </Pressable>
 
-                        <Pressable
-                          style={styles.cancelReminderActionBtn}
-                          onPress={() => setEditingReminderEntryId(null)}
-                        >
-                          <Text style={styles.cancelReminderActionBtnText}>
-                            ✕ Cerrar
-                          </Text>
-                        </Pressable>
-                      </View>
+                            <Pressable
+                              style={styles.cancelReminderActionBtn}
+                              onPress={() => setEditingReminderEntryId(null)}
+                            >
+                              <Text style={styles.cancelReminderActionBtnText}>
+                                ✕ Cerrar
+                              </Text>
+                            </Pressable>
+                          </View>
+                        );
+                      })()}
                     </View>
                   ) : null}
 
@@ -2816,7 +2906,9 @@ const styles = StyleSheet.create({
   },
   quickReminderRecurrenceRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
+    marginBottom: 10,
   },
   reminderRecurrenceChip: {
     backgroundColor: "#1E293B",
