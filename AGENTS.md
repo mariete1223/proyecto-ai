@@ -8,6 +8,12 @@ Rules
 
 - Dependencies are added in `pyproject.toml`. Do not add one without
   asking
+- Escalabilidad, adaptabilidad y buenas prácticas: no se aceptan soluciones
+  chapuceras, parches frágiles ni hacks provisionales (como alturas/píxeles fijos
+  arbitrarios o `!important` descontextualizados). Todas las soluciones deben
+  seguir estándares de la industria, patrones de diseño robustos, diseño adaptativo
+  y escalabilidad a largo plazo para cualquier dispositivo o pantalla, asumiendo
+  el esfuerzo adicional de ingeniería que ello requiera.
 
 
 Documents

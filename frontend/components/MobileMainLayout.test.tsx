@@ -72,7 +72,7 @@ describe("MobileMainLayout Component", () => {
     });
   });
 
-  it("applies compact dimensions to top header, content area and bottom tab bar to avoid wasting vertical screen space (#123)", async () => {
+  it("applies dynamic and adaptive dimensions to top header, content area and bottom tab bar without rigid hardcoded heights (#125)", async () => {
     const { getByTestId } = await render(
       <MobileMainLayout
         apiConfig={defaultApiConfig}
@@ -89,9 +89,10 @@ describe("MobileMainLayout Component", () => {
         ? Object.assign({}, ...bottomBar.props.style)
         : bottomBar.props.style;
 
-      // Bottom bar must not have oversized height or bottom padding
-      expect(bottomStyle.height).toBeLessThanOrEqual(64);
-      expect(bottomStyle.paddingBottom).toBeLessThanOrEqual(8);
+      // Bottom bar must use intrinsic/accessible minHeight without oversized static height
+      expect(bottomStyle.minHeight).toBeGreaterThanOrEqual(48);
+      expect(bottomStyle.minHeight).toBeLessThanOrEqual(56);
+      expect(bottomStyle.height).toBeUndefined();
 
       const contentArea = getByTestId("mobile-content-area");
       const contentStyle = Array.isArray(contentArea.props.style)

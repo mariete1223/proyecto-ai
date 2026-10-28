@@ -149,9 +149,7 @@ export function MobileMainLayout({
   const webTopHeaderStyle =
     Platform.OS === "web"
       ? ({
-          paddingTop: isIosDevice
-            ? "calc(env(safe-area-inset-top, 0px) + 8px)"
-            : "calc(env(safe-area-inset-top, 0px) + 6px)",
+          paddingTop: "max(8px, env(safe-area-inset-top, 0px))",
           paddingBottom: "8px",
         } as any)
       : undefined;
@@ -159,9 +157,7 @@ export function MobileMainLayout({
   const webContentAreaStyle =
     Platform.OS === "web"
       ? ({
-          paddingBottom: isIosDevice
-            ? "calc(env(safe-area-inset-bottom, 0px) + 68px)"
-            : "calc(env(safe-area-inset-bottom, 0px) + 60px)",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 54px)",
         } as any)
       : undefined;
 
@@ -169,9 +165,6 @@ export function MobileMainLayout({
     Platform.OS === "web"
       ? ({
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          height: isIosDevice
-            ? "calc(env(safe-area-inset-bottom, 0px) + 56px)"
-            : "calc(env(safe-area-inset-bottom, 0px) + 52px)",
         } as any)
       : undefined;
 
@@ -504,11 +497,7 @@ const styles = StyleSheet.create({
   },
   topHeader: {
     paddingTop:
-      Platform.OS === "web"
-        ? isIosDevice
-          ? 40
-          : 24
-        : (RNStatusBar.currentHeight || 20) + 8,
+      Platform.OS === "web" ? 8 : (RNStatusBar.currentHeight || 20) + 4,
     paddingBottom: 8,
     paddingHorizontal: 12,
     backgroundColor: "#1e293b",
@@ -599,7 +588,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 12,
     paddingTop: 8,
-    paddingBottom: isIosDevice ? 72 : 62, // Space for fixed compact bottom tab bar
+    paddingBottom: 54, // Intrinsic clearance for bottom tab bar
     width: "100%",
   },
   swipeContainer: {
@@ -612,14 +601,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: isIosDevice ? 64 : 54,
+    minHeight: 50,
     backgroundColor: "#1e293b",
     borderTopWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingBottom: isIosDevice ? 8 : 2,
+    paddingBottom: 2,
     zIndex: 100,
     elevation: 8,
     shadowColor: "#000000",
