@@ -455,12 +455,30 @@ export async function applyRemoteChanges(
   let pulledChangesCount = 0;
   let pulledTombstonesCount = 0;
 
+  // Load local deletion tombstones to prevent resurrecting deleted entities (Zombie Resurrection #124)
+  const localTombstones = await db.getAllAsync<{
+    entity_type: string;
+    entity_id: string;
+  }>(
+    `SELECT entity_type, entity_id FROM deletion_tombstones WHERE user_id = ?;`,
+    [userId],
+  );
+  const deletedEntityIds = new Set(
+    localTombstones.map((t) => `${t.entity_type}:${t.entity_id}`),
+  );
+
   // Process pulled changes (CREATE / UPDATE)
   for (const c of changes) {
-    pulledChangesCount++;
-    const payload = c.payload;
     const entityType = c.entity_type;
     const entityId = c.entity_id;
+
+    // Discard any remote change for entities that were deleted locally
+    if (deletedEntityIds.has(`${entityType}:${entityId}`)) {
+      continue;
+    }
+
+    pulledChangesCount++;
+    const payload = c.payload;
 
     if (entityType === "CATEGORY") {
       // Buscar primero por ID (caso normal de sync)

@@ -3,8 +3,12 @@ import {
   MemoryDatabaseAdapter,
   runMigrations,
 } from "../db/database";
-import { createLocalCategory, listCategories } from "../db/categories";
-import { createLocalTag } from "../db/tags";
+import {
+  createLocalCategory,
+  deleteLocalCategory,
+  listCategories,
+} from "../db/categories";
+import { createLocalTag, deleteLocalTag, listTags } from "../db/tags";
 import {
   createLocalEntry,
   deleteLocalEntry,
@@ -667,5 +671,121 @@ Fin de la nota.`;
 
     const pendingAfter = await getPendingLocalChanges(db, verifiedUserId);
     expect(pendingAfter.length).toBe(0);
+  });
+
+  // =========================================================================
+  // EDGE CASE 7: Prevención de Resurrección Zombie de categorías y tags (#124)
+  // =========================================================================
+  it("Edge Case 7: Deleted categories and tags do not resurrect when remote pull sends them back (#124)", async () => {
+    // 1. Crear categoría y etiqueta
+    const gymCategory = await createLocalCategory(db, verifiedUserId, {
+      name: "Gimnasio",
+      kind: "STANDARD",
+      voice_command: "gimnasio",
+      color: "#EF4444",
+    });
+
+    const testTag = await createLocalTag(db, verifiedUserId, {
+      name: "Probando",
+      color: "#3B82F6",
+    });
+
+    // 2. El usuario las elimina localmente
+    await deleteLocalCategory(db, verifiedUserId, gymCategory.id);
+    await deleteLocalTag(db, verifiedUserId, testTag.id);
+
+    // Verificar que localmente ya no están
+    const currentCats = await listCategories(db, verifiedUserId);
+    expect(currentCats.some((c) => c.id === gymCategory.id)).toBe(false);
+
+    const currentTags = await listTags(db, verifiedUserId);
+    expect(currentTags.some((t) => t.id === testTag.id)).toBe(false);
+
+    // 3. Simular que el servidor (por desfase de cursor o concurrencia) devuelve ambas entidades en el Pull
+    const zombieMockFetch = jest
+      .fn()
+      .mockImplementation((url: string, init?: RequestInit) => {
+        if (url.includes("/api/v1/sync/push")) {
+          const body = JSON.parse(init?.body as string);
+          // Confirmar que el push envía la acción DELETE para los tombstones
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                results: body.client_changes.map((ch: any) => ({
+                  change_id: ch.change_id,
+                  entity_type: ch.entity_type,
+                  entity_id: ch.entity_id,
+                  status: "APPLIED",
+                  applied_version: 2,
+                })),
+              }),
+          });
+        }
+        if (url.includes("/api/v1/sync/pull")) {
+          // Servidor envía 'Gimnasio' y 'Probando' en changes
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                changes: [
+                  {
+                    entity_type: "CATEGORY",
+                    entity_id: gymCategory.id,
+                    action: "CREATE",
+                    payload: {
+                      id: gymCategory.id,
+                      name: "Gimnasio",
+                      name_normalized: "gimnasio",
+                      kind: "STANDARD",
+                      voice_command: "gimnasio",
+                      version: 1,
+                    },
+                  },
+                  {
+                    entity_type: "TAG",
+                    entity_id: testTag.id,
+                    action: "CREATE",
+                    payload: {
+                      id: testTag.id,
+                      name: "Probando",
+                      name_normalized: "probando",
+                      color: "#3B82F6",
+                      version: 1,
+                    },
+                  },
+                ],
+                tombstones: [],
+                has_more: false,
+              }),
+          });
+        }
+        return Promise.reject(new Error("Route not found"));
+      });
+
+    // 4. Ejecutar sincronización
+    const syncRes = await performSync(db, {
+      apiBaseUrl,
+      token: verifiedToken,
+      userId: verifiedUserId,
+      fetchFn: zombieMockFetch,
+    });
+
+    expect(syncRes.success).toBe(true);
+
+    // 5. ¡Verificar que NO han resucitado!
+    const catsAfterSync = await listCategories(db, verifiedUserId);
+    expect(catsAfterSync.some((c) => c.id === gymCategory.id)).toBe(false);
+    expect(catsAfterSync.some((c) => c.name.toLowerCase() === "gimnasio")).toBe(
+      false,
+    );
+
+    const tagsAfterSync = await listTags(db, verifiedUserId);
+    expect(tagsAfterSync.some((t) => t.id === testTag.id)).toBe(false);
+    expect(tagsAfterSync.some((t) => t.name.toLowerCase() === "probando")).toBe(
+      false,
+    );
   });
 });

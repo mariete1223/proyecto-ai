@@ -726,6 +726,12 @@ export async function adoptGuestData(
     [targetUserId, guestUserId],
   );
 
+  // 6. Adoptar tombstones de eliminación huérfanos / de invitado
+  await db.runAsync(
+    `UPDATE deletion_tombstones SET user_id = ?, sync_status = 'PENDING_PUSH' WHERE user_id = ?;`,
+    [targetUserId, guestUserId],
+  );
+
   return {
     adoptedEntries: guestEntries.length,
     adoptedCategories,
