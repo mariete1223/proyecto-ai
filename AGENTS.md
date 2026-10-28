@@ -14,6 +14,11 @@ Rules
   seguir estándares de la industria, patrones de diseño robustos, diseño adaptativo
   y escalabilidad a largo plazo para cualquier dispositivo o pantalla, asumiendo
   el esfuerzo adicional de ingeniería que ello requiera.
+- Investigación y contraste técnico: ante cualquier duda sobre arquitectura, UX,
+  diseño o implementación, o en tareas que lo requieran o se beneficien de ello,
+  se debe consultar e investigar en internet cómo se resuelve el problema en entornos
+  maduros y estándares de la industria (no para copiar ciegamente, sino para analizar
+  posibilidades, entender los enfoques consolidados y aplicar la solución más sólida).
 
 
 Documents
