@@ -6,11 +6,12 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
-import { StyleSheet } from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
 import { createLocalCategory } from "../db/categories";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
 import { createLocalEntry, listLocalEntries } from "../db/entries";
 import { createLocalTag } from "../db/tags";
+import { toLocalDateString } from "../types/domain";
 import { notificationService } from "../services/notificationService";
 import { CalendarMonthView } from "./CalendarMonthView";
 
@@ -1101,5 +1102,85 @@ describe("CalendarMonthView Component (Task 35)", () => {
       expect(getByTestId("day-timeline-view")).toBeTruthy();
       expect(queryByTestId("day-list-view")).toBeNull();
     });
+  });
+
+  it("positions timeline scroll to current hour for today and to 08:00 for other days (#141)", async () => {
+    const scrollToSpy = jest
+      .spyOn(ScrollView.prototype, "scrollTo")
+      .mockImplementation(() => {});
+
+    try {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const todayStr = toLocalDateString(now);
+
+      // Pick a distinct day in the same month
+      const otherDayNum = now.getDate() === 1 ? 2 : 1;
+      const otherDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(otherDayNum).padStart(2, "0")}`;
+
+      const { getByTestId, queryByTestId } = await render(
+        <CalendarMonthView
+          db={db}
+          userId={userId}
+          initialDate={now}
+          initialSelectedDateStr={todayStr}
+        />,
+      );
+
+      // 1. Initial render on today: timeline opened and scrolled to current hour
+      await waitFor(() => {
+        expect(getByTestId("day-detail-panel")).toBeTruthy();
+        expect(getByTestId("day-timeline-view")).toBeTruthy();
+        expect(getByTestId("timeline-scroll-view")).toBeTruthy();
+      });
+
+      // Verify 'Ahora' badge is present for today
+      expect(getByTestId("timeline-now-badge")).toBeTruthy();
+      expect(getByTestId(`timeline-hour-row-${currentHour}`)).toBeTruthy();
+
+      // Verify scrollTo targeted current hour offset
+      expect(scrollToSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          y: currentHour * 48,
+        }),
+      );
+
+      // 2. Select a different day (not today)
+      scrollToSpy.mockClear();
+      await act(async () => {
+        fireEvent.press(getByTestId(`day-cell-${otherDateStr}`));
+      });
+
+      await waitFor(() => {
+        expect(getByTestId("day-detail-panel")).toBeTruthy();
+        expect(getByTestId("day-timeline-view")).toBeTruthy();
+        expect(queryByTestId("timeline-now-badge")).toBeNull();
+      });
+
+      // Verify scrollTo targeted 08:00 (8 * 48 = 384)
+      expect(scrollToSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          y: 8 * 48,
+        }),
+      );
+
+      // 3. Switch back to today
+      scrollToSpy.mockClear();
+      await act(async () => {
+        fireEvent.press(getByTestId(`day-cell-${todayStr}`));
+      });
+
+      await waitFor(() => {
+        expect(getByTestId("timeline-now-badge")).toBeTruthy();
+      });
+
+      expect(scrollToSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          y: currentHour * 48,
+        }),
+      );
+    } finally {
+      scrollToSpy.mockRestore();
+    }
   });
 });

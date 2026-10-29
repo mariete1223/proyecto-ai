@@ -228,6 +228,50 @@ export function CalendarMonthView({
   const toastTimerRef = React.useRef<any>(null);
   const isMountedRef = React.useRef(true);
 
+  // Timeline initial positioning & scrolling (#141)
+  const timelineScrollRef = useRef<ScrollView | null>(null);
+  const hourRowOffsetsRef = useRef<{ [hour: number]: number }>({});
+  const lastScrolledTimelineKeyRef = useRef<string | null>(null);
+
+  const scrollToInitialTimelineHour = React.useCallback(
+    (dateStr: string, animated: boolean = false) => {
+      if (!timelineScrollRef.current) return;
+      const todayStr = toLocalDateString(new Date());
+      const isToday = dateStr === todayStr;
+      const currentHour = Math.max(0, Math.min(23, new Date().getHours()));
+      const targetHour = isToday ? currentHour : 8;
+      const targetY = hourRowOffsetsRef.current[targetHour] ?? targetHour * 48;
+      try {
+        timelineScrollRef.current.scrollTo({
+          y: Math.max(0, targetY),
+          animated,
+        });
+      } catch {
+        // Safe ignore on headless/mock environments
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!selectedDayEntries?.dateStr || dayDetailViewMode !== "timeline") {
+      return;
+    }
+    const currentKey = `${selectedDayEntries.dateStr}_${dayDetailViewMode}`;
+    if (lastScrolledTimelineKeyRef.current !== currentKey) {
+      lastScrolledTimelineKeyRef.current = currentKey;
+      scrollToInitialTimelineHour(selectedDayEntries.dateStr, false);
+      const timer = setTimeout(() => {
+        scrollToInitialTimelineHour(selectedDayEntries.dateStr, true);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    selectedDayEntries?.dateStr,
+    dayDetailViewMode,
+    scrollToInitialTimelineHour,
+  ]);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -1931,7 +1975,9 @@ export function CalendarMonthView({
 
                   {/* 24-Hour Timeline Grid */}
                   <ScrollView
+                    ref={timelineScrollRef}
                     style={styles.timelineScrollView}
+                    testID="timeline-scroll-view"
                     nestedScrollEnabled
                     showsVerticalScrollIndicator
                   >
@@ -1939,18 +1985,54 @@ export function CalendarMonthView({
                       const hourEntries = hourlyEntriesMap.get(hour) || [];
                       const hasEvents = hourEntries.length > 0;
                       const hourLabel = `${String(hour).padStart(2, "0")}:00`;
+                      const todayStr = toLocalDateString(new Date());
+                      const isToday = selectedDayEntries.dateStr === todayStr;
+                      const currentHour = new Date().getHours();
+                      const isCurrentHourSlot = isToday && hour === currentHour;
 
                       return (
                         <View
                           key={hour}
                           style={styles.timelineHourRow}
                           testID={`timeline-hour-row-${hour}`}
+                          onLayout={(e) => {
+                            const y = e.nativeEvent.layout.y;
+                            hourRowOffsetsRef.current[hour] = y;
+                            const targetHour = isToday ? currentHour : 8;
+                            if (hour === targetHour) {
+                              scrollToInitialTimelineHour(
+                                selectedDayEntries.dateStr,
+                                false,
+                              );
+                            }
+                          }}
                         >
                           {/* Hour gutter */}
-                          <View style={styles.timelineGutter}>
-                            <Text style={styles.timelineGutterText}>
+                          <View
+                            style={[
+                              styles.timelineGutter,
+                              isCurrentHourSlot && styles.timelineGutterCurrent,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.timelineGutterText,
+                                isCurrentHourSlot &&
+                                  styles.timelineGutterCurrentText,
+                              ]}
+                            >
                               {hourLabel}
                             </Text>
+                            {isCurrentHourSlot && (
+                              <View
+                                style={styles.timelineNowBadge}
+                                testID="timeline-now-badge"
+                              >
+                                <Text style={styles.timelineNowBadgeText}>
+                                  Ahora
+                                </Text>
+                              </View>
+                            )}
                           </View>
 
                           {/* Slot Content */}
@@ -3365,10 +3447,32 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
   },
   timelineGutter: {
-    width: 48,
+    width: 56,
     paddingTop: 6,
     paddingRight: 6,
     alignItems: "flex-end",
+  },
+  timelineGutterCurrent: {
+    borderRightWidth: 2,
+    borderRightColor: "#38BDF8",
+  },
+  timelineGutterCurrentText: {
+    color: "#38BDF8",
+    fontWeight: "bold",
+  },
+  timelineNowBadge: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+    marginTop: 2,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+  },
+  timelineNowBadgeText: {
+    color: "#38BDF8",
+    fontSize: 9,
+    fontWeight: "700",
   },
   timelineGutterText: {
     color: "#64748B",
