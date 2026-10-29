@@ -169,12 +169,17 @@ export default function App() {
   const [authSession, setAuthSession] = useState<AuthSession | null>(() =>
     authStorage.loadSession(),
   );
+  const [offlineUserId, setOfflineUserId] = useState<string | null>(
+    () => authStorage.getLastAccount()?.userId || null,
+  );
   const [bypassAuth, setBypassAuth] = useState(false);
   const [isBackendOffline, setIsBackendOffline] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showOfflineNoticeModal, setShowOfflineNoticeModal] = useState(false);
-  const userId = authSession ? authSession.userId : "user-demo-123";
+  const userId = authSession
+    ? authSession.userId
+    : offlineUserId || "user-demo-123";
   const userToken = authSession?.token;
   const [isInitialized, setIsInitialized] = useState(false);
   const { width } = useWindowDimensions();
@@ -688,13 +693,14 @@ export default function App() {
     );
   }
 
-  // Si no hay sesión activa y no ha entrado en modo invitado, requerimos inicio de sesión o registro
+  // Si no hay sesión activa y no ha entrado en modo invitado / offline, requerimos inicio de sesión o registro
   if (!authSession && !bypassAuth) {
     return (
       <AuthScreen
         baseUrl={getBackendUrl()}
         onSuccess={async (session) => {
           setAuthSession(session);
+          setOfflineUserId(session.userId);
           if (session?.userId && session.userId !== "user-demo-123") {
             try {
               await adoptGuestData(db, session.userId);
@@ -704,6 +710,16 @@ export default function App() {
           if (session?.userId && !isOnboardingCompleted(session.userId)) {
             setShowOnboardingModal(true);
           }
+        }}
+        onContinueOffline={(targetUserId) => {
+          const effectiveUserId =
+            targetUserId ||
+            authStorage.getLastAccount()?.userId ||
+            "user-demo-123";
+          setOfflineUserId(effectiveUserId);
+          setBypassAuth(true);
+          setShowOfflineNoticeModal(true);
+          loadDatabaseState(true, effectiveUserId);
         }}
         onOfflineDetected={() => {
           const deviceOffline = isDeviceOffline();

@@ -6,14 +6,22 @@ export interface AuthSession {
   userId: string;
 }
 
+export interface LastAccount {
+  userId: string;
+  email: string;
+}
+
 const STORAGE_KEY = "proyecto_ai_auth_session";
+const LAST_ACCOUNT_KEY = "proyecto_ai_last_account";
 
 // Fallback in-memory session for test / native environments without persistent storage
 let memorySession: AuthSession | null = null;
+let memoryLastAccount: LastAccount | null = null;
 
 export const authStorage = {
   saveSession(session: AuthSession): void {
     memorySession = session;
+    this.saveLastAccount({ userId: session.userId, email: session.email });
     if (
       Platform.OS === "web" &&
       typeof window !== "undefined" &&
@@ -61,6 +69,65 @@ export const authStorage = {
         window.localStorage.removeItem(STORAGE_KEY);
       } catch (err) {
         console.warn("[Auth] Failed to clear localStorage:", err);
+      }
+    }
+  },
+
+  saveLastAccount(account: LastAccount): void {
+    memoryLastAccount = account;
+    if (
+      Platform.OS === "web" &&
+      typeof window !== "undefined" &&
+      window.localStorage
+    ) {
+      try {
+        window.localStorage.setItem(LAST_ACCOUNT_KEY, JSON.stringify(account));
+      } catch (err) {
+        console.warn(
+          "[Auth] Failed to save last account to localStorage:",
+          err,
+        );
+      }
+    }
+  },
+
+  getLastAccount(): LastAccount | null {
+    if (memoryLastAccount) return memoryLastAccount;
+    if (
+      Platform.OS === "web" &&
+      typeof window !== "undefined" &&
+      window.localStorage
+    ) {
+      try {
+        const raw = window.localStorage.getItem(LAST_ACCOUNT_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.userId && parsed?.email) {
+            memoryLastAccount = parsed;
+            return parsed;
+          }
+        }
+      } catch (err) {
+        console.warn(
+          "[Auth] Failed to read last account from localStorage:",
+          err,
+        );
+      }
+    }
+    return null;
+  },
+
+  clearLastAccount(): void {
+    memoryLastAccount = null;
+    if (
+      Platform.OS === "web" &&
+      typeof window !== "undefined" &&
+      window.localStorage
+    ) {
+      try {
+        window.localStorage.removeItem(LAST_ACCOUNT_KEY);
+      } catch (err) {
+        console.warn("[Auth] Failed to clear last account:", err);
       }
     }
   },

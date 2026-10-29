@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import {
   AuthSession,
+  LastAccount,
+  authStorage,
   loginUser,
   registerUser,
   resendVerification,
@@ -28,7 +30,7 @@ const appLogo = require("../assets/logo-small.png");
 export interface AuthScreenProps {
   baseUrl: string;
   onSuccess: (session: AuthSession) => void;
-  onContinueOffline?: () => void;
+  onContinueOffline?: (targetUserId?: string) => void;
   onOfflineDetected?: () => void;
   isOffline?: boolean;
 }
@@ -43,6 +45,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 480;
   const isTablet = width >= 480 && width < 900;
+
+  const [lastAccount] = useState<LastAccount | null>(() =>
+    authStorage.getLastAccount(),
+  );
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -367,8 +373,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             >
               <Text style={styles.serverOfflineNoticeText}>
                 ⚠️ El servidor no responde o no está disponible en este momento.
-                Comprueba tu conexión o inténtalo en unos instantes.
+                Puedes continuar en modo local sin conexión para consultar y
+                gestionar tus notas.
               </Text>
+              {onContinueOffline && (
+                <Pressable
+                  style={styles.continueOfflineBannerButton}
+                  onPress={() => onContinueOffline(lastAccount?.userId)}
+                  testID="btn-auth-continue-offline"
+                >
+                  <Text style={styles.continueOfflineBannerButtonText}>
+                    {lastAccount
+                      ? `Acceder sin conexión como ${lastAccount.email} 📡`
+                      : "Acceder en Modo Local sin conexión 📡"}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           )}
 
@@ -444,6 +464,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </Text>
             )}
           </Pressable>
+
+          {onContinueOffline && (isOffline || offlineDetected) && (
+            <Pressable
+              style={styles.continueOfflineButton}
+              onPress={() => onContinueOffline(lastAccount?.userId)}
+              testID="btn-auth-continue-offline-footer"
+            >
+              <Text style={styles.continueOfflineButtonText}>
+                {lastAccount
+                  ? `Continuar sin conexión como ${lastAccount.email} 📡`
+                  : "Continuar en Modo Local sin conexión 📡"}
+              </Text>
+            </Pressable>
+          )}
 
           {mode === "login" && (
             <Pressable
@@ -735,5 +769,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     textAlign: "center",
+  },
+  continueOfflineBannerButton: {
+    marginTop: 10,
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.4)",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+  },
+  continueOfflineBannerButtonText: {
+    color: "#38BDF8",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  continueOfflineButton: {
+    marginTop: 4,
+    marginBottom: 16,
+    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  continueOfflineButtonText: {
+    color: "#38BDF8",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

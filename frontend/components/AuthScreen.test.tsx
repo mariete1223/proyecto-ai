@@ -187,12 +187,40 @@ describe("AuthScreen Component", () => {
     });
   });
 
-  it("does not render an offline button on the screen", async () => {
+  it("does not render an offline button on the screen when online", async () => {
     const { queryByTestId } = await render(
       <AuthScreen baseUrl="http://localhost:8000" onSuccess={jest.fn()} />,
     );
 
     expect(queryByTestId("btn-continue-offline")).toBeNull();
+  });
+
+  it("renders continue offline button when isOffline is true and passes lastAccount (#137)", async () => {
+    authService.authStorage.saveLastAccount({
+      userId: "user-offline-retention",
+      email: "saved@example.com",
+    });
+
+    const continueMock = jest.fn();
+    const { getByTestId, findByText } = await render(
+      <AuthScreen
+        baseUrl="http://localhost:8000"
+        onSuccess={jest.fn()}
+        onContinueOffline={continueMock}
+        isOffline={true}
+      />,
+    );
+
+    expect(getByTestId("btn-auth-continue-offline")).toBeTruthy();
+    expect(
+      await findByText("Acceder sin conexión como saved@example.com 📡"),
+    ).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-auth-continue-offline"));
+    });
+
+    expect(continueMock).toHaveBeenCalledWith("user-offline-retention");
   });
 
   it("does not call onOfflineDetected when network error occurs but device has internet (navigator.onLine = true) (#131)", async () => {

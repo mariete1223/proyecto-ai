@@ -185,4 +185,32 @@ describe("authService", () => {
     expect(failRes.success).toBe(false);
     expect(failRes.error).toContain("already verified");
   });
+
+  it("persists and retrieves last account independently of active token session (#137)", () => {
+    authStorage.clearLastAccount();
+    expect(authStorage.getLastAccount()).toBeNull();
+
+    authStorage.saveLastAccount({
+      userId: "user-persistent-999",
+      email: "offline-user@example.com",
+    });
+
+    const account = authStorage.getLastAccount();
+    expect(account).toEqual({
+      userId: "user-persistent-999",
+      email: "offline-user@example.com",
+    });
+
+    // clearSession should NOT wipe out lastAccount so offline mode retains the user identity
+    authStorage.clearSession();
+    expect(authStorage.loadSession()).toBeNull();
+    expect(authStorage.getLastAccount()).toEqual({
+      userId: "user-persistent-999",
+      email: "offline-user@example.com",
+    });
+
+    // explicit clearLastAccount
+    authStorage.clearLastAccount();
+    expect(authStorage.getLastAccount()).toBeNull();
+  });
 });
