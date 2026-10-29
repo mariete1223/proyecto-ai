@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { DatabaseAdapter } from "../db/database";
 import { listLocalEntries } from "../db/entries";
+import { isDeviceOffline } from "./webApi";
 import {
   Entry,
   formatOffsetLabel,
@@ -122,8 +123,18 @@ class NotificationService {
   }
 
   public setAuth(apiBaseUrl?: string | null, token?: string | null): void {
-    if (apiBaseUrl) this.lastApiBaseUrl = apiBaseUrl;
-    if (token) this.lastToken = token;
+    if (apiBaseUrl !== undefined) this.lastApiBaseUrl = apiBaseUrl;
+    if (token !== undefined) this.lastToken = token;
+  }
+
+  public canRelyOnRemotePush(): boolean {
+    if (isDeviceOffline()) {
+      return false;
+    }
+    if (!this.lastApiBaseUrl || !this.lastToken) {
+      return false;
+    }
+    return true;
   }
 
   public async initServiceWorker(): Promise<any> {
@@ -546,25 +557,34 @@ class NotificationService {
           ) {
             return;
           }
+
+          // Comprobación de suspensión en segundo plano:
+          // Si el temporizador ejecuta con retraso (> 5000ms después de targetDate):
+          // - En ONLINE con backend activo (canRelyOnRemotePush() === true), el backend
+          //   (push_worker.py) es el responsable de entregar la notificación remota Web Push.
+          //   En tal caso se descarta la notificación local para no duplicar el aviso al entrar a la app.
+          // - En OFFLINE o sin backend activo (canRelyOnRemotePush() === false), ningún servidor
+          //   pudo enviar el push. Por tanto, la alerta local DEBE sonar y notificarse de inmediato
+          //   (salvo que haya pasado un retraso excesivo de > 2 horas que la deje obsoleta).
+          const elapsedLateMs = Date.now() - targetDate!.getTime();
+          if (elapsedLateMs > 5000) {
+            const hasRemotePush = this.canRelyOnRemotePush();
+            const MAX_OFFLINE_LATE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 horas
+
+            if (hasRemotePush || elapsedLateMs > MAX_OFFLINE_LATE_WINDOW_MS) {
+              if (
+                entry.reminder_recurrence &&
+                entry.reminder_recurrence !== "NONE"
+              ) {
+                this.scheduleNextRecurrence(entry, targetDate!);
+              }
+              return;
+            }
+          }
+
           this.notifiedEntryIds.add(reminderKey);
           this.notifiedEntryIds.add(entryTag);
           this.persistNotifiedHistory();
-
-          // Comprobación de suspensión en segundo plano:
-          // Si el temporizador ejecuta con retraso (> 5000ms después de targetDate), significa que la app
-          // estuvo suspendida en background o el teléfono estuvo bloqueado, por lo que el backend
-          // (push_worker.py) ya entregó la notificación remota Web Push a la pantalla de bloqueo.
-          // En tal caso se descarta la notificación local para no duplicarla al entrar a la app.
-          const elapsedLateMs = Date.now() - targetDate!.getTime();
-          if (elapsedLateMs > 5000) {
-            if (
-              entry.reminder_recurrence &&
-              entry.reminder_recurrence !== "NONE"
-            ) {
-              this.scheduleNextRecurrence(entry, targetDate!);
-            }
-            return;
-          }
 
           this.sendNotification(
             `🔔 ${notifTitle}`,

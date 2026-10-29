@@ -339,7 +339,15 @@ describe("NotificationService", () => {
       notificationService.clearNotifiedHistory();
     });
 
-    it("discards local notification when timer callback fires late (> 5000ms delay due to background sleep)", () => {
+    it("discards local notification when timer callback fires late (> 5000ms) IF online with active Web Push backend to prevent duplicates (#138)", () => {
+      notificationService.clearNotifiedHistory();
+      notificationService.setAuth("http://localhost:8000", "mock-token");
+      const originalOnLine = navigator.onLine;
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        value: true,
+      });
+
       const sendSpy = jest
         .spyOn(notificationService, "sendNotification")
         .mockReturnValue(true);
@@ -378,8 +386,68 @@ describe("NotificationService", () => {
 
       callback();
 
-      // sendNotification should NOT be called because it was delayed > 5000ms
+      // sendNotification should NOT be called because backend Web Push handles it online
       expect(sendSpy).not.toHaveBeenCalled();
+
+      Date.now = realNow;
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        value: originalOnLine,
+      });
+      notificationService.clearNotifiedHistory();
+      notificationService.setAuth(null, null);
+    });
+
+    it("fires local notification when timer callback fires late (> 5000ms) IF in offline mode or backend is disconnected (#138)", () => {
+      notificationService.clearNotifiedHistory();
+      // Offline mode: no backend or token
+      notificationService.setAuth(null, null);
+      const sendSpy = jest
+        .spyOn(notificationService, "sendNotification")
+        .mockReturnValue(true);
+      const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+
+      const entry = {
+        id: "late-offline-entry-1",
+        user_id: "user-1",
+        category_id: "cat-1",
+        title: "Alerta offline a las 16:35",
+        content: "Alerta offline que debe sonar aunque despierte con retraso",
+        reminder_enabled: true,
+        reminder_time: new Date(Date.now() + 2000).toISOString(),
+        reminder_offset_minutes: 0,
+        reminder_recurrence: "NONE",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      notificationService.scheduleForEntry(entry);
+
+      expect(setTimeoutSpy).toHaveBeenCalled();
+      const callback = setTimeoutSpy.mock.calls[
+        setTimeoutSpy.mock.calls.length - 1
+      ][0] as () => void;
+
+      notificationService.cancelNotification(entry.id);
+
+      // Simulate device being asleep/backgrounded in offline mode: timer fires 15 seconds after targetDate
+      const realNow = Date.now;
+      jest
+        .spyOn(Date, "now")
+        .mockReturnValue(new Date(entry.reminder_time!).getTime() + 15000);
+
+      callback();
+
+      // In offline mode, sendNotification MUST be called because no backend Web Push exists
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      expect(sendSpy).toHaveBeenCalledWith(
+        "🔔 Alerta offline a las 16:35",
+        "Alerta offline que debe sonar aunque despierte con retraso",
+        undefined,
+        true,
+        "entry-reminder-late-offline-entry-1",
+      );
 
       Date.now = realNow;
       notificationService.clearNotifiedHistory();
