@@ -33,8 +33,7 @@ from app.schemas.sync import (
     SyncPushChangeResult,
     SyncTombstone,
 )
-from app.services.category_service import seed_initial_categories
-from app.services.category_service import normalize_text_key
+from app.services.category_service import normalize_text_key, seed_initial_categories
 from app.services.tag_service import normalize_tag_name
 
 

@@ -308,7 +308,9 @@ def test_sync_pull_auto_seeds_canonical_categories_for_new_user(
     client: TestClient, test_db_session: Session
 ) -> None:
     # Usuario nuevo sin categorias en base de datos
-    new_user = create_user(test_db_session, "brand_new_sync@example.com", "Password123!")
+    new_user = create_user(
+        test_db_session, "brand_new_sync@example.com", "Password123!"
+    )
     token = create_access_token(user_id=str(new_user.id), email=new_user.email)
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -321,4 +323,3 @@ def test_sync_pull_auto_seeds_canonical_categories_for_new_user(
     assert "Alerta" in cat_names
     assert "Tarea" in cat_names or "Tareas" in cat_names
     assert "Evento" in cat_names or "Eventos" in cat_names
-
