@@ -94,4 +94,116 @@ describe("SQLite Local Database Setup & Migrations", () => {
       (globalThis as unknown as { window: unknown }).window = originalWindow;
     }
   });
+
+  describe("IN (...) clause and fail-safe condition parsing (#135)", () => {
+    it("selectively deletes rows matching IN (...) without deleting unaffected rows", async () => {
+      const db = new MemoryDatabaseAdapter();
+      await runMigrations(db);
+
+      // Insert 3 test entries
+      await db.runAsync(
+        "INSERT INTO entries (id, user_id, category_id, content, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+          "id-to-delete-1",
+          "user-1",
+          "cat-1",
+          "Seed 1",
+          "2026-10-01",
+          "2026-10-01",
+          1,
+        ],
+      );
+      await db.runAsync(
+        "INSERT INTO entries (id, user_id, category_id, content, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+          "id-to-delete-2",
+          "user-1",
+          "cat-1",
+          "Seed 2",
+          "2026-10-01",
+          "2026-10-01",
+          1,
+        ],
+      );
+      await db.runAsync(
+        "INSERT INTO entries (id, user_id, category_id, content, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+          "id-to-keep",
+          "user-1",
+          "cat-1",
+          "User Entry",
+          "2026-10-29",
+          "2026-10-29",
+          1,
+        ],
+      );
+
+      // Execute selective DELETE matching the seed purge pattern in App.tsx
+      await db.runAsync(
+        "DELETE FROM entries WHERE id IN ('id-to-delete-1', 'id-to-delete-2');",
+      );
+
+      const remaining = await db.getAllAsync<{ id: string; content: string }>(
+        "SELECT * FROM entries WHERE user_id = ?",
+        ["user-1"],
+      );
+
+      expect(remaining.length).toBe(1);
+      expect(remaining[0].id).toBe("id-to-keep");
+      expect(remaining[0].content).toBe("User Entry");
+    });
+
+    it("evaluates parameterized IN (?, ?) queries properly in SELECT", async () => {
+      const db = new MemoryDatabaseAdapter();
+      await runMigrations(db);
+
+      await db.runAsync(
+        "INSERT INTO entries (id, user_id, category_id, content, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ["entry-a", "user-1", "cat-1", "A", "2026-10-01", "2026-10-01", 1],
+      );
+      await db.runAsync(
+        "INSERT INTO entries (id, user_id, category_id, content, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ["entry-b", "user-1", "cat-1", "B", "2026-10-01", "2026-10-01", 1],
+      );
+      await db.runAsync(
+        "INSERT INTO entries (id, user_id, category_id, content, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ["entry-c", "user-1", "cat-1", "C", "2026-10-01", "2026-10-01", 1],
+      );
+
+      const res = await db.getAllAsync<{ id: string }>(
+        "SELECT * FROM entries WHERE id IN (?, ?)",
+        ["entry-a", "entry-c"],
+      );
+      expect(res.map((r) => r.id)).toEqual(["entry-a", "entry-c"]);
+    });
+
+    it("fails safely and does not match all rows when given an unrecognized WHERE condition", async () => {
+      const db = new MemoryDatabaseAdapter();
+      await runMigrations(db);
+
+      await db.runAsync(
+        "INSERT INTO entries (id, user_id, category_id, content, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+          "safe-entry",
+          "user-1",
+          "cat-1",
+          "Content",
+          "2026-10-01",
+          "2026-10-01",
+          1,
+        ],
+      );
+
+      // Attempt deletion with an unrecognized condition syntax
+      await db.runAsync("DELETE FROM entries WHERE some_unknown_syntax_here;");
+
+      const res = await db.getAllAsync<{ id: string }>(
+        "SELECT * FROM entries WHERE user_id = ?",
+        ["user-1"],
+      );
+      // Entry must remain safe, not accidentally deleted
+      expect(res.length).toBe(1);
+      expect(res[0].id).toBe("safe-entry");
+    });
+  });
 });

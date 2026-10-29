@@ -219,18 +219,33 @@ function parseWhereConditions(
   const orBranches: ((row: Record<string, unknown>) => boolean)[][] = [];
 
   for (const orPart of orParts) {
-    const rawConds = orPart
-      .replace(/^\s*\(\s*/, "")
-      .replace(/\s*\)\s*$/, "")
-      .split(/\s+AND\s+/i);
+    let cleanedOrPart = orPart.trim();
+    if (
+      cleanedOrPart.startsWith("(") &&
+      cleanedOrPart.endsWith(")") &&
+      !/^\([a-z0-9_]+\s+(IN|NOT\s+IN)\s*\(/i.test(cleanedOrPart)
+    ) {
+      cleanedOrPart = cleanedOrPart.slice(1, -1).trim();
+    }
+    const rawConds = cleanedOrPart.split(/\s+AND\s+/i);
     const andMatchers: ((row: Record<string, unknown>) => boolean)[] = [];
 
     for (const rawCond of rawConds) {
-      const cond = rawCond
-        .trim()
-        .replace(/^\(+/, "")
-        .replace(/\)+$/, "")
-        .trim();
+      let cond = rawCond.trim();
+      while (
+        cond.startsWith("(") &&
+        cond.endsWith(")") &&
+        !/\s+(IN|NOT\s+IN)\s*\(/i.test(cond)
+      ) {
+        cond = cond.slice(1, -1).trim();
+      }
+      const openCount = (cond.match(/\(/g) || []).length;
+      const closeCount = (cond.match(/\)/g) || []).length;
+      if (closeCount > openCount && cond.endsWith(")")) {
+        cond = cond.slice(0, -(closeCount - openCount)).trim();
+      } else if (openCount > closeCount && cond.startsWith("(")) {
+        cond = cond.slice(openCount - closeCount).trim();
+      }
       if (!cond) continue;
 
       // IS NOT NULL
@@ -260,6 +275,32 @@ function parseWhereConditions(
           const strVal =
             typeof row[col] === "string" ? (row[col] as string).trim() : "";
           return strVal !== val;
+        });
+        continue;
+      }
+
+      // IN (...) or NOT IN (...)
+      const inMatch = cond.match(
+        /^([a-z0-9_]+)\s+(NOT\s+IN|IN)\s*\(([^)]+)\)$/i,
+      );
+      if (inMatch && inMatch[1] && inMatch[2] && inMatch[3]) {
+        const col = inMatch[1].toLowerCase();
+        const isNotIn = inMatch[2].toUpperCase().includes("NOT");
+        const rawTokens = inMatch[3].split(",").map((s) => s.trim());
+        const targetValues: unknown[] = [];
+        for (const token of rawTokens) {
+          if (token === "?") {
+            targetValues.push(params[paramIdx++]);
+          } else {
+            targetValues.push(token.replace(/^['"]|['"]$/g, ""));
+          }
+        }
+        andMatchers.push((row) => {
+          const rowVal = row[col];
+          const has = targetValues.some(
+            (tv) => tv === rowVal || String(tv) === String(rowVal),
+          );
+          return isNotIn ? !has : has;
         });
         continue;
       }
@@ -303,6 +344,17 @@ function parseWhereConditions(
         });
         continue;
       }
+
+      // Si una condición no fue reconocida pero el texto no estaba vacío,
+      // fail-safe: no permitir que evalúe a true indiscriminadamente.
+      andMatchers.push(() => false);
+    }
+
+    if (
+      andMatchers.length === 0 &&
+      rawConds.filter((s) => s.trim()).length > 0
+    ) {
+      andMatchers.push(() => false);
     }
 
     orBranches.push(andMatchers);
