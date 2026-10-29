@@ -1380,10 +1380,7 @@ export function CalendarMonthView({
                       )}
 
                       <View
-                        style={[
-                          styles.catBadge,
-                          { backgroundColor: catColor },
-                        ]}
+                        style={[styles.catBadge, { backgroundColor: catColor }]}
                       >
                         <Text style={styles.catBadgeText}>
                           {cat?.name || "General"}
@@ -1509,7 +1506,7 @@ export function CalendarMonthView({
                   {/* Inline Title Editor (#89) */}
                   {editingTitleEntryId === ent.id && (
                     <View
-                      style={styles.quickTitleEditorBox}
+                      style={styles.quickTitleForm}
                       testID={`quick-title-editor-${ent.id}`}
                     >
                       <TextInput
@@ -1524,16 +1521,16 @@ export function CalendarMonthView({
                       <View style={styles.quickTitleActions}>
                         <Pressable
                           testID={`btn-save-quick-title-${ent.id}`}
-                          style={styles.saveTitleBtn}
-                          onPress={() => handleQuickSaveTitle(ent)}
+                          style={styles.quickTitleSaveBtn}
+                          onPress={() => handleSaveQuickTitle(ent.id)}
                         >
-                          <Text style={styles.saveTitleBtnText}>Guardar</Text>
+                          <Text style={styles.quickTitleSaveText}>Guardar</Text>
                         </Pressable>
                         <Pressable
-                          style={styles.cancelTitleBtn}
+                          style={styles.quickTitleCancelBtn}
                           onPress={() => setEditingTitleEntryId(null)}
                         >
-                          <Text style={styles.cancelTitleBtnText}>
+                          <Text style={styles.quickTitleCancelText}>
                             Cancelar
                           </Text>
                         </Pressable>
@@ -1561,8 +1558,7 @@ export function CalendarMonthView({
                           { label: "⏰ 1 hora antes", offset: 60 },
                           { label: "📅 1 día antes", offset: 1440 },
                         ].map((preset) => {
-                          const baseIso =
-                            ent.occurred_at || ent.reminder_time;
+                          const baseIso = ent.occurred_at || ent.reminder_time;
                           let isPast = false;
                           if (baseIso) {
                             const baseNorm =
@@ -1613,10 +1609,7 @@ export function CalendarMonthView({
 
                       {/* Recurrence chips */}
                       <Text
-                        style={[
-                          styles.quickReminderSubhead,
-                          { marginTop: 10 },
-                        ]}
+                        style={[styles.quickReminderSubhead, { marginTop: 10 }]}
                       >
                         Repetición del aviso
                       </Text>
@@ -1635,9 +1628,9 @@ export function CalendarMonthView({
                             key={rec.val}
                             testID={`preset-rec-${rec.val}-${ent.id}`}
                             style={[
-                              styles.quickRecurrenceChip,
+                              styles.reminderRecurrenceChip,
                               selectedReminderRecurrence === rec.val &&
-                                styles.quickRecurrenceChipActive,
+                                styles.reminderRecurrenceChipActive,
                             ]}
                             onPress={() =>
                               setSelectedReminderRecurrence(
@@ -1647,9 +1640,9 @@ export function CalendarMonthView({
                           >
                             <Text
                               style={[
-                                styles.quickRecurrenceChipText,
+                                styles.reminderRecurrenceChipText,
                                 selectedReminderRecurrence === rec.val &&
-                                  styles.quickRecurrenceChipTextActive,
+                                  styles.reminderRecurrenceChipTextActive,
                               ]}
                             >
                               {rec.label}
@@ -1728,7 +1721,7 @@ export function CalendarMonthView({
                       })()}
 
                       {/* Drawer Actions */}
-                      <View style={styles.quickReminderActionRow}>
+                      <View style={styles.quickReminderDrawerActions}>
                         <Pressable
                           testID={`btn-save-reminder-${ent.id}`}
                           style={styles.saveReminderActionBtn}
@@ -1750,13 +1743,9 @@ export function CalendarMonthView({
                           <Pressable
                             testID={`btn-disable-reminder-${ent.id}`}
                             style={styles.disableReminderActionBtn}
-                            onPress={() =>
-                              handleQuickSaveReminder(ent, false)
-                            }
+                            onPress={() => handleQuickSaveReminder(ent, false)}
                           >
-                            <Text
-                              style={styles.disableReminderActionBtnText}
-                            >
+                            <Text style={styles.disableReminderActionBtnText}>
                               🔕 Desactivar
                             </Text>
                           </Pressable>
@@ -1907,7 +1896,10 @@ export function CalendarMonthView({
 
             if (dayDetailViewMode === "timeline") {
               return (
-                <View style={styles.timelineContainer} testID="day-timeline-view">
+                <View
+                  style={styles.timelineContainer}
+                  testID="day-timeline-view"
+                >
                   {/* Summary Bar */}
                   <View style={styles.timelineSummaryBar}>
                     <Text style={styles.timelineSummaryText}>
@@ -2008,11 +2000,11 @@ export function CalendarMonthView({
                     renderEntryCard(ent, false),
                   )
                 )}
+              </View>
+            );
+          })()}
         </View>
-      );
-    })()}
-  </View>
-)}
+      )}
 
       {/* Month Summary Sidebar / Panel */}
       <View style={styles.monthSummaryCard} testID="calendar-month-summary">

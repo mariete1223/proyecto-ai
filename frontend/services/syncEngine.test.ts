@@ -299,4 +299,3 @@ describe("SyncEngine Service (Task 40)", () => {
     expect(savedImplicit?.reminder_offset_minutes).toBe(0);
   });
 });
-

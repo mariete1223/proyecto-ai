@@ -664,10 +664,9 @@ export async function applyRemoteChanges(
         const cat = await db.getFirstAsync<{
           name?: string | null;
           name_normalized?: string | null;
-        }>(
-          `SELECT name, name_normalized FROM categories WHERE id = ?;`,
-          [payload.category_id],
-        );
+        }>(`SELECT name, name_normalized FROM categories WHERE id = ?;`, [
+          payload.category_id,
+        ]);
         if (
           cat &&
           (cat.name_normalized === "alerta" ||
@@ -696,18 +695,26 @@ export async function applyRemoteChanges(
 
       const reminderTime =
         payload.reminder_time !== undefined
-          ? (payload.reminder_time ? String(payload.reminder_time) : null)
+          ? payload.reminder_time
+            ? String(payload.reminder_time)
+            : null
           : (existing?.reminder_time ?? null);
 
       const reminderEndTime =
         payload.reminder_end_time !== undefined
-          ? (payload.reminder_end_time ? String(payload.reminder_end_time) : null)
+          ? payload.reminder_end_time
+            ? String(payload.reminder_end_time)
+            : null
           : (existing?.reminder_end_time ?? null);
 
       const reminderRecurrence =
         payload.reminder_recurrence !== undefined
-          ? (payload.reminder_recurrence ? String(payload.reminder_recurrence) : null)
-          : (isAlertCategory ? "NONE" : (existing?.reminder_recurrence ?? null));
+          ? payload.reminder_recurrence
+            ? String(payload.reminder_recurrence)
+            : null
+          : isAlertCategory
+            ? "NONE"
+            : (existing?.reminder_recurrence ?? null);
 
       let reminderOffsetMinutes: number | null = null;
       if (
