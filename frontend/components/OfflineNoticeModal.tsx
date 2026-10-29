@@ -11,16 +11,20 @@ import {
 export interface OfflineNoticeModalProps {
   visible: boolean;
   onClose: () => void;
+  reason?: "NO_INTERNET" | "BACKEND_UNREACHABLE";
 }
 
 export const OfflineNoticeModal: React.FC<OfflineNoticeModalProps> = ({
   visible,
   onClose,
+  reason = "BACKEND_UNREACHABLE",
 }) => {
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 500;
 
   if (!visible) return null;
+
+  const isBackendUnreachable = reason === "BACKEND_UNREACHABLE";
 
   return (
     <Modal
@@ -40,8 +44,15 @@ export const OfflineNoticeModal: React.FC<OfflineNoticeModalProps> = ({
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>📡 MODO SIN CONEXIÓN</Text>
+            <View
+              style={[
+                styles.badge,
+                isBackendUnreachable && styles.badgeLocalMode,
+              ]}
+            >
+              <Text style={styles.badgeText}>
+                {isBackendUnreachable ? "🖥️ MODO LOCAL" : "📡 SIN INTERNET"}
+              </Text>
             </View>
             <Pressable
               onPress={onClose}
@@ -55,30 +66,40 @@ export const OfflineNoticeModal: React.FC<OfflineNoticeModalProps> = ({
           </View>
 
           {/* Icon Circle */}
-          <View style={styles.iconCircle}>
-            <Text style={styles.iconText}>📡</Text>
+          <View
+            style={[
+              styles.iconCircle,
+              isBackendUnreachable && styles.iconCircleLocalMode,
+            ]}
+          >
+            <Text style={styles.iconText}>
+              {isBackendUnreachable ? "🖥️" : "📡"}
+            </Text>
           </View>
 
           {/* Body */}
           <View style={styles.body}>
             <Text style={styles.title} testID="offline-notice-title">
-              Estás en Modo Offline
+              {isBackendUnreachable
+                ? "Operando en Modo Local"
+                : "Modo Sin Conexión"}
             </Text>
             <Text style={styles.description} testID="offline-notice-desc">
-              Actualmente estás utilizando la aplicación sin conexión al
-              servidor. Puedes seguir creando, editando y consultando tus notas,
-              tareas y eventos con total normalidad en este dispositivo.
+              {isBackendUnreachable
+                ? "Tu dispositivo dispone de conexión a internet, pero el servidor backend de VoxDaily no está disponible en este momento. La app está funcionando en modo local con los datos guardados en este dispositivo. Puedes crear, editar y consultar tus notas, tareas y eventos con total normalidad."
+                : "Actualmente estás utilizando la aplicación sin conexión a internet. Puedes seguir creando, editando y consultando tus notas, tareas y eventos con total normalidad en este dispositivo."}
             </Text>
 
             <View style={styles.syncBox} testID="offline-notice-sync-box">
               <Text style={styles.syncBoxTitle}>
-                🔄 Sincronización automática con tu cuenta
+                {isBackendUnreachable
+                  ? "🔄 Sincronización automática pendiente"
+                  : "🔄 Sincronización automática con tu cuenta"}
               </Text>
               <Text style={styles.syncBoxText}>
-                Todos los datos que guardes ahora se almacenan de forma segura
-                en este dispositivo y se sincronizarán e integrarán
-                automáticamente en tu cuenta online en cuanto inicies sesión y
-                se restablezca la conexión.
+                {isBackendUnreachable
+                  ? "Todos los cambios se almacenan de forma segura en este dispositivo y se sincronizarán e integrarán automáticamente en tu cuenta online en cuanto el servidor vuelva a estar en línea."
+                  : "Todos los datos que guardes ahora se almacenan de forma segura en este dispositivo y se sincronizarán e integrarán automáticamente en tu cuenta online en cuanto recuperes la conexión."}
               </Text>
             </View>
           </View>
@@ -144,6 +165,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
+  badgeLocalMode: {
+    borderColor: "#38BDF8",
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+  },
   badgeText: {
     color: "#F59E0B",
     fontSize: 11,
@@ -169,6 +194,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "center",
     marginVertical: 10,
+  },
+  iconCircleLocalMode: {
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderColor: "rgba(56, 189, 248, 0.35)",
   },
   iconText: {
     fontSize: 32,

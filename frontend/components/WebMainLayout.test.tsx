@@ -41,7 +41,7 @@ describe("WebMainLayout Component (Task 42)", () => {
       expect(getByTestId("web-backend-unreachable")).toBeTruthy();
       expect(
         getByText(
-          "Servidor backend privado no disponible. En la versión web, las operaciones requieren conexión directa al backend FastAPI.",
+          "Servidor backend no disponible. La aplicación está operando en Modo Local en este dispositivo. Tus cambios se guardan localmente y se sincronizarán automáticamente cuando el servidor vuelva a estar en línea.",
         ),
       ).toBeTruthy();
     });

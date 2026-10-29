@@ -444,13 +444,13 @@ export function MobileMainLayout({
                   {isBackendConnected === true
                     ? "Conectado al servidor"
                     : isBackendConnected === false
-                      ? "Sin conexión (Modo Offline)"
+                      ? "Operando en Modo Local"
                       : "Comprobando conexión..."}
                 </Text>
                 <Text style={styles.statusDetailSubtitle}>
                   {isBackendConnected === true
                     ? "Sincronización en tiempo real activa"
-                    : "Tus datos se guardan en el móvil y se enviarán al volver la conexión"}
+                    : "Servidor no disponible. Tus datos se guardan en este dispositivo y se sincronizarán al reconectar."}
                 </Text>
               </View>
             </View>

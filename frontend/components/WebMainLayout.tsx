@@ -179,8 +179,10 @@ export function WebMainLayout({
       {isBackendConnected === false && (
         <View style={styles.unreachableBanner} testID="web-backend-unreachable">
           <Text style={styles.unreachableText}>
-            Servidor backend privado no disponible. En la versión web, las
-            operaciones requieren conexión directa al backend FastAPI.
+            Servidor backend no disponible. La aplicación está operando en Modo
+            Local en este dispositivo. Tus cambios se guardan localmente y se
+            sincronizarán automáticamente cuando el servidor vuelva a estar en
+            línea.
           </Text>
           {Platform.OS === "web" && typeof window !== "undefined" && (
             <Pressable

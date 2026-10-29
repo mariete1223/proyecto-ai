@@ -555,16 +555,16 @@ export default function App() {
       );
 
       if (isMounted) {
+        const deviceOffline = isDeviceOffline();
+
+        let isHealthy = false;
+        if (!deviceOffline) {
+          isHealthy = await checkBackendHealth(defaultApiConfig);
+        }
+
+        setIsBackendOffline(!isHealthy);
+
         if (!authSession) {
-          const deviceOffline = isDeviceOffline();
-
-          let isHealthy = false;
-          if (!deviceOffline) {
-            isHealthy = await checkBackendHealth(defaultApiConfig);
-          }
-
-          setIsBackendOffline(!isHealthy);
-
           // SOLO si el dispositivo carece por completo de conexión a internet (sin wifi ni datos)
           // se autoriza el modo local offline sin sesión
           if (deviceOffline) {
@@ -574,9 +574,14 @@ export default function App() {
             // Si el dispositivo tiene conexión a internet (wifi o datos), NUNCA se elude el login a modo invitado
             setBypassAuth(false);
           }
-        } else if (!isOnboardingCompleted(authSession.userId)) {
-          // Solo mostrar la guía automáticamente la primera vez que se inicia sesión
-          setShowOnboardingModal(true);
+        } else {
+          // El usuario dispone de sesión previa: si el backend no responde, mostrar aviso de modo local
+          if (!isHealthy) {
+            setShowOfflineNoticeModal(true);
+          } else if (!isOnboardingCompleted(authSession.userId)) {
+            // Solo mostrar la guía automáticamente la primera vez que se inicia sesión
+            setShowOnboardingModal(true);
+          }
         }
         await loadDatabaseState(true);
         setIsInitialized(true);
@@ -1027,6 +1032,7 @@ export default function App() {
         <OfflineNoticeModal
           visible={showOfflineNoticeModal}
           onClose={() => setShowOfflineNoticeModal(false)}
+          reason={isDeviceOffline() ? "NO_INTERNET" : "BACKEND_UNREACHABLE"}
         />
       </View>
     );

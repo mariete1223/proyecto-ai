@@ -3,23 +3,53 @@ import { fireEvent, render } from "@testing-library/react-native";
 import { OfflineNoticeModal } from "./OfflineNoticeModal";
 
 describe("OfflineNoticeModal Component", () => {
-  it("renders offline notice modal with explanatory text and sync message when visible", async () => {
+  it("renders offline notice modal with no internet copy when reason is NO_INTERNET", async () => {
     const onCloseMock = jest.fn();
     const { getByTestId, getByText } = await render(
-      <OfflineNoticeModal visible={true} onClose={onCloseMock} />,
+      <OfflineNoticeModal
+        visible={true}
+        onClose={onCloseMock}
+        reason="NO_INTERNET"
+      />,
     );
 
     expect(getByTestId("offline-notice-modal")).toBeTruthy();
     expect(getByTestId("offline-notice-card")).toBeTruthy();
-    expect(getByText("📡 MODO SIN CONEXIÓN")).toBeTruthy();
+    expect(getByText("📡 SIN INTERNET")).toBeTruthy();
     expect(getByTestId("offline-notice-title").props.children).toBe(
-      "Estás en Modo Offline",
+      "Modo Sin Conexión",
     );
     expect(getByTestId("offline-notice-desc").props.children).toContain(
-      "utilizando la aplicación sin conexión al servidor",
+      "sin conexión a internet",
     );
     expect(getByTestId("offline-notice-sync-box")).toBeTruthy();
     expect(getByText(/cuenta online/i)).toBeTruthy();
+  });
+
+  it("renders local mode notice modal with backend unreachable copy when reason is BACKEND_UNREACHABLE (#139)", async () => {
+    const onCloseMock = jest.fn();
+    const { getByTestId, getByText } = await render(
+      <OfflineNoticeModal
+        visible={true}
+        onClose={onCloseMock}
+        reason="BACKEND_UNREACHABLE"
+      />,
+    );
+
+    expect(getByTestId("offline-notice-modal")).toBeTruthy();
+    expect(getByTestId("offline-notice-card")).toBeTruthy();
+    expect(getByText("🖥️ MODO LOCAL")).toBeTruthy();
+    expect(getByTestId("offline-notice-title").props.children).toBe(
+      "Operando en Modo Local",
+    );
+    expect(getByTestId("offline-notice-desc").props.children).toContain(
+      "el servidor backend de VoxDaily no está disponible",
+    );
+    expect(getByTestId("offline-notice-desc").props.children).toContain(
+      "Tu dispositivo dispone de conexión a internet",
+    );
+    expect(getByTestId("offline-notice-sync-box")).toBeTruthy();
+    expect(getByText("🔄 Sincronización automática pendiente")).toBeTruthy();
   });
 
   it("calls onClose when confirmation button is pressed", async () => {
