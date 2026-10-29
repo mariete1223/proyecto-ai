@@ -612,6 +612,14 @@ export function VoiceCaptureFlow({
                   placeholder="Escribe o edita el texto aquí..."
                   placeholderTextColor="#64748B"
                   value={transcript}
+                  multiline={true}
+                  numberOfLines={3}
+                  scrollEnabled={true}
+                  selection={
+                    voiceState === "LISTENING"
+                      ? { start: transcript.length, end: transcript.length }
+                      : undefined
+                  }
                   onChangeText={(text) => {
                     transcriptRef.current = text;
                     setTranscript(text);
@@ -1884,6 +1892,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 150,
     maxWidth: "100%",
+    minHeight: 52,
+    maxHeight: 120,
+    textAlignVertical: "top",
     backgroundColor: "#0F172A",
     borderColor: "#334155",
     borderWidth: 1,
@@ -1892,6 +1903,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
     fontSize: 14,
+    lineHeight: 20,
   },
   transcriptQuoteBox: {
     backgroundColor: "#0F172A",

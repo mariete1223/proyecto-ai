@@ -786,5 +786,28 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
         ).toBeTruthy();
       }
     });
+
+    it("configures transcript input as multiline with auto-scroll support (#136)", async () => {
+      const { getByTestId } = await render(
+        <VoiceCaptureFlow db={db} userId={userId} />,
+      );
+
+      // Start listening to reveal manual transcript row
+      await act(async () => {
+        fireEvent.press(getByTestId("btn-start-listening"));
+      });
+
+      const input = getByTestId("input-transcript");
+      expect(input.props.multiline).toBe(true);
+      expect(input.props.scrollEnabled).toBe(true);
+
+      const longDictation =
+        "tarea fecha mañana a las diez contenido reunión muy importante con el equipo directivo para planificar el nuevo trimestre y revisar los objetivos pendientes";
+      await act(async () => {
+        fireEvent.changeText(input, longDictation);
+      });
+
+      expect(input.props.value).toBe(longDictation);
+    });
   });
 });
