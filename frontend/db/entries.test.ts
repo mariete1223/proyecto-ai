@@ -405,4 +405,103 @@ describe("Local Entries and Tasks Storage Layer", () => {
       expect(entriesB.length).toBe(0);
     });
   });
+
+  describe("Optimized listLocalEntries with Date Range and Batch Tags (#134)", () => {
+    it("filters entries by start_at and end_at bounds directly in query", async () => {
+      const e1 = await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "October 2026 Entry",
+        occurred_at: "2026-10-15T10:00:00Z",
+      });
+      await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "November 2026 Entry",
+        occurred_at: "2026-11-05T10:00:00Z",
+      });
+      await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "September 2026 Entry",
+        occurred_at: "2026-09-20T10:00:00Z",
+      });
+
+      const octEntries = await listLocalEntries(db, userId, {
+        start_at: "2026-10-01T00:00:00.000Z",
+        end_at: "2026-10-31T23:59:59.999Z",
+      });
+
+      expect(octEntries.length).toBe(1);
+      expect(octEntries[0].id).toBe(e1.id);
+      expect(octEntries[0].content).toBe("October 2026 Entry");
+    });
+
+    it("includes YEARLY recurring entries outside range when include_yearly is true", async () => {
+      const octEntry = await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "Current Month Event",
+        occurred_at: "2026-10-10T10:00:00Z",
+      });
+      const yearlyFromPast = await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "Annual Birthday from 2023",
+        occurred_at: "2023-10-25T10:00:00Z",
+        reminder_recurrence: "YEARLY",
+      });
+      await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "Non-yearly from 2023",
+        occurred_at: "2023-10-20T10:00:00Z",
+        reminder_recurrence: "NONE",
+      });
+
+      const octWithYearly = await listLocalEntries(db, userId, {
+        start_at: "2026-10-01T00:00:00.000Z",
+        end_at: "2026-10-31T23:59:59.999Z",
+        include_yearly: true,
+      });
+
+      expect(octWithYearly.length).toBe(2);
+      const contents = octWithYearly.map((e) => e.content);
+      expect(contents).toContain("Current Month Event");
+      expect(contents).toContain("Annual Birthday from 2023");
+      expect(contents).not.toContain("Non-yearly from 2023");
+
+      const octWithoutYearly = await listLocalEntries(db, userId, {
+        start_at: "2026-10-01T00:00:00.000Z",
+        end_at: "2026-10-31T23:59:59.999Z",
+        include_yearly: false,
+      });
+
+      expect(octWithoutYearly.length).toBe(1);
+      expect(octWithoutYearly[0].id).toBe(octEntry.id);
+    });
+
+    it("maps batch tags across multiple entries without N+1 query loop", async () => {
+      const tag2 = await createLocalTag(db, userId, { name: "Tag 2" });
+      const e1 = await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "Entry with tag1",
+        tag_ids: [tagId],
+      });
+      const e2 = await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "Entry with tag1 and tag2",
+        tag_ids: [tagId, tag2.id],
+      });
+      const e3 = await createLocalEntry(db, userId, {
+        category_id: stdCatId,
+        content: "Entry without tags",
+      });
+
+      const all = await listLocalEntries(db, userId);
+      const e1Fetched = all.find((e) => e.id === e1.id);
+      const e2Fetched = all.find((e) => e.id === e2.id);
+      const e3Fetched = all.find((e) => e.id === e3.id);
+
+      expect(e1Fetched?.tag_ids).toEqual([tagId]);
+      expect(e2Fetched?.tag_ids).toEqual(
+        expect.arrayContaining([tagId, tag2.id]),
+      );
+      expect(e3Fetched?.tag_ids).toEqual([]);
+    });
+  });
 });

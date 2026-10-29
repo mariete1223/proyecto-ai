@@ -5,8 +5,8 @@ describe("SQLite Local Database Setup & Migrations", () => {
     const db = new MemoryDatabaseAdapter();
     const version = await runMigrations(db);
 
-    expect(version).toBe(5);
-    expect(db.getAppliedMigrations()).toEqual([1, 2, 3, 4, 5]);
+    expect(version).toBe(6);
+    expect(db.getAppliedMigrations()).toEqual([1, 2, 3, 4, 5, 6]);
     expect(db.getTableNames()).toContain("schema_migrations");
     expect(db.getTableNames()).toContain("categories");
     expect(db.getTableNames()).toContain("tags");
@@ -22,26 +22,26 @@ describe("SQLite Local Database Setup & Migrations", () => {
   it("is idempotent on reopening database with already applied migrations", async () => {
     const db = new MemoryDatabaseAdapter();
     const version1 = await runMigrations(db);
-    expect(version1).toBe(5);
+    expect(version1).toBe(6);
 
     const version2 = await runMigrations(db);
-    expect(version2).toBe(5);
-    expect(db.getAppliedMigrations()).toEqual([1, 2, 3, 4, 5]);
+    expect(version2).toBe(6);
+    expect(db.getAppliedMigrations()).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("correctly tracks migration versions when new migrations are added", async () => {
     const db = new MemoryDatabaseAdapter();
     await runMigrations(db);
 
-    // Simulate adding migration 6
+    // Simulate adding migration 7
     MIGRATIONS.push({
-      version: 6,
+      version: 7,
       sql: `CREATE TABLE IF NOT EXISTS future_feature (id TEXT PRIMARY KEY);`,
     });
 
     const newVersion = await runMigrations(db);
-    expect(newVersion).toBe(6);
-    expect(db.getAppliedMigrations()).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(newVersion).toBe(7);
+    expect(db.getAppliedMigrations()).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(db.getTableNames()).toContain("future_feature");
 
     // Clean up mock migration array

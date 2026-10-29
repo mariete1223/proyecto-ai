@@ -264,10 +264,48 @@ export async function listLocalEntries(
   userId: string,
   filters: ListEntryFilters = {},
 ): Promise<Entry[]> {
-  const allRows = await db.getAllAsync<Omit<Entry, "tag_ids">>(
-    `SELECT * FROM entries WHERE user_id = ? ORDER BY occurred_at DESC, created_at DESC;`,
-    [userId],
-  );
+  let allRows: Omit<Entry, "tag_ids">[];
+
+  if (filters.start_at && filters.end_at && !filters.include_yearly) {
+    allRows = await db.getAllAsync<Omit<Entry, "tag_ids">>(
+      `SELECT * FROM entries WHERE user_id = ? AND occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at DESC, created_at DESC;`,
+      [userId, filters.start_at, filters.end_at],
+    );
+  } else if (filters.start_at && filters.end_at && filters.include_yearly) {
+    const [rangeRows, yearlyRows] = await Promise.all([
+      db.getAllAsync<Omit<Entry, "tag_ids">>(
+        `SELECT * FROM entries WHERE user_id = ? AND occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at DESC, created_at DESC;`,
+        [userId, filters.start_at, filters.end_at],
+      ),
+      db.getAllAsync<Omit<Entry, "tag_ids">>(
+        `SELECT * FROM entries WHERE user_id = ? AND reminder_recurrence = 'YEARLY' ORDER BY occurred_at DESC, created_at DESC;`,
+        [userId],
+      ),
+    ]);
+    const rowMap = new Map<string, Omit<Entry, "tag_ids">>();
+    for (const r of rangeRows) rowMap.set(r.id, r);
+    for (const r of yearlyRows) rowMap.set(r.id, r);
+    allRows = Array.from(rowMap.values()).sort((a, b) => {
+      const dateA = a.occurred_at || a.created_at;
+      const dateB = b.occurred_at || b.created_at;
+      return dateB.localeCompare(dateA);
+    });
+  } else if (filters.start_at && !filters.end_at) {
+    allRows = await db.getAllAsync<Omit<Entry, "tag_ids">>(
+      `SELECT * FROM entries WHERE user_id = ? AND occurred_at >= ? ORDER BY occurred_at DESC, created_at DESC;`,
+      [userId, filters.start_at],
+    );
+  } else if (!filters.start_at && filters.end_at) {
+    allRows = await db.getAllAsync<Omit<Entry, "tag_ids">>(
+      `SELECT * FROM entries WHERE user_id = ? AND occurred_at <= ? ORDER BY occurred_at DESC, created_at DESC;`,
+      [userId, filters.end_at],
+    );
+  } else {
+    allRows = await db.getAllAsync<Omit<Entry, "tag_ids">>(
+      `SELECT * FROM entries WHERE user_id = ? ORDER BY occurred_at DESC, created_at DESC;`,
+      [userId],
+    );
+  }
 
   const seenKeys = new Set<string>();
   const uniqueRows: typeof allRows = [];
@@ -319,19 +357,33 @@ export async function listLocalEntries(
     filtered = filtered.filter((e) => catSet.has(e.category_id));
   }
 
+  if (filtered.length === 0) {
+    return [];
+  }
+
+  // Batch query for entry_tags to eliminate N+1 queries
+  const allUserEntryTags = await db.getAllAsync<{
+    entry_id: string;
+    tag_id: string;
+  }>(`SELECT entry_id, tag_id FROM entry_tags WHERE user_id = ?;`, [userId]);
+
+  const entryTagsMap = new Map<string, string[]>();
+  for (const et of allUserEntryTags) {
+    const list = entryTagsMap.get(et.entry_id);
+    if (list) {
+      list.push(et.tag_id);
+    } else {
+      entryTagsMap.set(et.entry_id, [et.tag_id]);
+    }
+  }
+
   const result: Entry[] = [];
   for (const row of filtered) {
-    const etRows = await db.getAllAsync<{ tag_id: string }>(
-      `SELECT tag_id FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
-      [row.id, userId],
-    );
-    const tagIds = etRows.map((r) => r.tag_id);
-
+    const tagIds = entryTagsMap.get(row.id) ?? [];
     if (filters.tag_ids && filters.tag_ids.length > 0) {
       const match = filters.tag_ids.some((t) => tagIds.includes(t));
       if (!match) continue;
     }
-
     result.push(mapEntryRow(row, tagIds));
   }
 
@@ -360,21 +412,28 @@ export async function listPendingDatelessTasks(
       (e.task_status === "PENDING" || e.task_status === "IN_PROGRESS"),
   );
 
-  const result: Entry[] = [];
-  for (const row of pendingDateless) {
-    const etRows = await db.getAllAsync<{ tag_id: string }>(
-      `SELECT tag_id FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
-      [row.id, userId],
-    );
-    result.push(
-      mapEntryRow(
-        row,
-        etRows.map((r) => r.tag_id),
-      ),
-    );
+  if (pendingDateless.length === 0) {
+    return [];
   }
 
-  return result;
+  const allUserEntryTags = await db.getAllAsync<{
+    entry_id: string;
+    tag_id: string;
+  }>(`SELECT entry_id, tag_id FROM entry_tags WHERE user_id = ?;`, [userId]);
+
+  const entryTagsMap = new Map<string, string[]>();
+  for (const et of allUserEntryTags) {
+    const list = entryTagsMap.get(et.entry_id);
+    if (list) {
+      list.push(et.tag_id);
+    } else {
+      entryTagsMap.set(et.entry_id, [et.tag_id]);
+    }
+  }
+
+  return pendingDateless.map((row) =>
+    mapEntryRow(row, entryTagsMap.get(row.id) ?? []),
+  );
 }
 
 export async function listDatelessTasks(
@@ -396,21 +455,28 @@ export async function listDatelessTasks(
     (e) => taskCatIds.has(e.category_id) && e.task_status !== null,
   );
 
-  const result: Entry[] = [];
-  for (const row of datelessTasks) {
-    const etRows = await db.getAllAsync<{ tag_id: string }>(
-      `SELECT tag_id FROM entry_tags WHERE entry_id = ? AND user_id = ?;`,
-      [row.id, userId],
-    );
-    result.push(
-      mapEntryRow(
-        row,
-        etRows.map((r) => r.tag_id),
-      ),
-    );
+  if (datelessTasks.length === 0) {
+    return [];
   }
 
-  return result;
+  const allUserEntryTags = await db.getAllAsync<{
+    entry_id: string;
+    tag_id: string;
+  }>(`SELECT entry_id, tag_id FROM entry_tags WHERE user_id = ?;`, [userId]);
+
+  const entryTagsMap = new Map<string, string[]>();
+  for (const et of allUserEntryTags) {
+    const list = entryTagsMap.get(et.entry_id);
+    if (list) {
+      list.push(et.tag_id);
+    } else {
+      entryTagsMap.set(et.entry_id, [et.tag_id]);
+    }
+  }
+
+  return datelessTasks.map((row) =>
+    mapEntryRow(row, entryTagsMap.get(row.id) ?? []),
+  );
 }
 
 export async function updateLocalEntry(

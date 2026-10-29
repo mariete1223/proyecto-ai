@@ -165,6 +165,13 @@ export const MIGRATIONS: { version: number; sql: string }[] = [
       ALTER TABLE entries ADD COLUMN reminder_offsets_minutes TEXT;
     `,
   },
+  {
+    version: 6,
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_entries_occurred_at ON entries (user_id, occurred_at);
+      CREATE INDEX IF NOT EXISTS idx_entry_tags_entry_user ON entry_tags (entry_id, user_id);
+    `,
+  },
 ];
 
 export async function runMigrations(db: DatabaseAdapter): Promise<number> {
@@ -207,71 +214,103 @@ function parseWhereConditions(
     return { matchRow: () => true, consumedParams: 0 };
   }
 
-  const conds = whereClause.split(/\s+AND\s+/i);
   let paramIdx = startParamIdx;
-  const matchers: ((row: Record<string, unknown>) => boolean)[] = [];
+  const orParts = whereClause.split(/\s+OR\s+/i);
+  const orBranches: ((row: Record<string, unknown>) => boolean)[][] = [];
 
-  for (const rawCond of conds) {
-    const cond = rawCond.trim();
-    if (!cond) continue;
+  for (const orPart of orParts) {
+    const rawConds = orPart
+      .replace(/^\s*\(\s*/, "")
+      .replace(/\s*\)\s*$/, "")
+      .split(/\s+AND\s+/i);
+    const andMatchers: ((row: Record<string, unknown>) => boolean)[] = [];
 
-    // IS NOT NULL
-    const isNotNullMatch = cond.match(/^([a-z0-9_]+)\s+IS\s+NOT\s+NULL$/i);
-    if (isNotNullMatch && isNotNullMatch[1]) {
-      const col = isNotNullMatch[1].toLowerCase();
-      matchers.push((row) => row[col] !== null && row[col] !== undefined);
-      continue;
-    }
+    for (const rawCond of rawConds) {
+      const cond = rawCond
+        .trim()
+        .replace(/^\(+/, "")
+        .replace(/\)+$/, "")
+        .trim();
+      if (!cond) continue;
 
-    // IS NULL
-    const isNullMatch = cond.match(/^([a-z0-9_]+)\s+IS\s+NULL$/i);
-    if (isNullMatch && isNullMatch[1]) {
-      const col = isNullMatch[1].toLowerCase();
-      matchers.push((row) => row[col] === null || row[col] === undefined);
-      continue;
-    }
-
-    // trim(col) != ''
-    const trimNotEqMatch = cond.match(
-      /^trim\(([a-z0-9_]+)\)\s*(!=|<>)\s*['"](.*)['"]$/i,
-    );
-    if (trimNotEqMatch && trimNotEqMatch[1]) {
-      const col = trimNotEqMatch[1].toLowerCase();
-      const val = trimNotEqMatch[3] ?? "";
-      matchers.push((row) => {
-        const strVal =
-          typeof row[col] === "string" ? (row[col] as string).trim() : "";
-        return strVal !== val;
-      });
-      continue;
-    }
-
-    // normal col = val or col != val
-    const isNotEq = cond.includes("!=") || cond.includes("<>");
-    const sep = cond.includes("!=") ? "!=" : cond.includes("<>") ? "<>" : "=";
-    const parts = cond.split(sep).map((s) => s.trim());
-    const col = parts[0].toLowerCase();
-    const rightSide = parts[1];
-
-    let targetVal: unknown;
-    if (rightSide === "?") {
-      targetVal = params[paramIdx++];
-    } else if (rightSide !== undefined) {
-      targetVal = rightSide.replace(/^['"]|['"]$/g, "");
-    }
-
-    matchers.push((row) => {
-      const rowVal = row[col];
-      if (isNotEq) {
-        return rowVal !== targetVal;
-      } else {
-        return rowVal === targetVal;
+      // IS NOT NULL
+      const isNotNullMatch = cond.match(/^([a-z0-9_]+)\s+IS\s+NOT\s+NULL$/i);
+      if (isNotNullMatch && isNotNullMatch[1]) {
+        const col = isNotNullMatch[1].toLowerCase();
+        andMatchers.push((row) => row[col] !== null && row[col] !== undefined);
+        continue;
       }
-    });
+
+      // IS NULL
+      const isNullMatch = cond.match(/^([a-z0-9_]+)\s+IS\s+NULL$/i);
+      if (isNullMatch && isNullMatch[1]) {
+        const col = isNullMatch[1].toLowerCase();
+        andMatchers.push((row) => row[col] === null || row[col] === undefined);
+        continue;
+      }
+
+      // trim(col) != ''
+      const trimNotEqMatch = cond.match(
+        /^trim\(([a-z0-9_]+)\)\s*(!=|<>)\s*['"](.*)['"]$/i,
+      );
+      if (trimNotEqMatch && trimNotEqMatch[1]) {
+        const col = trimNotEqMatch[1].toLowerCase();
+        const val = trimNotEqMatch[3] ?? "";
+        andMatchers.push((row) => {
+          const strVal =
+            typeof row[col] === "string" ? (row[col] as string).trim() : "";
+          return strVal !== val;
+        });
+        continue;
+      }
+
+      // Comparison operators: >=, <=, !=, <>, >, <, =
+      const compMatch = cond.match(
+        /^([a-z0-9_]+)\s*(>=|<=|!=|<>|>|<|=)\s*(.+)$/i,
+      );
+      if (compMatch && compMatch[1] && compMatch[2] && compMatch[3]) {
+        const col = compMatch[1].toLowerCase();
+        const op = compMatch[2];
+        const rightSide = compMatch[3].trim();
+
+        let targetVal: unknown;
+        if (rightSide === "?") {
+          targetVal = params[paramIdx++];
+        } else {
+          targetVal = rightSide.replace(/^['"]|['"]$/g, "");
+        }
+
+        andMatchers.push((row) => {
+          const rowVal = row[col];
+          if (op === "=") {
+            return rowVal === targetVal;
+          } else if (op === "!=" || op === "<>") {
+            return rowVal !== targetVal;
+          } else if (op === ">=") {
+            if (rowVal === null || rowVal === undefined) return false;
+            return (rowVal as any) >= (targetVal as any);
+          } else if (op === "<=") {
+            if (rowVal === null || rowVal === undefined) return false;
+            return (rowVal as any) <= (targetVal as any);
+          } else if (op === ">") {
+            if (rowVal === null || rowVal === undefined) return false;
+            return (rowVal as any) > (targetVal as any);
+          } else if (op === "<") {
+            if (rowVal === null || rowVal === undefined) return false;
+            return (rowVal as any) < (targetVal as any);
+          }
+          return true;
+        });
+        continue;
+      }
+    }
+
+    orBranches.push(andMatchers);
   }
 
   return {
-    matchRow: (row: Record<string, unknown>) => matchers.every((m) => m(row)),
+    matchRow: (row: Record<string, unknown>) =>
+      orBranches.some((branch) => branch.every((m) => m(row))),
     consumedParams: paramIdx - startParamIdx,
   };
 }
