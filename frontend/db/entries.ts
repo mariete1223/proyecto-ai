@@ -789,20 +789,42 @@ export async function adoptGuestData(
   const guestEntries = await db.getAllAsync<{
     id: string;
     category_id: string;
-  }>(`SELECT id, category_id FROM entries WHERE user_id = ?;`, [guestUserId]);
+    task_status?: string | null;
+  }>(`SELECT id, category_id, task_status FROM entries WHERE user_id = ?;`, [
+    guestUserId,
+  ]);
 
-  const fallbackCat = targetCategories[0]?.id || CANONICAL_CATEGORIES.TAREAS.id;
+  const targetTaskCat = targetCategories.find(
+    (c) =>
+      c.kind === "TASK" ||
+      c.name_normalized === "tareas" ||
+      c.name_normalized === "tarea",
+  )?.id;
+  const targetStandardCat = targetCategories.find(
+    (c) =>
+      c.kind === "STANDARD" &&
+      c.name_normalized !== "alerta" &&
+      c.name_normalized !== "alertas",
+  )?.id;
+  const nonAlertFallback =
+    targetStandardCat ||
+    targetCategories.find(
+      (c) => c.name_normalized !== "alerta" && c.name_normalized !== "alertas",
+    )?.id ||
+    CANONICAL_CATEGORIES.NOTAS.id;
+
   for (const ge of guestEntries) {
     if (deletedSet.has(`ENTRY:${ge.id}`)) {
       await db.runAsync(`DELETE FROM entries WHERE id = ?;`, [ge.id]);
       continue;
     }
     let catId = ge.category_id;
-    if (
-      !catId ||
-      (!Array.from(targetCatMap.values()).includes(catId) && fallbackCat)
-    ) {
-      catId = fallbackCat;
+    if (!catId || !Array.from(targetCatMap.values()).includes(catId)) {
+      if (ge.task_status !== null && ge.task_status !== undefined) {
+        catId = targetTaskCat || CANONICAL_CATEGORIES.TAREAS.id;
+      } else {
+        catId = nonAlertFallback;
+      }
     }
     await db.runAsync(
       `UPDATE entries SET user_id = ?, category_id = ?, sync_status = 'PENDING_PUSH' WHERE id = ?;`,

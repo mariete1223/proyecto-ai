@@ -339,6 +339,33 @@ export default function App() {
       }
     }
 
+    // 3b. Sanear entradas que fueron erróneamente reasignadas a categoría Alerta al sincronizar (#140)
+    for (const entry of all) {
+      if (
+        entry.category_id === CANONICAL_ALERTA_ID &&
+        !toDeleteIds.includes(entry.id)
+      ) {
+        const text = (entry.content || "").toLowerCase();
+        const hasTaskIntent =
+          text.includes("tengo que") ||
+          text.includes("hay que") ||
+          text.includes("debo ") ||
+          text.includes("revisar") ||
+          text.includes("seguir con") ||
+          text.includes("hacer lo que") ||
+          text.includes("el artículo") ||
+          text.includes("el articulo") ||
+          text.includes("buscar nuevos");
+
+        if (hasTaskIntent && (!entry.title || !entry.reminder_enabled)) {
+          await database.runAsync(
+            `UPDATE entries SET category_id = ?, task_status = 'PENDING', reminder_enabled = 0, version = version + 1, sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ?;`,
+            [CANONICAL_TAREAS_ID, entry.id, uId],
+          );
+        }
+      }
+    }
+
     // 4. Limpiar atributos de tarea en entradas de categoría Alerta (avisos puntuales sin estado ni prioridad de tarea)
     await database.runAsync(
       `UPDATE entries SET task_status = NULL, task_priority = NULL, task_recurrence = NULL WHERE category_id = ? AND user_id = ?;`,

@@ -302,3 +302,23 @@ def test_sync_pull_initial_and_incremental(
     pull3_data = pull_resp3.json()
     assert len(pull3_data["tombstones"]) == 1
     assert pull3_data["tombstones"][0]["entity_id"] == entry_id
+
+
+def test_sync_pull_auto_seeds_canonical_categories_for_new_user(
+    client: TestClient, test_db_session: Session
+) -> None:
+    # Usuario nuevo sin categorias en base de datos
+    new_user = create_user(test_db_session, "brand_new_sync@example.com", "Password123!")
+    token = create_access_token(user_id=str(new_user.id), email=new_user.email)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Al hacer pull inicial, el servidor siembra las categorias canonicas
+    resp = client.get("/api/v1/sync/pull", headers=headers)
+    assert resp.status_code == 200
+    changes = resp.json()["changes"]
+    cat_changes = [c for c in changes if c["entity_type"] == "CATEGORY"]
+    cat_names = {c["payload"]["name"] for c in cat_changes}
+    assert "Alerta" in cat_names
+    assert "Tarea" in cat_names or "Tareas" in cat_names
+    assert "Evento" in cat_names or "Eventos" in cat_names
+

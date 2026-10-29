@@ -531,4 +531,14 @@ export async function ensureCanonicalCategories(
       }
     }
   }
+
+  // Garantizar que las categorías canónicas activas no eliminadas se propaguen al backend si aún no estaban sincronizadas
+  for (const canonical of Object.values(CANONICAL_CATEGORIES)) {
+    if (!deletedIds.has(canonical.id)) {
+      await database.runAsync(
+        `UPDATE categories SET sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ? AND sync_status = 'SYNCED' AND version = 1;`,
+        [canonical.id, uId],
+      );
+    }
+  }
 }

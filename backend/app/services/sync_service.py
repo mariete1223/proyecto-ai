@@ -33,6 +33,7 @@ from app.schemas.sync import (
     SyncPushChangeResult,
     SyncTombstone,
 )
+from app.services.category_service import seed_initial_categories
 from app.services.category_service import normalize_text_key
 from app.services.tag_service import normalize_tag_name
 
@@ -106,6 +107,7 @@ def process_sync_push(
     db: Session, user_id: uuid.UUID, client_changes: list[SyncClientChange]
 ) -> list[SyncPushChangeResult]:
     """Process a batch of client push changes idempotently."""
+    seed_initial_categories(db, user_id)
     results: list[SyncPushChangeResult] = []
 
     for change in client_changes:
@@ -589,6 +591,8 @@ def process_sync_pull(
     """Pull incremental changes and tombstones for a user after cursor."""
     if limit < 1 or limit > 100:
         raise ValueError("Limit must be between 1 and 100.")
+
+    seed_initial_categories(db, user_id)
 
     cursor_dt = _parse_dt(cursor_str) if cursor_str else None
 

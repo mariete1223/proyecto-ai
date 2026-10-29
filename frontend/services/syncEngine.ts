@@ -159,12 +159,24 @@ export async function getPendingLocalChanges(
 
   // 3. Entries
   // Sanear posibles categorías huérfanas antes de subir
-  const validCats = await db.getAllAsync<{ id: string }>(
-    `SELECT id FROM categories WHERE user_id = ?;`,
-    [userId],
-  );
+  const validCats = await db.getAllAsync<{
+    id: string;
+    kind?: string;
+    name_normalized?: string;
+  }>(`SELECT id, kind, name_normalized FROM categories WHERE user_id = ?;`, [
+    userId,
+  ]);
   const validCatIds = new Set(validCats.map((c) => c.id));
-  const fallbackCatId = validCats[0]?.id;
+  const taskCatId = validCats.find(
+    (c) =>
+      c.kind === "TASK" ||
+      c.name_normalized === "tareas" ||
+      c.name_normalized === "tarea",
+  )?.id;
+  const nonAlertFallbackCatId =
+    validCats.find(
+      (c) => c.name_normalized !== "alerta" && c.name_normalized !== "alertas",
+    )?.id || validCats[0]?.id;
 
   const entPending = await db.getAllAsync<Record<string, unknown>>(
     `SELECT * FROM entries WHERE user_id = ? AND sync_status = 'PENDING_PUSH';`,
@@ -187,13 +199,20 @@ export async function getPendingLocalChanges(
       entry.id = newUuid;
     }
     let currentCatId = String(entry.category_id || "");
-    if ((!currentCatId || !validCatIds.has(currentCatId)) && fallbackCatId) {
-      currentCatId = fallbackCatId;
-      entry.category_id = fallbackCatId;
-      await db.runAsync(`UPDATE entries SET category_id = ? WHERE id = ?;`, [
-        fallbackCatId,
-        entryId,
-      ]);
+    if (!currentCatId || !validCatIds.has(currentCatId)) {
+      const isTask =
+        entry.task_status !== null && entry.task_status !== undefined;
+      const targetFallback = isTask
+        ? taskCatId || nonAlertFallbackCatId
+        : nonAlertFallbackCatId;
+      if (targetFallback) {
+        currentCatId = targetFallback;
+        entry.category_id = targetFallback;
+        await db.runAsync(`UPDATE entries SET category_id = ? WHERE id = ?;`, [
+          targetFallback,
+          entryId,
+        ]);
+      }
     }
     const { sync_status, ...payload } = entry;
     payload.id = entryId;

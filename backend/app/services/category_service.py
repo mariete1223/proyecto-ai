@@ -41,8 +41,17 @@ PROTECTED_SYSTEM_CATEGORY_NAMES: set[str] = {
 }
 
 
+CANONICAL_CATEGORY_IDS: dict[str, uuid.UUID] = {
+    "notas": uuid.UUID("740d7f77-ae95-4898-a80b-4a31bc58061b"),
+    "tareas": uuid.UUID("20e8f404-c429-43e8-8cf8-af9d51416d58"),
+    "eventos": uuid.UUID("45e5d9a3-b1d9-4268-acbf-cbe98c0d1ccd"),
+    "proyectos": uuid.UUID("994777f6-09d3-4ef9-876a-3b29d09d5fa4"),
+    "alerta": uuid.UUID("c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9"),
+}
+
 INITIAL_CATEGORIES: list[dict[str, Any]] = [
     {
+        "id": CANONICAL_CATEGORY_IDS["tareas"],
         "kind": CategoryKind.TASK,
         "name": "Tarea",
         "voice_command": "tarea",
@@ -51,6 +60,7 @@ INITIAL_CATEGORIES: list[dict[str, Any]] = [
         "icon": "check-square",
     },
     {
+        "id": CANONICAL_CATEGORY_IDS["eventos"],
         "kind": CategoryKind.EVENT,
         "name": "Evento",
         "voice_command": "evento",
@@ -59,6 +69,7 @@ INITIAL_CATEGORIES: list[dict[str, Any]] = [
         "icon": "calendar",
     },
     {
+        "id": uuid.UUID("7cb34200-c429-43e8-8cf8-af9d51416d58"),
         "kind": CategoryKind.CAPTURE,
         "name": "Captura",
         "voice_command": "captura",
@@ -67,6 +78,7 @@ INITIAL_CATEGORIES: list[dict[str, Any]] = [
         "icon": "mic",
     },
     {
+        "id": uuid.UUID("8e24aa00-c429-43e8-8cf8-af9d51416d58"),
         "kind": CategoryKind.STANDARD,
         "name": "Recuerdo",
         "voice_command": "recuerdo",
@@ -75,6 +87,7 @@ INITIAL_CATEGORIES: list[dict[str, Any]] = [
         "icon": "bookmark",
     },
     {
+        "id": uuid.UUID("fdd83500-c429-43e8-8cf8-af9d51416d58"),
         "kind": CategoryKind.STANDARD,
         "name": "Aprendizaje",
         "voice_command": "aprendizaje",
@@ -83,6 +96,7 @@ INITIAL_CATEGORIES: list[dict[str, Any]] = [
         "icon": "book-open",
     },
     {
+        "id": CANONICAL_CATEGORY_IDS["alerta"],
         "kind": CategoryKind.STANDARD,
         "name": "Alerta",
         "voice_command": "alerta",
@@ -99,7 +113,12 @@ def normalize_text_key(text_val: str) -> str:
     return " ".join(cleaned.split())
 
 
-def create_category(db: Session, user_id: uuid.UUID, data: CategoryCreate) -> Category:
+def create_category(
+    db: Session,
+    user_id: uuid.UUID,
+    data: CategoryCreate,
+    category_id: uuid.UUID | None = None,
+) -> Category:
     """Create a new category for a specific user."""
     name_norm = normalize_text_key(data.name)
     voice_norm = normalize_text_key(data.voice_command)
@@ -139,9 +158,17 @@ def create_category(db: Session, user_id: uuid.UUID, data: CategoryCreate) -> Ca
     if db.execute(stmt_color).scalar_one_or_none() is not None:
         raise CategoryAlreadyExistsError("A category with this color already exists.")
 
+    category_uuid = category_id
+    if category_uuid is not None:
+        stmt_id = select(Category).where(Category.id == category_uuid)
+        if db.execute(stmt_id).scalar_one_or_none() is not None:
+            category_uuid = uuid.uuid4()
+    else:
+        category_uuid = uuid.uuid4()
+
     now = datetime.now(UTC)
     category = Category(
-        id=uuid.uuid4(),
+        id=category_uuid,
         user_id=user_id,
         kind=data.kind,
         name=data.name.strip(),
@@ -166,10 +193,15 @@ def seed_initial_categories(db: Session, user_id: uuid.UUID) -> list[Category]:
     for item in INITIAL_CATEGORIES:
         kind = item["kind"]
         name = item["name"]
+        item_id: uuid.UUID = item["id"]
         name_norm = normalize_text_key(name)
 
+        # Check by name_normalized or id or plural equivalent ("tarea"/"tareas", "evento"/"eventos")
+        plural_norm = name_norm + "s"
         stmt_check = select(Category).where(
-            Category.user_id == user_id, Category.name_normalized == name_norm
+            Category.user_id == user_id,
+            (Category.name_normalized.in_([name_norm, plural_norm]))
+            | (Category.id == item_id),
         )
 
         if db.execute(stmt_check).scalar_one_or_none() is not None:
@@ -183,7 +215,9 @@ def seed_initial_categories(db: Session, user_id: uuid.UUID) -> list[Category]:
             color=item["color"],
             icon=item["icon"],
         )
-        created_categories.append(create_category(db, user_id, cat_create))
+        created_categories.append(
+            create_category(db, user_id, cat_create, category_id=item_id)
+        )
 
     return created_categories
 

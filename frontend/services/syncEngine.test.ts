@@ -298,4 +298,41 @@ describe("SyncEngine Service (Task 40)", () => {
     expect(savedImplicit?.reminder_enabled).toBe(1);
     expect(savedImplicit?.reminder_offset_minutes).toBe(0);
   });
+
+  it("preserves task category and does not reassign orphan tasks to alert category (#140)", async () => {
+    // Escenario #140: sólo existe la categoría Alerta en local y una tarea con categoría huérfana
+    await db.runAsync(`DELETE FROM categories WHERE user_id = ?;`, [userId]);
+    const alertCat = await createLocalCategory(db, userId, {
+      id: "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
+      name: "Alerta",
+      voice_command: "alerta",
+    });
+
+    const taskCat = await createLocalCategory(db, userId, {
+      id: "20e8f404-c429-43e8-8cf8-af9d51416d58",
+      name: "Tareas",
+      voice_command: "tarea",
+      kind: "TASK",
+    });
+
+    const orphanTaskId = "a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d";
+    // Crear entrada huérfana con task_status
+    await db.runAsync(
+      `INSERT INTO entries (id, user_id, category_id, content, task_status, version, sync_status) VALUES (?, ?, ?, ?, ?, 1, 'PENDING_PUSH');`,
+      [
+        orphanTaskId,
+        userId,
+        "c0a80101-0000-4000-8000-000000000000",
+        "Tengo que terminar la tarea",
+        "PENDING",
+      ],
+    );
+
+    const changes = await getPendingLocalChanges(db, userId);
+    const entryChange = changes.find((c) => c.entity_id === orphanTaskId);
+    expect(entryChange).toBeDefined();
+    // Debe haber seleccionado la categoría TASK (Tareas) y NUNCA la categoría Alerta
+    expect((entryChange?.payload as any).category_id).toBe(taskCat.id);
+    expect((entryChange?.payload as any).category_id).not.toBe(alertCat.id);
+  });
 });

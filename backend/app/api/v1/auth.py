@@ -87,6 +87,12 @@ def register(
 ) -> RegisterResponse:
     try:
         user = create_user(db, request.email, request.password, is_verified=False)
+        try:
+            from app.services.category_service import seed_initial_categories
+
+            seed_initial_categories(db, user.id)
+        except Exception:
+            pass
     except UserAlreadyExistsError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
