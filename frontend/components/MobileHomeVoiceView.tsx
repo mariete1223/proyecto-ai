@@ -65,125 +65,143 @@ export function MobileHomeVoiceView({
       testID="mobile-home-voice-view"
     >
       {!activeVoiceModal ? (
-        /* Big Mic Hero Section */
-        <View style={styles.heroSection}>
-          <Text style={styles.heroTitle}>Dictado y Captura de Voz</Text>
-          <Text style={styles.heroSubtitle}>
-            Presiona el micrófono en grande para grabar tu voz. Recuerda que
-            puedes crear todas las categorías y etiquetas que necesites para
-            organizarte a tu medida.
-          </Text>
-
-          {/* Big Mic Button */}
-          <Pressable
-            testID="btn-big-mic-start"
-            style={styles.bigMicButton}
-            onPress={() => setActiveVoiceModal(true)}
-          >
-            <View style={styles.bigMicInnerRing}>
-              <Text style={styles.bigMicIcon}>🎙️</Text>
-            </View>
-          </Pressable>
-          <Text style={styles.bigMicLabel}>Toca para Grabar por Voz</Text>
-
-          {/* Quick Action Row */}
-          <View style={styles.quickActionsRow}>
-            <Pressable
-              testID="btn-mobile-manual-entry"
-              style={styles.quickActionButton}
-              onPress={onOpenManualForm}
-            >
-              <Text style={styles.quickActionText}>✍️ Escritura Libre</Text>
-            </Pressable>
-
-            <Pressable
-              testID="btn-mobile-llm-import"
-              style={styles.quickActionAiButton}
-              onPress={onOpenLlmImport}
-            >
-              <Text style={styles.quickActionAiText}>
-                🤖 Estructurar con IA
+        <View style={styles.mainLayoutWrapper}>
+          {/* Upper Reading Zone: Title & Commands Cheatsheet */}
+          <View style={styles.readingSection}>
+            <View style={styles.titleCard}>
+              <Text style={styles.heroTitle}>Dictado y Captura de Voz</Text>
+              <Text style={styles.heroSubtitle}>
+                Presiona el micrófono en grande para grabar tu voz. Recuerda que
+                puedes crear todas las categorías y etiquetas que necesites para
+                organizarte a tu medida.
               </Text>
-            </Pressable>
+            </View>
+
+            {/* Cheatsheet section in reading area */}
+            <View style={styles.cheatsheetCard}>
+              <View style={styles.cheatsheetHeader}>
+                <Text style={styles.cheatsheetTitle}>💡 Comandos por Voz</Text>
+                <Pressable
+                  style={styles.toggleCheatsheetButton}
+                  onPress={() => setShowCheatsheet(!showCheatsheet)}
+                  accessibilityLabel="Alternar guía de comandos"
+                >
+                  <Text style={styles.toggleCheatsheetText}>
+                    {showCheatsheet ? "Ocultar ▲" : "Ver ▼"}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {showCheatsheet && (
+                <View style={styles.cheatsheetBody}>
+                  <Text style={styles.sectionHeader}>Categorías activas:</Text>
+                  <View style={styles.chipsRow}>
+                    {categories.map((c) => (
+                      <View
+                        key={c.id}
+                        style={[
+                          styles.categoryChip,
+                          { borderColor: c.color || "#38bdf8" },
+                        ]}
+                      >
+                        <Text style={styles.categoryChipTitle}>{c.name}</Text>
+                        <Text style={styles.categoryChipCommand}>
+                          "{c.voice_command}"
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {tags.length > 0 && (
+                    <>
+                      <Text style={styles.sectionHeader}>
+                        Etiquetas disponibles:
+                      </Text>
+                      <View style={styles.tagsRow}>
+                        {tags.map((t) => (
+                          <View
+                            key={t.id}
+                            style={[
+                              styles.tagChip,
+                              t.color ? { borderColor: t.color } : null,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.tagChipText,
+                                t.color ? { color: t.color } : null,
+                              ]}
+                            >
+                              #{t.name}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
+
+                  <View style={styles.fullPhraseBox}>
+                    <Text style={styles.fullPhraseTitle}>
+                      Ejemplo de frase:
+                    </Text>
+                    <Text style={styles.fullPhraseCode}>
+                      "nota reunión de equipo mañana a las diez #urgente"
+                    </Text>
+                  </View>
+
+                  <View style={styles.cheatsheetHintBox}>
+                    <Text style={styles.cheatsheetHintText}>
+                      ✨ Puedes crear las categorías y etiquetas que necesites
+                      desde la pestaña "Explorador".
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
           </View>
 
-          {/* Cheatsheet section filling the available space */}
-          <View style={styles.cheatsheetCard}>
-            <View style={styles.cheatsheetHeader}>
-              <Text style={styles.cheatsheetTitle}>💡 Comandos por Voz</Text>
+          {/* Lower Thumb Zone: Action Dock (Big Mic & Quick Actions) */}
+          <View style={styles.thumbZoneCard} testID="mobile-thumb-zone-card">
+            <View style={styles.thumbZoneHeaderRow}>
+              <View style={styles.thumbZoneGlowDot} />
+              <Text style={styles.thumbZoneTitle}>Acción Rápida</Text>
+            </View>
+
+            {/* Big Mic Button in Thumb Reach */}
+            <Pressable
+              testID="btn-big-mic-start"
+              style={styles.bigMicButton}
+              onPress={() => setActiveVoiceModal(true)}
+              accessibilityLabel="Iniciar grabación de voz"
+            >
+              <View style={styles.bigMicInnerRing}>
+                <Text style={styles.bigMicIcon}>🎙️</Text>
+              </View>
+            </Pressable>
+            <Text style={styles.bigMicLabel}>Toca para Grabar por Voz</Text>
+
+            {/* Quick Action Row */}
+            <View style={styles.quickActionsRow}>
               <Pressable
-                style={styles.toggleCheatsheetButton}
-                onPress={() => setShowCheatsheet(!showCheatsheet)}
+                testID="btn-mobile-manual-entry"
+                style={styles.quickActionButton}
+                onPress={onOpenManualForm}
+                accessibilityLabel="Escritura libre o manual"
               >
-                <Text style={styles.toggleCheatsheetText}>
-                  {showCheatsheet ? "Ocultar ▲" : "Ver ▼"}
+                <Text style={styles.quickActionText}>✍️ Escritura Libre</Text>
+              </Pressable>
+
+              <Pressable
+                testID="btn-mobile-llm-import"
+                style={styles.quickActionAiButton}
+                onPress={onOpenLlmImport}
+                accessibilityLabel="Estructurar con inteligencia artificial"
+              >
+                <Text style={styles.quickActionAiText}>
+                  🤖 Estructurar con IA
                 </Text>
               </Pressable>
             </View>
-
-            {showCheatsheet && (
-              <View style={styles.cheatsheetBody}>
-                <Text style={styles.sectionHeader}>Categorías activas:</Text>
-                <View style={styles.chipsRow}>
-                  {categories.map((c) => (
-                    <View
-                      key={c.id}
-                      style={[
-                        styles.categoryChip,
-                        { borderColor: c.color || "#38bdf8" },
-                      ]}
-                    >
-                      <Text style={styles.categoryChipTitle}>{c.name}</Text>
-                      <Text style={styles.categoryChipCommand}>
-                        "{c.voice_command}"
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                {tags.length > 0 && (
-                  <>
-                    <Text style={styles.sectionHeader}>
-                      Etiquetas disponibles:
-                    </Text>
-                    <View style={styles.tagsRow}>
-                      {tags.map((t) => (
-                        <View
-                          key={t.id}
-                          style={[
-                            styles.tagChip,
-                            t.color ? { borderColor: t.color } : null,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.tagChipText,
-                              t.color ? { color: t.color } : null,
-                            ]}
-                          >
-                            #{t.name}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                )}
-
-                <View style={styles.fullPhraseBox}>
-                  <Text style={styles.fullPhraseTitle}>Ejemplo de frase:</Text>
-                  <Text style={styles.fullPhraseCode}>
-                    "nota reunión de equipo mañana a las diez #urgente"
-                  </Text>
-                </View>
-
-                <View style={styles.cheatsheetHintBox}>
-                  <Text style={styles.cheatsheetHintText}>
-                    ✨ Puedes crear las categorías y etiquetas que necesites
-                    desde la pestaña "Explorador".
-                  </Text>
-                </View>
-              </View>
-            )}
           </View>
         </View>
       ) : (
@@ -226,6 +244,23 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     flexGrow: 1,
   },
+  mainLayoutWrapper: {
+    flex: 1,
+    justifyContent: "space-between",
+    width: "100%",
+    gap: 16,
+  },
+  readingSection: {
+    width: "100%",
+  },
+  titleCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
   heroSection: {
     backgroundColor: "#1e293b",
     borderRadius: 20,
@@ -241,46 +276,79 @@ const styles = StyleSheet.create({
     color: "#f8fafc",
     fontSize: 20,
     fontWeight: "bold",
-    marginBottom: 4,
+    marginBottom: 6,
     textAlign: "center",
   },
   heroSubtitle: {
     color: "#94a3b8",
     fontSize: 12,
     textAlign: "center",
-    marginBottom: 20,
     lineHeight: 18,
   },
+  thumbZoneCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#334155",
+    shadowColor: "#0284c7",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    elevation: 8,
+    marginTop: "auto",
+  },
+  thumbZoneHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+  },
+  thumbZoneGlowDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#38bdf8",
+  },
+  thumbZoneTitle: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
   bigMicButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: "#2563eb",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#3b82f6",
+    shadowColor: "#38bdf8",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
     elevation: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   bigMicInnerRing: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: "#3b82f6",
     alignItems: "center",
     justifyContent: "center",
   },
   bigMicIcon: {
-    fontSize: 40,
+    fontSize: 38,
   },
   bigMicLabel: {
     color: "#38bdf8",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "bold",
-    marginBottom: 18,
+    marginBottom: 16,
   },
   quickActionsRow: {
     flexDirection: "row",
@@ -290,11 +358,13 @@ const styles = StyleSheet.create({
   },
   quickActionButton: {
     backgroundColor: "#334155",
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: 10,
+    borderRadius: 12,
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
   },
   quickActionText: {
     color: "#f8fafc",
@@ -303,11 +373,13 @@ const styles = StyleSheet.create({
   },
   quickActionAiButton: {
     backgroundColor: "#4f46e5",
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: 10,
+    borderRadius: 12,
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
   },
   quickActionAiText: {
     color: "#ffffff",

@@ -33,6 +33,7 @@ describe("MobileHomeVoiceView Component", () => {
       );
 
     expect(getByTestId("mobile-home-voice-view")).toBeTruthy();
+    expect(getByTestId("mobile-thumb-zone-card")).toBeTruthy();
     expect(getByTestId("btn-big-mic-start")).toBeTruthy();
     expect(
       queryByText(
@@ -64,6 +65,7 @@ describe("MobileHomeVoiceView Component", () => {
     }
     await waitFor(() => {
       expect(queryByTestId("mobile-voice-capture-panel")).toBeNull();
+      expect(getByTestId("mobile-thumb-zone-card")).toBeTruthy();
     });
   });
 });

@@ -729,6 +729,17 @@ export function CalendarMonthView({
     setShowQuickVoice(false);
   };
 
+  const goToToday = () => {
+    const now = new Date();
+    setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    setSelectedDayEntries(null);
+    setShowQuickAddForm(false);
+    setShowQuickVoice(false);
+  };
+
+  const now = new Date();
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayWeekday = new Date(year, month, 1).getDay(); // 0 is Sunday
   // Convert Sunday (0) to index 6, Monday (1) to index 0
@@ -927,6 +938,52 @@ export function CalendarMonthView({
             </Pressable>
           );
         })}
+      </View>
+
+      {/* Thumb-Zone Bottom Month Stepper (#143) */}
+      <View style={styles.bottomNavContainer} testID="bottom-month-navigation">
+        <Pressable
+          testID="btn-bottom-prev-month"
+          style={styles.bottomNavButton}
+          accessibilityLabel="Mes anterior"
+          onPress={prevMonth}
+        >
+          <Text style={styles.bottomNavButtonText}>◀ Anterior</Text>
+        </Pressable>
+
+        <Pressable
+          testID="btn-bottom-today-month"
+          style={[
+            styles.bottomNavCenterButton,
+            isCurrentMonth && styles.bottomNavCenterButtonActive,
+          ]}
+          accessibilityLabel={
+            isCurrentMonth
+              ? `Mes actual ${MONTH_NAMES[month]}, abrir selector`
+              : "Ir al mes actual"
+          }
+          onPress={() => {
+            if (!isCurrentMonth) {
+              goToToday();
+            } else {
+              setPickerYear(year);
+              setShowMonthYearPicker(true);
+            }
+          }}
+        >
+          <Text style={styles.bottomNavCenterText}>
+            {isCurrentMonth ? `📅 ${MONTH_NAMES[month]}` : "📅 Ir a Hoy"}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          testID="btn-bottom-next-month"
+          style={styles.bottomNavButton}
+          accessibilityLabel="Mes siguiente"
+          onPress={nextMonth}
+        >
+          <Text style={styles.bottomNavButtonText}>Siguiente ▶</Text>
+        </Pressable>
       </View>
 
       {/* Day Detail Modal/Panel */}
@@ -2266,6 +2323,56 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 14,
+  },
+  bottomNavContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#1E293B",
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    marginTop: 14,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 8,
+  },
+  bottomNavButton: {
+    flex: 1,
+    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.35)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+  },
+  bottomNavButtonText: {
+    color: "#38BDF8",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  bottomNavCenterButton: {
+    flex: 1.2,
+    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+  },
+  bottomNavCenterButtonActive: {
+    borderColor: "#38BDF8",
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+  },
+  bottomNavCenterText: {
+    color: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: "700",
   },
   monthTitle: {
     fontSize: 18,

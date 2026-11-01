@@ -1183,4 +1183,68 @@ describe("CalendarMonthView Component (Task 35)", () => {
       scrollToSpy.mockRestore();
     }
   });
+
+  it("navigates months using thumb-zone bottom month stepper controls (#143)", async () => {
+    const initialDate = new Date(2026, 4, 1); // May 2026
+
+    const { getByTestId } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={initialDate} />,
+    );
+
+    // Verify presence of bottom navigation bar
+    expect(getByTestId("bottom-month-navigation")).toBeTruthy();
+    expect(getByTestId("btn-bottom-prev-month")).toBeTruthy();
+    expect(getByTestId("btn-bottom-today-month")).toBeTruthy();
+    expect(getByTestId("btn-bottom-next-month")).toBeTruthy();
+
+    expect(getByTestId("calendar-month-title").props.children).toBe(
+      "Mayo 2026",
+    );
+
+    // 1. Advance to June via bottom next button
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-bottom-next-month"));
+    });
+    await waitFor(() => {
+      expect(getByTestId("calendar-month-title").props.children).toBe(
+        "Junio 2026",
+      );
+    });
+
+    // 2. Go back to May via bottom prev button
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-bottom-prev-month"));
+    });
+    await waitFor(() => {
+      expect(getByTestId("calendar-month-title").props.children).toBe(
+        "Mayo 2026",
+      );
+    });
+
+    // 3. Jump to today's month via bottom center button
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-bottom-today-month"));
+    });
+    const now = new Date();
+    const MONTH_NAMES = [
+      "Enero",
+      "Febrero",
+      "Marzo",
+      "Abril",
+      "Mayo",
+      "Junio",
+      "Julio",
+      "Agosto",
+      "Septiembre",
+      "Octubre",
+      "Noviembre",
+      "Diciembre",
+    ];
+    const expectedCurrentMonthTitle = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+    await waitFor(() => {
+      expect(getByTestId("calendar-month-title").props.children).toBe(
+        expectedCurrentMonthTitle,
+      );
+    });
+  });
 });
