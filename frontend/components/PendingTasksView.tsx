@@ -301,26 +301,35 @@ export function PendingTasksView(props: PendingTasksViewProps) {
             { id: "MEDIUM", label: "🟡 Media" },
             { id: "LOW", label: "🔵 Baja" },
           ] as const
-        ).map((p) => (
-          <Pressable
-            key={p.id}
-            testID={`tab-prio-${p.id.toLowerCase()}`}
-            style={[
-              styles.prioFilterChip,
-              priorityFilter === p.id && styles.prioFilterChipActive,
-            ]}
-            onPress={() => setPriorityFilter(p.id)}
-          >
-            <Text
+        ).map((p) => {
+          const isSel = priorityFilter === p.id;
+          return (
+            <Pressable
+              key={p.id}
+              testID={`tab-prio-${p.id.toLowerCase()}`}
               style={[
-                styles.prioFilterText,
-                priorityFilter === p.id && styles.prioFilterTextActive,
+                styles.prioFilterChip,
+                isSel && styles.prioFilterChipActive,
+                isSel && p.id === "HIGH" && styles.prioFilterChipHighActive,
+                isSel && p.id === "MEDIUM" && styles.prioFilterChipMediumActive,
+                isSel && p.id === "LOW" && styles.prioFilterChipLowActive,
               ]}
+              onPress={() => setPriorityFilter(p.id)}
             >
-              {p.label}
-            </Text>
-          </Pressable>
-        ))}
+              <Text
+                style={[
+                  styles.prioFilterText,
+                  isSel && styles.prioFilterTextActive,
+                  isSel && p.id === "HIGH" && styles.priorityBadgeHighText,
+                  isSel && p.id === "MEDIUM" && styles.priorityBadgeMediumText,
+                  isSel && p.id === "LOW" && styles.priorityBadgeLowText,
+                ]}
+              >
+                {p.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Live Search Input Bar */}
@@ -629,6 +638,13 @@ export function PendingTasksView(props: PendingTasksViewProps) {
                       style={[
                         styles.miniPrioBtn,
                         isCurrent && styles.miniPrioBtnActive,
+                        isCurrent &&
+                          p.id === "HIGH" &&
+                          styles.priorityBadgeHigh,
+                        isCurrent &&
+                          p.id === "MEDIUM" &&
+                          styles.priorityBadgeMedium,
+                        isCurrent && p.id === "LOW" && styles.priorityBadgeLow,
                       ]}
                       onPress={() => handlePriorityChange(item, p.id)}
                     >
@@ -636,6 +652,15 @@ export function PendingTasksView(props: PendingTasksViewProps) {
                         style={[
                           styles.miniPrioBtnText,
                           isCurrent && styles.miniPrioBtnTextActive,
+                          isCurrent &&
+                            p.id === "HIGH" &&
+                            styles.priorityBadgeHighText,
+                          isCurrent &&
+                            p.id === "MEDIUM" &&
+                            styles.priorityBadgeMediumText,
+                          isCurrent &&
+                            p.id === "LOW" &&
+                            styles.priorityBadgeLowText,
                         ]}
                       >
                         {p.label}
@@ -952,13 +977,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 16,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
     borderColor: "#334155",
     borderWidth: 1,
   },
   prioFilterChipActive: {
     backgroundColor: "rgba(56, 189, 248, 0.2)",
     borderColor: "#38BDF8",
+  },
+  prioFilterChipHighActive: {
+    backgroundColor: "rgba(239, 68, 68, 0.22)",
+    borderColor: "#EF4444",
+  },
+  prioFilterChipMediumActive: {
+    backgroundColor: "rgba(245, 158, 11, 0.25)",
+    borderColor: "#F59E0B",
+  },
+  prioFilterChipLowActive: {
+    backgroundColor: "rgba(59, 130, 246, 0.22)",
+    borderColor: "#3B82F6",
   },
   prioFilterText: {
     fontSize: 12,
@@ -978,30 +1015,31 @@ const styles = StyleSheet.create({
   },
   taskPriorityBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
   taskPriorityBadgeText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
   priorityBadgeHigh: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    backgroundColor: "rgba(239, 68, 68, 0.22)",
     borderColor: "#EF4444",
   },
   priorityBadgeHighText: {
     color: "#FCA5A5",
   },
   priorityBadgeMedium: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    backgroundColor: "rgba(245, 158, 11, 0.25)",
     borderColor: "#F59E0B",
   },
   priorityBadgeMediumText: {
     color: "#FCD34D",
   },
   priorityBadgeLow: {
-    backgroundColor: "rgba(59, 130, 246, 0.15)",
+    backgroundColor: "rgba(59, 130, 246, 0.22)",
     borderColor: "#3B82F6",
   },
   priorityBadgeLowText: {
@@ -1028,7 +1066,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#334155",
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
   },
   miniPrioBtnActive: {
     borderColor: "#38BDF8",
@@ -1037,10 +1075,10 @@ const styles = StyleSheet.create({
   miniPrioBtnText: {
     fontSize: 11,
     color: "#94A3B8",
-    fontWeight: "500",
+    fontWeight: "600",
   },
   miniPrioBtnTextActive: {
     color: "#38BDF8",
-    fontWeight: "700",
+    fontWeight: "800",
   },
 });

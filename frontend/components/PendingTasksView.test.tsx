@@ -194,7 +194,7 @@ describe("PendingTasksView Component", () => {
   });
 
   it("renders priority badge and filters by priority", async () => {
-    await createLocalEntry(db, userId, {
+    const highTask = await createLocalEntry(db, userId, {
       category_id: taskCatId,
       content: "Tarea urgente del sistema",
       task_status: "PENDING",
@@ -202,7 +202,15 @@ describe("PendingTasksView Component", () => {
       task_priority: "HIGH",
     });
 
-    await createLocalEntry(db, userId, {
+    const medTask = await createLocalEntry(db, userId, {
+      category_id: taskCatId,
+      content: "Tarea normal del día",
+      task_status: "PENDING",
+      task_recurrence: "ONCE",
+      task_priority: "MEDIUM",
+    });
+
+    const lowTask = await createLocalEntry(db, userId, {
       category_id: taskCatId,
       content: "Tarea secundaria tranquila",
       task_status: "PENDING",
@@ -216,22 +224,36 @@ describe("PendingTasksView Component", () => {
 
     await waitFor(() => {
       expect(queryByText("Tarea urgente del sistema")).not.toBeNull();
+      expect(queryByText("Tarea normal del día")).not.toBeNull();
       expect(queryByText("Tarea secundaria tranquila")).not.toBeNull();
+    });
+
+    // Check that priority badges exist for each task with their distinct text
+    expect(getByTestId(`task-priority-badge-${highTask.id}`)).toBeTruthy();
+    expect(getByTestId(`task-priority-badge-${medTask.id}`)).toBeTruthy();
+    expect(getByTestId(`task-priority-badge-${lowTask.id}`)).toBeTruthy();
+
+    // Filter by MEDIUM priority (amarillo)
+    fireEvent.press(getByTestId("tab-prio-medium"));
+    await waitFor(() => {
+      expect(queryByText("Tarea normal del día")).not.toBeNull();
+      expect(queryByText("Tarea urgente del sistema")).toBeNull();
+      expect(queryByText("Tarea secundaria tranquila")).toBeNull();
     });
 
     // Filter by HIGH priority
     fireEvent.press(getByTestId("tab-prio-high"));
-
     await waitFor(() => {
       expect(queryByText("Tarea urgente del sistema")).not.toBeNull();
+      expect(queryByText("Tarea normal del día")).toBeNull();
       expect(queryByText("Tarea secundaria tranquila")).toBeNull();
     });
 
     // Filter by LOW priority
     fireEvent.press(getByTestId("tab-prio-low"));
-
     await waitFor(() => {
       expect(queryByText("Tarea urgente del sistema")).toBeNull();
+      expect(queryByText("Tarea normal del día")).toBeNull();
       expect(queryByText("Tarea secundaria tranquila")).not.toBeNull();
     });
   });
