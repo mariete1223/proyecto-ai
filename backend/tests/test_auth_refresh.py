@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_db
-from app.core.auth import create_access_token, decode_access_token
+from app.core.auth import InvalidTokenError, create_access_token, decode_access_token
 from app.main import app
 from app.models.domain import User
 from app.services.user_service import create_user
@@ -109,7 +109,7 @@ def test_refresh_token_expired_within_grace(
     )
 
     # Standard decode_access_token should reject it
-    with pytest.raises(Exception):
+    with pytest.raises(InvalidTokenError):
         decode_access_token(token)
 
     # But refresh endpoint accepts it within grace period!

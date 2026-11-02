@@ -204,7 +204,7 @@ def refresh_token(
     credentials: Annotated[
         HTTPAuthorizationCredentials | None, Depends(security_bearer)
     ] = None,
-    body: RefreshTokenRequest | None = Body(None),
+    body: Annotated[RefreshTokenRequest | None, Body()] = None,
 ) -> TokenResponse:
     raw_token: str | None = None
     if credentials is not None and credentials.credentials:
