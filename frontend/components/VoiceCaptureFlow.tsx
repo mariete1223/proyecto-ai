@@ -1174,15 +1174,20 @@ const styles = StyleSheet.create({
     padding: 16,
     width: "100%",
     flex: 1,
+    minHeight: 0,
+    height: "100%",
   },
   screenContainer: {
     flex: 1,
     justifyContent: "space-between",
     width: "100%",
+    minHeight: 0,
+    height: "100%",
   },
   dictateScrollArea: {
     flex: 1,
     width: "100%",
+    minHeight: 0,
   },
   dictateScrollContent: {
     paddingBottom: 16,
@@ -1191,6 +1196,10 @@ const styles = StyleSheet.create({
     width: "100%",
     marginTop: "auto",
     paddingTop: 8,
+    flexShrink: 0,
+    backgroundColor: "#1E293B",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
   },
   title: {
     fontSize: 20,

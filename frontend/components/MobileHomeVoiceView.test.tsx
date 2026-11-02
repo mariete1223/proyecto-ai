@@ -52,9 +52,7 @@ describe("MobileHomeVoiceView Component", () => {
     const activateBtn = getByTestId("btn-activate-notif-banner");
     expect(activateBtn).toBeTruthy();
 
-    await act(async () => {
-      fireEvent.press(activateBtn);
-    });
+    fireEvent.press(activateBtn);
 
     expect(requestSpy).toHaveBeenCalled();
     await waitFor(() => {
@@ -130,6 +128,14 @@ describe("MobileHomeVoiceView Component", () => {
     expect(scrollStyle.flex).toBe(1);
     expect(scrollStyle.minHeight).toBe(0);
 
+    const pinnedDockContainer = getByTestId("mobile-pinned-dock-container");
+    expect(pinnedDockContainer).toBeTruthy();
+    const dockStyle = Array.isArray(pinnedDockContainer.props.style)
+      ? Object.assign({}, ...pinnedDockContainer.props.style)
+      : pinnedDockContainer.props.style;
+    expect(dockStyle.flexShrink).toBe(0);
+    expect(dockStyle.paddingBottom).toBeGreaterThanOrEqual(12);
+
     const thumbDock = getByTestId("mobile-thumb-zone-card");
     expect(thumbDock).toBeTruthy();
     const thumbStyle = Array.isArray(thumbDock.props.style)
@@ -160,6 +166,11 @@ describe("MobileHomeVoiceView Component", () => {
     expect(queryByText("Captura Hablada por Voz")).toBeNull();
     expect(queryByText("✕ Salir")).toBeNull();
     expect(queryByTestId("btn-header-close-voice")).toBeNull();
+
+    // Verify pinned dictate dock is mounted in voice modal (#150)
+    const pinnedDictateDock = await findByTestId("pinned-dictate-dock");
+    expect(pinnedDictateDock).toBeTruthy();
+    expect(getByTestId("btn-start-listening")).toBeTruthy();
 
     // Close modal via Cerrar button (#85)
     if (closeBtn.props.onClick) {

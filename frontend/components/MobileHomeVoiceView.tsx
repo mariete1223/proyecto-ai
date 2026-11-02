@@ -253,59 +253,61 @@ export function MobileHomeVoiceView({
           </ScrollView>
 
           {/* Lower Thumb Zone: Pinned Action Dock (Big Mic & Quick Actions) */}
-          <View style={styles.thumbZoneCard} testID="mobile-thumb-zone-card">
-            <View style={styles.thumbZoneHeaderRow}>
-              <View style={styles.thumbZoneGlowDot} />
-              <Text style={styles.thumbZoneTitle}>Acción Rápida</Text>
-            </View>
+          <View style={styles.pinnedDockContainer} testID="mobile-pinned-dock-container">
+            {/* Dock separator boundary that distinguishes the pinned dock from the scrollable feed above */}
+            <View style={styles.dockSurfaceSeparator} />
 
-            {/* Big Mic Button in Thumb Reach */}
-            <Pressable
-              testID="btn-big-mic-start"
-              style={styles.bigMicButton}
-              onPress={() => setActiveVoiceModal(true)}
-              accessibilityLabel="Iniciar grabación de voz"
-            >
-              <View style={styles.bigMicInnerRing}>
-                <Text style={styles.bigMicIcon}>🎙️</Text>
+            <View style={styles.thumbZoneCard} testID="mobile-thumb-zone-card">
+              <View style={styles.thumbZoneHeaderRow}>
+                <View style={styles.thumbZoneGlowDot} />
+                <Text style={styles.thumbZoneTitle}>Acción Rápida</Text>
               </View>
-            </Pressable>
-            <Text style={styles.bigMicLabel}>Toca para Grabar por Voz</Text>
 
-            {/* Quick Action Row */}
-            <View style={styles.quickActionsRow}>
+              {/* Big Mic Button in Thumb Reach */}
               <Pressable
-                testID="btn-mobile-manual-entry"
-                style={styles.quickActionButton}
-                onPress={onOpenManualForm}
-                accessibilityLabel="Escritura libre o manual"
+                testID="btn-big-mic-start"
+                style={styles.bigMicButton}
+                onPress={() => setActiveVoiceModal(true)}
+                accessibilityLabel="Iniciar grabación de voz"
               >
-                <Text style={styles.quickActionText}>✍️ Escritura Libre</Text>
+                <View style={styles.bigMicInnerRing}>
+                  <Text style={styles.bigMicIcon}>🎙️</Text>
+                </View>
               </Pressable>
+              <Text style={styles.bigMicLabel}>Toca para Grabar por Voz</Text>
 
-              <Pressable
-                testID="btn-mobile-llm-import"
-                style={styles.quickActionAiButton}
-                onPress={onOpenLlmImport}
-                accessibilityLabel="Estructurar con inteligencia artificial"
-              >
-                <Text style={styles.quickActionAiText}>
-                  🤖 Estructurar con IA
-                </Text>
-              </Pressable>
+              {/* Quick Action Row */}
+              <View style={styles.quickActionsRow}>
+                <Pressable
+                  testID="btn-mobile-manual-entry"
+                  style={styles.quickActionButton}
+                  onPress={onOpenManualForm}
+                  accessibilityLabel="Escritura libre o manual"
+                >
+                  <Text style={styles.quickActionText}>✍️ Escritura Libre</Text>
+                </Pressable>
+
+                <Pressable
+                  testID="btn-mobile-llm-import"
+                  style={styles.quickActionAiButton}
+                  onPress={onOpenLlmImport}
+                  accessibilityLabel="Estructurar con inteligencia artificial"
+                >
+                  <Text style={styles.quickActionAiText}>
+                    🤖 Estructurar con IA
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         </View>
       ) : (
-        /* Voice Capture Component Overlay Modal / Container */
-        <ScrollView
-          style={styles.voiceModalScrollView}
-          contentContainerStyle={styles.voiceModalContentContainer}
+        /* Voice Capture Component Overlay Container (Pinned action buttons in thumb reach) */
+        <View
+          style={styles.voiceModalContainer}
+          testID="mobile-voice-capture-panel"
         >
-          <View
-            style={styles.voiceModalCard}
-            testID="mobile-voice-capture-panel"
-          >
+          <View style={styles.voiceModalCard}>
             <View style={styles.voiceModalHeader}>
               <Text style={styles.voiceModalTitle}>
                 🎙️ Captura de Voz Activa
@@ -320,18 +322,20 @@ export function MobileHomeVoiceView({
               </Pressable>
             </View>
 
-            <VoiceCaptureFlow
-              db={db}
-              userId={userId}
-              saveMode="PREVIEW_BEFORE_SAVE"
-              onEntryCreated={(createdId) => {
-                setActiveVoiceModal(false);
-                onEntryCreated?.(createdId);
-              }}
-              onClose={() => setActiveVoiceModal(false)}
-            />
+            <View style={styles.voiceModalFlowWrapper}>
+              <VoiceCaptureFlow
+                db={db}
+                userId={userId}
+                saveMode="PREVIEW_BEFORE_SAVE"
+                onEntryCreated={(createdId) => {
+                  setActiveVoiceModal(false);
+                  onEntryCreated?.(createdId);
+                }}
+                onClose={() => setActiveVoiceModal(false)}
+              />
+            </View>
           </View>
-        </ScrollView>
+        </View>
       )}
     </View>
   );
@@ -408,23 +412,41 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 18,
   },
+  pinnedDockContainer: {
+    width: "100%",
+    flexShrink: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.96)",
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "web" ? 14 : 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(56, 189, 248, 0.2)",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  dockSurfaceSeparator: {
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    marginBottom: 6,
+    width: "100%",
+  },
   thumbZoneCard: {
     backgroundColor: "#1e293b",
-    borderRadius: 24,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     alignItems: "center",
     borderWidth: 1.5,
     borderColor: "#334155",
     shadowColor: "#0284c7",
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 18,
-    elevation: 8,
+    shadowRadius: 12,
+    elevation: 6,
     flexShrink: 0,
     width: "100%",
-    marginTop: 8,
-    marginBottom: Platform.OS === "web" ? 8 : 4,
   },
   thumbZoneHeaderRow: {
     flexDirection: "row",
@@ -512,22 +534,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
   },
+  voiceModalContainer: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
+    paddingBottom: Platform.OS === "web" ? 12 : 8,
+  },
   voiceModalCard: {
     backgroundColor: "#1e293b",
     borderColor: "#38bdf8",
     borderWidth: 1.5,
     borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
+    paddingTop: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
     flex: 1,
     width: "100%",
-    minHeight: "100%",
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
   },
   voiceModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
+    flexShrink: 0,
+  },
+  voiceModalFlowWrapper: {
+    flex: 1,
+    width: "100%",
+    minHeight: 0,
+    overflow: "hidden",
   },
   voiceModalTitle: {
     color: "#38bdf8",
