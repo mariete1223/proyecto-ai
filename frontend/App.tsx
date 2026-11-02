@@ -1134,14 +1134,20 @@ export default function App() {
           loadDatabaseState(true);
         }}
       >
-        <ScrollView
-          ref={mainScrollViewRef}
-          style={styles.mainScrollView}
-          contentContainerStyle={styles.mainScrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          {renderMainTabContent()}
-        </ScrollView>
+        {activeTab === "VOICE_CAPTURE" ? (
+          <View style={styles.mobileVoiceCaptureContainer}>
+            {renderMainTabContent()}
+          </View>
+        ) : (
+          <ScrollView
+            ref={mainScrollViewRef}
+            style={styles.mainScrollView}
+            contentContainerStyle={styles.mainScrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {renderMainTabContent()}
+          </ScrollView>
+        )}
       </MobileMainLayout>
     );
   }
@@ -1183,9 +1189,18 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  mobileVoiceCaptureContainer: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
+  },
   tabContentWrapper: {
     flex: 1,
     width: "100%",
+    height: "100%",
+    minHeight: 0,
     maxWidth: 1040,
     alignSelf: "center",
     alignItems: "center",

@@ -147,7 +147,12 @@ export function MobileMainLayout({
 
   const webContainerStyle =
     Platform.OS === "web"
-      ? ({ minHeight: "100%", height: "100%" } as any)
+      ? ({
+          minHeight: "100vh",
+          height: "100dvh",
+          maxHeight: "100dvh",
+          overflow: "hidden",
+        } as any)
       : undefined;
 
   const webTopHeaderStyle =
@@ -161,6 +166,10 @@ export function MobileMainLayout({
   const webContentAreaStyle =
     Platform.OS === "web"
       ? ({
+          minHeight: 0,
+          height: "100%",
+          maxHeight: "100%",
+          overflow: "hidden",
           paddingBottom:
             "calc(max(8px, env(safe-area-inset-bottom, 0px)) + 54px)",
         } as any)
@@ -617,13 +626,18 @@ const styles = StyleSheet.create({
   },
   contentArea: {
     flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 54, // Intrinsic clearance for bottom tab bar
     width: "100%",
+    height: "100%",
   },
   swipeContainer: {
     flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
     width: "100%",
     height: "100%",
   },

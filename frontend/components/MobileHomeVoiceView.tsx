@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -58,13 +59,46 @@ export function MobileHomeVoiceView({
     };
   }, [db, userId, refreshSignal]);
 
+  const webContainerStyle =
+    Platform.OS === "web"
+      ? ({
+          height: "100%",
+          maxHeight: "100%",
+          minHeight: 0,
+          overflow: "hidden",
+        } as any)
+      : undefined;
+
+  const webMainLayoutWrapperStyle =
+    Platform.OS === "web"
+      ? ({
+          height: "100%",
+          maxHeight: "100%",
+          minHeight: 0,
+          overflow: "hidden",
+        } as any)
+      : undefined;
+
+  const webScrollAreaStyle =
+    Platform.OS === "web"
+      ? ({
+          flex: "1 1 0%",
+          minHeight: 0,
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
+        } as any)
+      : undefined;
+
   return (
-    <View style={styles.container} testID="mobile-home-voice-view">
+    <View
+      style={[styles.container, webContainerStyle]}
+      testID="mobile-home-voice-view"
+    >
       {!activeVoiceModal ? (
-        <View style={styles.mainLayoutWrapper}>
+        <View style={[styles.mainLayoutWrapper, webMainLayoutWrapperStyle]}>
           {/* Upper Reading Zone: Scrollable Title & Commands Cheatsheet */}
           <ScrollView
-            style={styles.scrollArea}
+            style={[styles.scrollArea, webScrollAreaStyle]}
             contentContainerStyle={styles.scrollContentContainer}
             testID="mobile-home-scroll-area"
             showsVerticalScrollIndicator={true}
@@ -250,6 +284,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: "100%",
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
   },
   contentContainer: {
     paddingBottom: 24,
@@ -257,15 +294,19 @@ const styles = StyleSheet.create({
   },
   mainLayoutWrapper: {
     flex: 1,
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
     justifyContent: "space-between",
     width: "100%",
   },
   scrollArea: {
     flex: 1,
+    minHeight: 0,
     width: "100%",
   },
   scrollContentContainer: {
-    paddingBottom: 16,
+    paddingBottom: 24,
   },
   voiceModalScrollView: {
     flex: 1,
@@ -313,7 +354,7 @@ const styles = StyleSheet.create({
   thumbZoneCard: {
     backgroundColor: "#1e293b",
     borderRadius: 24,
-    paddingVertical: 20,
+    paddingVertical: 18,
     paddingHorizontal: 16,
     alignItems: "center",
     borderWidth: 1.5,
@@ -323,7 +364,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 18,
     elevation: 8,
-    marginTop: "auto",
+    flexShrink: 0,
+    width: "100%",
+    marginTop: 8,
+    marginBottom: Platform.OS === "web" ? 8 : 4,
   },
   thumbZoneHeaderRow: {
     flexDirection: "row",

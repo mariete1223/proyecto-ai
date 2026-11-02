@@ -1,5 +1,11 @@
 import React from "react";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
 import { MobileHomeVoiceView } from "./MobileHomeVoiceView";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
 import { createLocalCategory } from "../db/categories";
@@ -18,11 +24,11 @@ describe("MobileHomeVoiceView Component", () => {
     });
   });
 
-  it("renders big mic hero button and action buttons", async () => {
+  it("renders big mic hero button, pinned action dock, and confines layout (#146)", async () => {
     const onOpenManualForm = jest.fn();
     const onOpenLlmImport = jest.fn();
 
-    const { getByTestId, findByTestId, queryByText, queryByTestId } =
+    const { getByTestId, findByTestId, queryByText, queryByTestId, getByText } =
       await render(
         <MobileHomeVoiceView
           db={db}
@@ -32,10 +38,32 @@ describe("MobileHomeVoiceView Component", () => {
         />,
       );
 
-    expect(getByTestId("mobile-home-voice-view")).toBeTruthy();
-    expect(getByTestId("mobile-home-scroll-area")).toBeTruthy();
-    expect(getByTestId("mobile-thumb-zone-card")).toBeTruthy();
+    const container = getByTestId("mobile-home-voice-view");
+    expect(container).toBeTruthy();
+    const containerStyle = Array.isArray(container.props.style)
+      ? Object.assign({}, ...container.props.style)
+      : container.props.style;
+    expect(containerStyle.flex).toBe(1);
+    expect(containerStyle.minHeight).toBe(0);
+    expect(containerStyle.overflow).toBe("hidden");
+
+    const scrollArea = getByTestId("mobile-home-scroll-area");
+    expect(scrollArea).toBeTruthy();
+    const scrollStyle = Array.isArray(scrollArea.props.style)
+      ? Object.assign({}, ...scrollArea.props.style)
+      : scrollArea.props.style;
+    expect(scrollStyle.flex).toBe(1);
+    expect(scrollStyle.minHeight).toBe(0);
+
+    const thumbDock = getByTestId("mobile-thumb-zone-card");
+    expect(thumbDock).toBeTruthy();
+    const thumbStyle = Array.isArray(thumbDock.props.style)
+      ? Object.assign({}, ...thumbDock.props.style)
+      : thumbDock.props.style;
+    expect(thumbStyle.flexShrink).toBe(0);
+
     expect(getByTestId("btn-big-mic-start")).toBeTruthy();
+    expect(getByText("Toca para Grabar por Voz")).toBeTruthy();
     expect(
       queryByText(
         /puedes crear todas las categorías y etiquetas que necesites/i,
