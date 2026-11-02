@@ -1298,4 +1298,42 @@ describe("CalendarMonthView Component (Task 35)", () => {
       expect(getByText("✅ Tarea completada")).toBeTruthy();
     });
   });
+
+  it("renders event entries with backend legacy or unmapped category_id as Eventos instead of Notas (#151)", async () => {
+    await createLocalCategory(db, userId, {
+      id: "45e5d9a3-b1d9-4268-acbf-cbe98c0d1ccd",
+      name: "Eventos",
+      voice_command: "evento",
+      color: "#10B981",
+      kind: "EVENT",
+    });
+
+    const legacyBackendEventosId = "88c26dbc-219e-47a3-a371-531937173c29";
+    const entryId = "entry-legacy-event-151";
+    await db.runAsync(
+      `INSERT INTO entries (id, user_id, category_id, content, occurred_at, task_status, version, sync_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NULL, 1, 'SYNCED', ?, ?);`,
+      [
+        entryId,
+        userId,
+        legacyBackendEventosId,
+        "Ir al baño a las 9",
+        "2026-09-15T09:00:00Z",
+        "2026-09-15T09:00:00Z",
+        "2026-09-15T09:00:00Z",
+      ],
+    );
+
+    const { getByTestId, queryByText, getByText } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
+    );
+
+    fireEvent.press(getByTestId("day-cell-2026-09-15"));
+
+    await waitFor(() => {
+      expect(getByText("Ir al baño a las 9")).toBeTruthy();
+    });
+
+    expect(getByText("Eventos")).toBeTruthy();
+    expect(queryByText("Notas")).toBeNull();
+  });
 });

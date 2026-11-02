@@ -335,6 +335,72 @@ export const CANONICAL_CATEGORIES = {
   },
 };
 
+export function buildRobustCategoryMap(
+  categories: Category[],
+): Map<string, Category> {
+  const map = new Map<string, Category>();
+  for (const c of categories) {
+    map.set(c.id, c);
+    const nameNorm = (
+      c.name_normalized || normalizeTextKey(c.name)
+    ).toLowerCase();
+    if (c.kind === "EVENT" || nameNorm === "eventos" || nameNorm === "evento") {
+      map.set(CANONICAL_CATEGORIES.EVENTOS.id, c);
+      map.set("88c26dbc-219e-47a3-a371-531937173c29", c);
+    } else if (
+      c.kind === "TASK" ||
+      nameNorm === "tareas" ||
+      nameNorm === "tarea"
+    ) {
+      map.set(CANONICAL_CATEGORIES.TAREAS.id, c);
+      map.set("4c1a5526-aa48-4352-a786-1832c5268bc5", c);
+    } else if (nameNorm === "notas" || nameNorm === "nota") {
+      map.set(CANONICAL_CATEGORIES.NOTAS.id, c);
+      map.set("a9aae3d3-e8b2-419b-bd8e-05e37bca6ce8", c);
+    } else if (nameNorm === "alerta" || nameNorm === "alertas") {
+      map.set(CANONICAL_CATEGORIES.ALERTA.id, c);
+    }
+  }
+  return map;
+}
+
+export function resolveCategoryForEntry(
+  entry: {
+    category_id?: string | null;
+    task_status?: string | null;
+    occurred_at?: string | null;
+  },
+  categoryMap: Map<string, Category>,
+  categories: Category[],
+): Category | undefined {
+  if (entry.category_id && categoryMap.has(entry.category_id)) {
+    return categoryMap.get(entry.category_id);
+  }
+  if (entry.task_status !== null && entry.task_status !== undefined) {
+    const taskCat = categories.find(
+      (c) =>
+        c.kind === "TASK" ||
+        (c.name_normalized || c.name.toLowerCase()).includes("tarea"),
+    );
+    if (taskCat) return taskCat;
+    return categoryMap.get(CANONICAL_CATEGORIES.TAREAS.id);
+  }
+  if (entry.occurred_at) {
+    const eventCat = categories.find(
+      (c) =>
+        c.kind === "EVENT" ||
+        (c.name_normalized || c.name.toLowerCase()).includes("evento"),
+    );
+    if (eventCat) return eventCat;
+    return categoryMap.get(CANONICAL_CATEGORIES.EVENTOS.id);
+  }
+  const noteCat = categories.find((c) =>
+    (c.name_normalized || c.name.toLowerCase()).includes("nota"),
+  );
+  if (noteCat) return noteCat;
+  return categoryMap.get(CANONICAL_CATEGORIES.NOTAS.id);
+}
+
 export const PROTECTED_SYSTEM_CATEGORY_NAMES = new Set([
   "tarea",
   "tareas",

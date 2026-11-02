@@ -187,6 +187,23 @@ def _process_single_change(
     )
     existing_item: Any = db.execute(stmt_existing).scalar_one_or_none()
 
+    if change.entity_type == TombstoneEntity.CATEGORY and existing_item is None:
+        name_val = str(change.payload.get("name", "")).strip()
+        name_norm = normalize_text_key(name_val) if name_val else ""
+        if name_norm:
+            same_name_cat = (
+                db.execute(
+                    select(Category).where(
+                        Category.user_id == user_id,
+                        Category.name_normalized.in_([name_norm, name_norm + "s"]),
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if same_name_cat is not None:
+                existing_item = same_name_cat
+
     if change.action == SyncAction.CREATE:
         if existing_item is not None:
             if existing_item.version == 1:
@@ -364,6 +381,7 @@ def _resolve_category_id_for_user(
     raw_cat_id: Any,
     default_entity_id: uuid.UUID,
     is_task: bool = False,
+    has_occurred_at: bool = False,
 ) -> uuid.UUID:
     """Resolve category ID for a user, handling exact matches, canonical ID aliases, and neutral fallbacks."""
     cat_id = uuid.UUID(str(raw_cat_id)) if raw_cat_id else default_entity_id
@@ -444,6 +462,25 @@ def _resolve_category_id_for_user(
         )
         if task_cat is not None:
             return task_cat.id
+
+    # 3b. If payload indicates event (has date/time and not a task), look for event category
+    if has_occurred_at and not is_task:
+        event_cat = (
+            db.execute(
+                select(Category).where(
+                    Category.user_id == user_id,
+                    or_(
+                        Category.id == CANONICAL_CATEGORY_IDS.get("eventos"),
+                        Category.kind == CategoryKind.EVENT,
+                        Category.name_normalized.in_(["evento", "eventos"]),
+                    ),
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if event_cat is not None:
+            return event_cat.id
 
     # 4. Neutral fallbacks (never blindly fall back to Alerta)
     neutral_cat = (
@@ -558,8 +595,14 @@ def _create_domain_model(
         elif rec_str and not status_str:
             status_str = "PENDING"
         cat_id_raw = payload.get("category_id")
+        occ_at = _parse_dt(payload.get("occurred_at"))
         cat_id = _resolve_category_id_for_user(
-            db, user_id, cat_id_raw, entity_id, is_task=bool(status_str)
+            db,
+            user_id,
+            cat_id_raw,
+            entity_id,
+            is_task=bool(status_str),
+            has_occurred_at=bool(occ_at),
         )
 
         session_id_raw = payload.get("capture_session_id")
@@ -573,7 +616,6 @@ def _create_domain_model(
             prio_str = None
         rem_enabled = bool(payload.get("reminder_enabled"))
         rem_time = _parse_dt(payload.get("reminder_time"))
-        occ_at = _parse_dt(payload.get("occurred_at"))
         rem_offset = int(payload.get("reminder_offset_minutes") or 0)
         if rem_enabled and occ_at and not rem_time:
             rem_time = occ_at - timedelta(minutes=rem_offset)
@@ -678,8 +720,14 @@ def _update_domain_model(
             item.content = str(payload["content"]).strip()
         if "category_id" in payload:
             is_task_entry = bool(item.task_status or payload.get("task_status"))
+            has_occ_at = bool(item.occurred_at or payload.get("occurred_at"))
             item.category_id = _resolve_category_id_for_user(
-                db, item.user_id, payload["category_id"], item.category_id, is_task=is_task_entry
+                db,
+                item.user_id,
+                payload["category_id"],
+                item.category_id,
+                is_task=is_task_entry,
+                has_occurred_at=has_occ_at,
             )
         if "occurred_at" in payload:
             item.occurred_at = _parse_dt(payload["occurred_at"])
@@ -765,6 +813,33 @@ def process_sync_pull(
     has_more = len(events) > limit
     page_events = events[:limit]
 
+    user_cats = list(
+        db.execute(select(Category).where(Category.user_id == user_id)).scalars().all()
+    )
+    user_cat_to_canonical: dict[uuid.UUID, uuid.UUID] = {}
+    for c in user_cats:
+        name_norm = c.name_normalized or normalize_text_key(c.name)
+        if c.kind == CategoryKind.EVENT or name_norm in ("evento", "eventos"):
+            user_cat_to_canonical[c.id] = CANONICAL_CATEGORY_IDS.get(
+                "eventos", uuid.UUID("45e5d9a3-b1d9-4268-acbf-cbe98c0d1ccd")
+            )
+        elif c.kind == CategoryKind.TASK or name_norm in ("tarea", "tareas"):
+            user_cat_to_canonical[c.id] = CANONICAL_CATEGORY_IDS.get(
+                "tareas", uuid.UUID("20e8f404-c429-43e8-8cf8-af9d51416d58")
+            )
+        elif name_norm in ("nota", "notas"):
+            user_cat_to_canonical[c.id] = CANONICAL_CATEGORY_IDS.get(
+                "notas", uuid.UUID("740d7f77-ae95-4898-a80b-4a31bc58061b")
+            )
+        elif name_norm in ("alerta", "alertas"):
+            user_cat_to_canonical[c.id] = CANONICAL_CATEGORY_IDS.get(
+                "alerta", uuid.UUID("c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9")
+            )
+        elif name_norm in ("proyecto", "proyectos"):
+            user_cat_to_canonical[c.id] = CANONICAL_CATEGORY_IDS.get(
+                "proyectos", uuid.UUID("994777f6-09d3-4ef9-876a-3b29d09d5fa4")
+            )
+
     changes: list[SyncPullChange] = []
     tombstones: list[SyncTombstone] = []
     next_cursor: str | None = None
@@ -772,22 +847,39 @@ def process_sync_pull(
     for evt_time, is_tb, obj, ent_type in page_events:
         next_cursor = evt_time.isoformat()
         if is_tb:
+            tb_entity_id = obj.entity_id
+            if (
+                ent_type == TombstoneEntity.CATEGORY
+                and obj.entity_id in user_cat_to_canonical
+            ):
+                tb_entity_id = user_cat_to_canonical[obj.entity_id]
             tombstones.append(
                 SyncTombstone(
                     entity_type=ent_type,
-                    entity_id=obj.entity_id,
+                    entity_id=tb_entity_id,
                     deleted_at=obj.deleted_at.isoformat(),
                     deleted_version=obj.deleted_version,
                 )
             )
         else:
             action = SyncAction.CREATE if obj.version == 1 else SyncAction.UPDATE
+            payload = _model_to_dict(obj)
+            change_entity_id = obj.id
+            if ent_type == TombstoneEntity.ENTRY:
+                raw_cat_id = obj.category_id
+                if raw_cat_id in user_cat_to_canonical:
+                    payload["category_id"] = str(user_cat_to_canonical[raw_cat_id])
+            elif ent_type == TombstoneEntity.CATEGORY:
+                if obj.id in user_cat_to_canonical:
+                    canon_id = user_cat_to_canonical[obj.id]
+                    payload["id"] = str(canon_id)
+                    change_entity_id = canon_id
             changes.append(
                 SyncPullChange(
                     entity_type=ent_type,
-                    entity_id=obj.id,
+                    entity_id=change_entity_id,
                     action=action,
-                    payload=_model_to_dict(obj),
+                    payload=payload,
                 )
             )
 

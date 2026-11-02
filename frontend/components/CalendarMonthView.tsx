@@ -9,7 +9,11 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { listCategories } from "../db/categories";
+import {
+  buildRobustCategoryMap,
+  listCategories,
+  resolveCategoryForEntry,
+} from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
 import {
   createLocalEntry,
@@ -299,7 +303,7 @@ export function CalendarMonthView({
   };
 
   const handleToggleTaskStatus = async (entry: Entry) => {
-    const cat = categoryMap.get(entry.category_id);
+    const cat = resolveCategoryForEntry(entry, categoryMap, categories);
     const isTask =
       (cat?.kind === "TASK" || entry.task_status !== null) &&
       !isCategoryAlert(cat);
@@ -748,9 +752,8 @@ export function CalendarMonthView({
   // Convert Sunday (0) to index 6, Monday (1) to index 0
   const startingOffset = (firstDayWeekday + 6) % 7;
 
-  // Map category ID to Category object
-  const categoryMap = new Map<string, Category>();
-  categories.forEach((c) => categoryMap.set(c.id, c));
+  // Map category ID (including canonical and legacy aliases) to Category object
+  const categoryMap = buildRobustCategoryMap(categories);
 
   // Map tag ID to Tag object
   const tagMap = new Map<string, Tag>();
@@ -863,7 +866,7 @@ export function CalendarMonthView({
             isEntryReminderPending(
               e,
               undefined,
-              categoryMap.get(e.category_id),
+              resolveCategoryForEntry(e, categoryMap, categories),
             ),
           );
           const isSelected = selectedDayEntries?.dateStr === cell.dateStr;
@@ -918,11 +921,19 @@ export function CalendarMonthView({
 
               <View style={styles.badgesContainer}>
                 {visibleEntries.map((ent) => {
-                  const cat = categoryMap.get(ent.category_id);
+                  const cat = resolveCategoryForEntry(
+                    ent,
+                    categoryMap,
+                    categories,
+                  );
                   const isTask =
                     (cat?.kind === "TASK" || ent.task_status !== null) &&
                     !isCategoryAlert(cat);
-                  const fallbackColor = isTask ? "#F59E0B" : "#6366F1";
+                  const fallbackColor = isTask
+                    ? "#F59E0B"
+                    : ent.occurred_at
+                      ? "#10B981"
+                      : "#6366F1";
                   const color = cat?.color || fallbackColor;
                   return (
                     <View
@@ -1432,13 +1443,21 @@ export function CalendarMonthView({
               isTimeline: boolean = false,
               exactTimeLabel?: string,
             ) => {
-              const cat = categoryMap.get(ent.category_id);
+              const cat = resolveCategoryForEntry(ent, categoryMap, categories);
               const isTask =
                 (cat?.kind === "TASK" || ent.task_status !== null) &&
                 !isCategoryAlert(cat);
               const isCompleted = isTask && ent.task_status === "DONE";
-              const fallbackCatName = isTask ? "Tareas" : "Notas";
-              const fallbackCatColor = isTask ? "#F59E0B" : "#6366F1";
+              const fallbackCatName = isTask
+                ? "Tareas"
+                : ent.occurred_at
+                  ? "Eventos"
+                  : "Notas";
+              const fallbackCatColor = isTask
+                ? "#F59E0B"
+                : ent.occurred_at
+                  ? "#10B981"
+                  : "#6366F1";
               const catColor = cat?.color || fallbackCatColor;
               const timeNorm =
                 normalizeUtcIso(ent.occurred_at) || ent.occurred_at;

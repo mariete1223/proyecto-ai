@@ -1,4 +1,9 @@
+import {
+  buildRobustCategoryMap,
+  resolveCategoryForEntry,
+} from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
+import { Category } from "../types/domain";
 import {
   applyRemoteDeletion,
   RemoteDeletionEntityType,
@@ -678,14 +683,43 @@ export async function applyRemoteChanges(
           ? String(payload.title).trim()
           : (existing?.title ?? null);
 
+      const localCategories = await db.getAllAsync<Category>(
+        `SELECT * FROM categories WHERE user_id = ?;`,
+        [userId],
+      );
+      let resolvedCategoryId = payload.category_id;
+      if (
+        resolvedCategoryId &&
+        localCategories.length > 0 &&
+        !localCategories.some((c) => c.id === resolvedCategoryId)
+      ) {
+        const robustMap = buildRobustCategoryMap(localCategories);
+        const resolvedCat = resolveCategoryForEntry(
+          {
+            category_id: String(resolvedCategoryId),
+            task_status: payload.task_status
+              ? String(payload.task_status)
+              : null,
+            occurred_at: payload.occurred_at
+              ? String(payload.occurred_at)
+              : null,
+          },
+          robustMap,
+          localCategories,
+        );
+        if (resolvedCat) {
+          resolvedCategoryId = resolvedCat.id;
+        }
+      }
+
       const ALERT_CAT_ID = "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9";
-      let isAlertCategory = payload.category_id === ALERT_CAT_ID;
-      if (!isAlertCategory && payload.category_id) {
+      let isAlertCategory = resolvedCategoryId === ALERT_CAT_ID;
+      if (!isAlertCategory && resolvedCategoryId) {
         const cat = await db.getFirstAsync<{
           name?: string | null;
           name_normalized?: string | null;
         }>(`SELECT name, name_normalized FROM categories WHERE id = ?;`, [
-          payload.category_id,
+          resolvedCategoryId,
         ]);
         if (
           cat &&
@@ -770,7 +804,7 @@ export async function applyRemoteChanges(
         await db.runAsync(
           `UPDATE entries SET category_id = ?, title = ?, occurred_at = ?, content = ?, task_status = ?, task_recurrence = ?, task_priority = ?, capture_session_id = ?, reminder_enabled = ?, reminder_time = ?, reminder_end_time = ?, reminder_recurrence = ?, reminder_offset_minutes = ?, reminder_offsets_minutes = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
           [
-            payload.category_id,
+            resolvedCategoryId,
             titleToUse,
             payload.occurred_at ?? null,
             payload.content ?? "",
@@ -813,7 +847,7 @@ export async function applyRemoteChanges(
             `UPDATE entries SET id = ?, category_id = ?, title = ?, occurred_at = ?, task_status = ?, task_recurrence = ?, task_priority = ?, capture_session_id = ?, reminder_enabled = ?, reminder_time = ?, reminder_end_time = ?, reminder_recurrence = ?, reminder_offset_minutes = ?, reminder_offsets_minutes = ?, updated_at = ?, version = ?, sync_status = 'SYNCED' WHERE id = ? AND user_id = ?;`,
             [
               entityId,
-              payload.category_id,
+              resolvedCategoryId,
               resolvedTitle,
               payload.occurred_at ?? null,
               payload.task_status ?? null,
@@ -843,7 +877,7 @@ export async function applyRemoteChanges(
             [
               entityId,
               userId,
-              payload.category_id,
+              resolvedCategoryId,
               payload.title ? String(payload.title).trim() : null,
               payload.occurred_at ?? null,
               payload.content ?? "",

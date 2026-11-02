@@ -30,9 +30,11 @@ import { VoiceCaptureFlow } from "./components/VoiceCaptureFlow";
 import { WebMainLayout } from "./components/WebMainLayout";
 import { StartupPermissionsPrompt } from "./components/StartupPermissionsPrompt";
 import {
+  buildRobustCategoryMap,
   CANONICAL_CATEGORIES,
   ensureCanonicalCategories,
   listCategories,
+  resolveCategoryForEntry,
 } from "./db/categories";
 import {
   DatabaseAdapter,
@@ -378,21 +380,33 @@ export default function App() {
       }
     }
 
-    // 3c. Sanear entradas con atributos de tarea cuyo category_id sea nulo o huérfano (#147)
-    const existingCats = await database.getAllAsync<{ id: string }>(
-      `SELECT id FROM categories WHERE user_id = ?;`,
+    // 3c. Sanear entradas cuyo category_id sea nulo o huérfano (#147, #151)
+    const existingCats = await database.getAllAsync<Category>(
+      `SELECT * FROM categories WHERE user_id = ?;`,
       [uId],
     );
     const validCatIds = new Set(existingCats.map((c) => c.id));
+    const robustMap = buildRobustCategoryMap(existingCats);
     for (const entry of all) {
       if (
-        entry.task_status &&
         !toDeleteIds.includes(entry.id) &&
         (!entry.category_id || !validCatIds.has(entry.category_id))
       ) {
+        const resolved = resolveCategoryForEntry(
+          entry,
+          robustMap,
+          existingCats,
+        );
+        const targetCatId =
+          resolved?.id ||
+          (entry.task_status
+            ? CANONICAL_TAREAS_ID
+            : entry.occurred_at
+              ? CANONICAL_CATEGORIES.EVENTOS.id
+              : CANONICAL_CATEGORIES.NOTAS.id);
         await database.runAsync(
           `UPDATE entries SET category_id = ?, version = version + 1, sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ?;`,
-          [CANONICAL_TAREAS_ID, entry.id, uId],
+          [targetCatId, entry.id, uId],
         );
       }
     }

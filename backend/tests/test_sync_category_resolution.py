@@ -23,7 +23,11 @@ from app.models.domain import (
 from app.models.enums import CategoryKind, TombstoneEntity
 from app.schemas.sync import SyncAction, SyncClientChange
 from app.services.category_service import CANONICAL_CATEGORY_IDS
-from app.services.sync_service import _resolve_category_id_for_user, process_sync_push
+from app.services.sync_service import (
+    _resolve_category_id_for_user,
+    process_sync_pull,
+    process_sync_push,
+)
 
 
 @pytest.fixture
@@ -289,3 +293,94 @@ def test_sync_push_unknown_category_falls_back_to_neutral_not_alerta(memory_db: 
     # It must fall back to Notas, NOT Alerta!
     assert saved_entry.category_id == notas_legacy_id
     assert saved_entry.category_id != cat_alerta.id
+
+
+def test_sync_pull_maps_user_legacy_category_ids_to_canonical_ids(
+    memory_db: Session,
+) -> None:
+    now = datetime.now(UTC)
+    # First user claims canonical EVENTOS ID
+    demo_user = User(
+        id=uuid.uuid4(),
+        email="demo_pull@example.com",
+        email_normalized="demo_pull@example.com",
+        password_hash="hash",
+        is_verified=True,
+        created_at=now,
+        updated_at=now,
+        version=1,
+    )
+    memory_db.add(demo_user)
+    memory_db.add(
+        Category(
+            id=CANONICAL_CATEGORY_IDS["eventos"],
+            user_id=demo_user.id,
+            kind=CategoryKind.EVENT,
+            name="Eventos",
+            name_normalized="eventos",
+            voice_command="evento",
+            voice_command_normalized="evento",
+            description="Eventos",
+            color="#10B981",
+            icon="calendar",
+            created_at=now,
+            updated_at=now,
+            version=1,
+        )
+    )
+
+    # Second user has a legacy non-canonical ID for Eventos
+    user = User(
+        id=uuid.uuid4(),
+        email="second_pull@example.com",
+        email_normalized="second_pull@example.com",
+        password_hash="hash",
+        is_verified=True,
+        created_at=now,
+        updated_at=now,
+        version=1,
+    )
+    memory_db.add(user)
+    user_eventos_id = uuid.UUID("88c26dbc-219e-47a3-a371-531937173c29")
+    memory_db.add(
+        Category(
+            id=user_eventos_id,
+            user_id=user.id,
+            kind=CategoryKind.EVENT,
+            name="Eventos",
+            name_normalized="eventos",
+            voice_command="evento",
+            voice_command_normalized="evento",
+            description="Eventos",
+            color="#10B981",
+            icon="calendar",
+            created_at=now,
+            updated_at=now,
+            version=1,
+        )
+    )
+
+    entry_id = uuid.uuid4()
+    memory_db.add(
+        Entry(
+            id=entry_id,
+            user_id=user.id,
+            category_id=user_eventos_id,
+            content="Ir al baño",
+            occurred_at=datetime(2026, 11, 3, 9, 0, tzinfo=UTC),
+            created_at=now,
+            updated_at=now,
+            version=1,
+        )
+    )
+    memory_db.commit()
+
+    changes, _, _, _ = process_sync_pull(memory_db, user.id)
+    entry_changes = [
+        c for c in changes if c.entity_type == TombstoneEntity.ENTRY and c.entity_id == entry_id
+    ]
+    assert len(entry_changes) == 1
+    assert entry_changes[0].payload["category_id"] == str(
+        CANONICAL_CATEGORY_IDS["eventos"]
+    )
+

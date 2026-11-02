@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { listCategories } from "../db/categories";
+import {
+  buildRobustCategoryMap,
+  listCategories,
+  resolveCategoryForEntry,
+} from "../db/categories";
 import { DatabaseAdapter } from "../db/database";
 import {
   deleteLocalEntry,
@@ -208,7 +212,9 @@ export function EntryDetailView({
           setTags(tgs);
           if (ent) {
             setEntry(ent);
-            setCategoryId(ent.category_id);
+            const robustMap = buildRobustCategoryMap(cats);
+            const resolvedCat = resolveCategoryForEntry(ent, robustMap, cats);
+            setCategoryId(resolvedCat?.id || ent.category_id);
             setTitle(ent.title ?? "");
             setOccurredAt(ent.occurred_at ?? "");
             setContent(ent.content);
@@ -324,14 +330,21 @@ export function EntryDetailView({
     );
   }
 
-  const categoryMap = new Map<string, Category>();
-  categories.forEach((c) => categoryMap.set(c.id, c));
-  const entryCategory = categoryMap.get(entry.category_id);
+  const categoryMap = buildRobustCategoryMap(categories);
+  const entryCategory = resolveCategoryForEntry(entry, categoryMap, categories);
   const isTask = entryCategory
     ? entryCategory.kind === "TASK" && !isCategoryAlert(entryCategory)
     : entry.task_status !== null;
-  const fallbackCatName = isTask ? "Tareas" : "Notas";
-  const fallbackCatColor = isTask ? "#F59E0B" : "#6366F1";
+  const fallbackCatName = isTask
+    ? "Tareas"
+    : entry.occurred_at
+      ? "Eventos"
+      : "Notas";
+  const fallbackCatColor = isTask
+    ? "#F59E0B"
+    : entry.occurred_at
+      ? "#10B981"
+      : "#6366F1";
   const catColor = entryCategory?.color || fallbackCatColor;
   const catName = entryCategory?.name || fallbackCatName;
 
