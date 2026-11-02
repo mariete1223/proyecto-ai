@@ -283,7 +283,6 @@ export default function App() {
   const CANONICAL_NOTAS_ID = CANONICAL_CATEGORIES.NOTAS.id;
   const CANONICAL_TAREAS_ID = CANONICAL_CATEGORIES.TAREAS.id;
   const CANONICAL_EVENTOS_ID = CANONICAL_CATEGORIES.EVENTOS.id;
-  const CANONICAL_PROYECTOS_ID = CANONICAL_CATEGORIES.PROYECTOS.id;
   const CANONICAL_ALERTA_ID = CANONICAL_CATEGORIES.ALERTA.id;
 
   // Deduplicar entradas repetidas y restaurar la categoría adecuada a cada una

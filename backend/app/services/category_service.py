@@ -5,11 +5,11 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.models.domain import Category
-from app.models.enums import CategoryKind
+from app.models.domain import Category, DeletionTombstone, Entry
+from app.models.enums import CategoryKind, TombstoneEntity
 from app.schemas.category import CategoryCreate, CategoryUpdate
 
 
@@ -30,12 +30,8 @@ class ProtectedCategoryError(ValueError):
 
 
 PROTECTED_SYSTEM_CATEGORY_NAMES: set[str] = {
-    "nota",
-    "notas",
     "tarea",
     "tareas",
-    "evento",
-    "eventos",
     "alerta",
     "alertas",
 }
@@ -50,6 +46,15 @@ CANONICAL_CATEGORY_IDS: dict[str, uuid.UUID] = {
 }
 
 INITIAL_CATEGORIES: list[dict[str, Any]] = [
+    {
+        "id": CANONICAL_CATEGORY_IDS["notas"],
+        "kind": CategoryKind.STANDARD,
+        "name": "Notas",
+        "voice_command": "nota",
+        "description": "Categoría predeterminada para notas y apuntes",
+        "color": "#6366F1",
+        "icon": "book",
+    },
     {
         "id": CANONICAL_CATEGORY_IDS["tareas"],
         "kind": CategoryKind.TASK,
@@ -67,33 +72,6 @@ INITIAL_CATEGORIES: list[dict[str, Any]] = [
         "description": "Categoría predeterminada para eventos de calendario",
         "color": "#1E88E5",
         "icon": "calendar",
-    },
-    {
-        "id": uuid.UUID("7cb34200-c429-43e8-8cf8-af9d51416d58"),
-        "kind": CategoryKind.CAPTURE,
-        "name": "Captura",
-        "voice_command": "captura",
-        "description": "Categoría predeterminada para capturas rápidas",
-        "color": "#7CB342",
-        "icon": "mic",
-    },
-    {
-        "id": uuid.UUID("8e24aa00-c429-43e8-8cf8-af9d51416d58"),
-        "kind": CategoryKind.STANDARD,
-        "name": "Recuerdo",
-        "voice_command": "recuerdo",
-        "description": "Categoría para recuerdos y momentos personales",
-        "color": "#8E24AA",
-        "icon": "bookmark",
-    },
-    {
-        "id": uuid.UUID("fdd83500-c429-43e8-8cf8-af9d51416d58"),
-        "kind": CategoryKind.STANDARD,
-        "name": "Aprendizaje",
-        "voice_command": "aprendizaje",
-        "description": "Categoría para notas de estudio y aprendizajes",
-        "color": "#FDD835",
-        "icon": "book-open",
     },
     {
         "id": CANONICAL_CATEGORY_IDS["alerta"],
@@ -195,6 +173,18 @@ def seed_initial_categories(db: Session, user_id: uuid.UUID) -> list[Category]:
         name = item["name"]
         item_id: uuid.UUID = item["id"]
         name_norm = normalize_text_key(name)
+
+        # Check if user has explicitly deleted this category (tombstone exists)
+        try:
+            stmt_tombstone = select(DeletionTombstone).where(
+                DeletionTombstone.user_id == user_id,
+                DeletionTombstone.entity_type == TombstoneEntity.CATEGORY,
+                DeletionTombstone.entity_id == item_id,
+            )
+            if db.execute(stmt_tombstone).scalar_one_or_none() is not None:
+                continue
+        except Exception:
+            pass
 
         # Check by name_normalized or id or plural equivalent ("tarea"/"tareas", "evento"/"eventos")
         plural_norm = name_norm + "s"
@@ -322,9 +312,69 @@ def delete_category(db: Session, user_id: uuid.UUID, category_id: uuid.UUID) -> 
     if (
         category.name_normalized in PROTECTED_SYSTEM_CATEGORY_NAMES
         or category.voice_command_normalized in PROTECTED_SYSTEM_CATEGORY_NAMES
+        or category.id in (CANONICAL_CATEGORY_IDS["tareas"], CANONICAL_CATEGORY_IDS["alerta"])
     ):
         raise ProtectedCategoryError(
-            "Las categorías del sistema (Tarea, Alerta, Evento, Nota) no se pueden eliminar."
+            "Las categorías fijas del sistema (Tarea y Alerta) no se pueden eliminar."
         )
+
+    # Reassign entries belonging to this category to Tareas or another existing category
+    try:
+        other_cat = (
+            db.execute(
+                select(Category)
+                .where(
+                    Category.user_id == user_id,
+                    Category.id != category_id,
+                    Category.id == CANONICAL_CATEGORY_IDS["tareas"],
+                )
+            )
+            .scalar_one_or_none()
+        )
+        if other_cat is None:
+            other_cat = (
+                db.execute(
+                    select(Category)
+                    .where(
+                        Category.user_id == user_id,
+                        Category.id != category_id,
+                    )
+                    .order_by(Category.created_at.asc())
+                )
+                .scalars()
+                .first()
+            )
+        if other_cat is not None:
+            db.execute(
+                update(Entry)
+                .where(
+                    Entry.user_id == user_id,
+                    Entry.category_id == category_id,
+                )
+                .values(
+                    category_id=other_cat.id,
+                    updated_at=datetime.now(UTC),
+                    version=Entry.version + 1,
+                )
+            )
+            db.flush()
+    except Exception:
+        pass
+
+    deleted_version = category.version + 1
     db.delete(category)
     db.flush()
+
+    try:
+        tb = DeletionTombstone(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            entity_type=TombstoneEntity.CATEGORY,
+            entity_id=category_id,
+            deleted_at=datetime.now(UTC),
+            deleted_version=deleted_version,
+        )
+        db.add(tb)
+        db.flush()
+    except Exception:
+        pass

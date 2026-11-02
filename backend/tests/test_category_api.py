@@ -13,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.deps import get_db
 from app.core.auth import create_access_token
 from app.main import app
-from app.models.domain import Category, User
+from app.models.domain import Category, DeletionTombstone, Entry, User
 from app.schemas.category import CategoryCreate
 from app.services.category_service import create_category
 from app.services.user_service import create_user
@@ -45,7 +45,12 @@ def test_db_session() -> Generator[Session, None, None]:
 
     User.metadata.create_all(
         bind=engine,
-        tables=[cast(Table, User.__table__), cast(Table, Category.__table__)],
+        tables=[
+            cast(Table, User.__table__),
+            cast(Table, Category.__table__),
+            cast(Table, DeletionTombstone.__table__),
+            cast(Table, Entry.__table__),
+        ],
     )
     TestingSessionLocal = sessionmaker(
         bind=engine, autoflush=False, expire_on_commit=False

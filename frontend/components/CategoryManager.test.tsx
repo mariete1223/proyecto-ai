@@ -1,6 +1,10 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
-import { createLocalCategory, listCategories } from "../db/categories";
+import {
+  createLocalCategory,
+  ensureCanonicalCategories,
+  listCategories,
+} from "../db/categories";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
 import { CategoryManager } from "./CategoryManager";
 
@@ -141,5 +145,33 @@ describe("CategoryManager Component", () => {
     expect(
       getByText("El color ya está en uso por otra categoría."),
     ).toBeTruthy();
+  });
+
+  it("shows delete button for Notas and Eventos but hides it for protected Tareas and Alerta", async () => {
+    await ensureCanonicalCategories(db, userId);
+    const categories = await listCategories(db, userId);
+    const notas = categories.find((c) => c.name === "Notas")!;
+    const eventos = categories.find((c) => c.name === "Eventos")!;
+    const tareas = categories.find((c) => c.name === "Tareas")!;
+    const alerta = categories.find((c) => c.name === "Alerta")!;
+
+    const { getByTestId, queryByTestId, getByText } = await render(
+      <CategoryManager db={db} userId={userId} />,
+    );
+
+    await waitFor(() => {
+      expect(getByText("Notas")).toBeTruthy();
+      expect(getByText("Eventos")).toBeTruthy();
+      expect(getByText("Tareas")).toBeTruthy();
+      expect(getByText("Alerta")).toBeTruthy();
+    });
+
+    // Delete button must exist for Notas and Eventos
+    expect(getByTestId(`btn-delete-cat-${notas.id}`)).toBeTruthy();
+    expect(getByTestId(`btn-delete-cat-${eventos.id}`)).toBeTruthy();
+
+    // Delete button must NOT exist for Tareas and Alerta
+    expect(queryByTestId(`btn-delete-cat-${tareas.id}`)).toBeNull();
+    expect(queryByTestId(`btn-delete-cat-${alerta.id}`)).toBeNull();
   });
 });

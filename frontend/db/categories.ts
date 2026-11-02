@@ -325,14 +325,6 @@ export const CANONICAL_CATEGORIES = {
     color: "#10B981",
     icon: "calendar",
   },
-  PROYECTOS: {
-    id: "994777f6-09d3-4ef9-876a-3b29d09d5fa4",
-    name: "Proyectos",
-    voice_command: "proyecto",
-    kind: "STANDARD" as const,
-    color: "#EC4899",
-    icon: "folder",
-  },
   ALERTA: {
     id: "c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9",
     name: "Alerta",
@@ -344,12 +336,8 @@ export const CANONICAL_CATEGORIES = {
 };
 
 export const PROTECTED_SYSTEM_CATEGORY_NAMES = new Set([
-  "nota",
-  "notas",
   "tarea",
   "tareas",
-  "evento",
-  "eventos",
   "alerta",
   "alertas",
 ]);
@@ -365,9 +353,7 @@ export function isSystemProtectedCategory(
 ): boolean {
   if (!category) return false;
   if (
-    category.id === CANONICAL_CATEGORIES.NOTAS.id ||
     category.id === CANONICAL_CATEGORIES.TAREAS.id ||
-    category.id === CANONICAL_CATEGORIES.EVENTOS.id ||
     category.id === CANONICAL_CATEGORIES.ALERTA.id
   ) {
     return true;
@@ -400,17 +386,25 @@ export async function deleteLocalCategory(
 
   if (isSystemProtectedCategory(existing)) {
     throw new Error(
-      "Las categorías del sistema (Notas, Tareas, Eventos, Alertas) no se pueden eliminar.",
+      "Las categorías fijas del sistema (Tarea y Alerta) no se pueden eliminar.",
     );
   }
 
-  // Reasignar entradas asociadas a otra categoría existente si hay
-  const allCats = await db.getAllAsync<Category>(
-    `SELECT * FROM categories WHERE user_id = ? AND id != ?;`,
-    [userId, categoryId],
+  // Reasignar entradas asociadas a Tareas (o a otra categoría existente si no hubiera)
+  const tareasCat = await db.getFirstAsync<Category>(
+    `SELECT * FROM categories WHERE user_id = ? AND id = ?;`,
+    [userId, CANONICAL_CATEGORIES.TAREAS.id],
   );
-  if (allCats.length > 0) {
-    const fallbackId = allCats[0].id;
+  let fallbackId = tareasCat?.id;
+  if (!fallbackId) {
+    const anyOtherCat = await db.getFirstAsync<Category>(
+      `SELECT * FROM categories WHERE user_id = ? AND id != ?;`,
+      [userId, categoryId],
+    );
+    fallbackId = anyOtherCat?.id;
+  }
+
+  if (fallbackId) {
     await db.runAsync(
       `UPDATE entries SET category_id = ?, updated_at = ?, version = version + 1, sync_status = 'PENDING_PUSH' WHERE category_id = ? AND user_id = ?;`,
       [fallbackId, new Date().toISOString(), categoryId, userId],
@@ -462,7 +456,6 @@ export async function ensureCanonicalCategories(
     notas: CANONICAL_CATEGORIES.NOTAS.id,
     tareas: CANONICAL_CATEGORIES.TAREAS.id,
     eventos: CANONICAL_CATEGORIES.EVENTOS.id,
-    proyectos: CANONICAL_CATEGORIES.PROYECTOS.id,
     alerta: CANONICAL_CATEGORIES.ALERTA.id,
     alertas: CANONICAL_CATEGORIES.ALERTA.id,
   };

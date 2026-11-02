@@ -9,7 +9,7 @@ from sqlalchemy import Table, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.models.domain import Category, User
+from app.models.domain import Category, DeletionTombstone, Entry, User
 from app.models.enums import CategoryKind
 from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.services.category_service import (
@@ -52,7 +52,12 @@ def db_session() -> Generator[Session, None, None]:
 
     User.metadata.create_all(
         bind=engine,
-        tables=[cast(Table, User.__table__), cast(Table, Category.__table__)],
+        tables=[
+            cast(Table, User.__table__),
+            cast(Table, Category.__table__),
+            cast(Table, DeletionTombstone.__table__),
+            cast(Table, Entry.__table__),
+        ],
     )
     TestingSessionLocal = sessionmaker(
         bind=engine, autoflush=False, expire_on_commit=False
@@ -215,16 +220,16 @@ def test_seed_initial_categories_is_idempotent(db_session: Session) -> None:
     user = create_user(db_session, "seed_user@example.com", "Password123!")
 
     first_seed = seed_initial_categories(db_session, user.id)
-    assert len(first_seed) == 6
+    assert len(first_seed) == 4
 
     all_categories = list_categories(db_session, user.id)
-    assert len(all_categories) == 6
+    assert len(all_categories) == 4
 
     names = {c.name for c in all_categories}
     assert "Alerta" in names
     assert "Tarea" in names
     assert "Evento" in names
-    assert "Captura" in names
+    assert "Notas" in names
 
     alerta_cat = next(c for c in all_categories if c.name == "Alerta")
     assert alerta_cat.kind == CategoryKind.STANDARD
@@ -234,13 +239,13 @@ def test_seed_initial_categories_is_idempotent(db_session: Session) -> None:
     kinds = {c.kind for c in all_categories}
     assert CategoryKind.TASK in kinds
     assert CategoryKind.EVENT in kinds
-    assert CategoryKind.CAPTURE in kinds
+    assert CategoryKind.STANDARD in kinds
 
     second_seed = seed_initial_categories(db_session, user.id)
     assert len(second_seed) == 0
 
     all_after_second = list_categories(db_session, user.id)
-    assert len(all_after_second) == 6
+    assert len(all_after_second) == 4
 
 
 def test_create_category_duplicate_color_raises_error(db_session: Session) -> None:
@@ -288,12 +293,24 @@ def test_delete_protected_category_raises(db_session: Session) -> None:
     tarea_cat = next(c for c in cats if c.name == "Tarea")
     alerta_cat = next(c for c in cats if c.name == "Alerta")
     evento_cat = next(c for c in cats if c.name == "Evento")
+    notas_cat = next(c for c in cats if c.name == "Notas")
 
+    # Fixed system categories cannot be deleted
     with pytest.raises(ProtectedCategoryError):
         delete_category(db_session, user.id, tarea_cat.id)
 
     with pytest.raises(ProtectedCategoryError):
         delete_category(db_session, user.id, alerta_cat.id)
 
-    with pytest.raises(ProtectedCategoryError):
-        delete_category(db_session, user.id, evento_cat.id)
+    # Evento and Notas can be deleted
+    delete_category(db_session, user.id, evento_cat.id)
+    delete_category(db_session, user.id, notas_cat.id)
+
+    remaining = list_categories(db_session, user.id)
+    assert len(remaining) == 2
+    rem_names = {c.name for c in remaining}
+    assert rem_names == {"Tarea", "Alerta"}
+
+    # Re-seeding must not resurrect deleted categories because deletion tombstones exist
+    reseeded = seed_initial_categories(db_session, user.id)
+    assert len(reseeded) == 0
