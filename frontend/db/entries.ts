@@ -1,4 +1,5 @@
 import {
+  Category,
   Entry,
   ReminderRecurrence,
   TaskPriority,
@@ -490,8 +491,37 @@ export async function updateLocalEntry(
     throw new Error("Entry not found.");
   }
 
-  const categoryId = data.category_id ?? existing.category_id;
-  const category = await getCategoryById(db, userId, categoryId);
+  let categoryId = data.category_id ?? existing.category_id;
+  let category = await getCategoryById(db, userId, categoryId);
+  if (!category) {
+    if (existing.task_status !== null || data.task_status !== undefined) {
+      category = await getCategoryById(
+        db,
+        userId,
+        CANONICAL_CATEGORIES.TAREAS.id,
+      );
+      if (!category) {
+        category = await db.getFirstAsync<Category>(
+          `SELECT * FROM categories WHERE user_id = ? AND kind = 'TASK' LIMIT 1;`,
+          [userId],
+        );
+      }
+      if (category) {
+        categoryId = category.id;
+      }
+    }
+    if (!category) {
+      const anyCat = await db.getFirstAsync<Category>(
+        `SELECT * FROM categories WHERE user_id = ? ORDER BY created_at ASC;`,
+        [userId],
+      );
+      if (anyCat) {
+        category = anyCat;
+        categoryId = anyCat.id;
+      }
+    }
+  }
+
   if (!category) {
     throw new Error("Category not found.");
   }

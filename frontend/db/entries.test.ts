@@ -177,6 +177,33 @@ describe("Local Entries and Tasks Storage Layer", () => {
       expect(fetched?.task_priority).toBe("HIGH");
     });
 
+    it("heals task with orphaned category_id to a valid category on update (#147)", async () => {
+      const entryId = "orphaned-task-id";
+      const unmappedCatId = "88888888-8888-8888-8888-888888888888";
+      await db.runAsync(
+        `INSERT INTO entries (id, user_id, category_id, content, task_status, task_priority, task_recurrence, version, sync_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'SYNCED', ?, ?);`,
+        [
+          entryId,
+          userId,
+          unmappedCatId,
+          "Orphaned task",
+          "PENDING",
+          "MEDIUM",
+          "ONCE",
+          "2026-09-15T10:00:00Z",
+          "2026-09-15T10:00:00Z",
+        ],
+      );
+
+      const updated = await updateLocalEntry(db, userId, entryId, {
+        task_status: "DONE",
+      });
+
+      expect(updated.task_status).toBe("DONE");
+      const fetched = await getEntryById(db, userId, entryId);
+      expect(fetched?.category_id).not.toBe(unmappedCatId);
+    });
+
     it("automatically enables reminder for Alerta category when occurred_at is set", async () => {
       const alertaCat = await createLocalCategory(db, userId, {
         name: "Alerta",

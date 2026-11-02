@@ -33,7 +33,11 @@ from app.schemas.sync import (
     SyncPushChangeResult,
     SyncTombstone,
 )
-from app.services.category_service import normalize_text_key, seed_initial_categories
+from app.services.category_service import (
+    CANONICAL_CATEGORY_IDS,
+    normalize_text_key,
+    seed_initial_categories,
+)
 from app.services.tag_service import normalize_tag_name
 
 
@@ -417,15 +421,29 @@ def _create_domain_model(
             Category.id == cat_id, Category.user_id == user_id
         )
         if db.execute(stmt_cat).scalar_one_or_none() is None:
-            fallback_cat = (
-                db.execute(
-                    select(Category)
-                    .where(Category.user_id == user_id)
-                    .order_by(Category.created_at.asc())
+            fallback_cat = None
+            if status_str:
+                fallback_cat = (
+                    db.execute(
+                        select(Category).where(
+                            Category.user_id == user_id,
+                            (Category.id == CANONICAL_CATEGORY_IDS["tareas"])
+                            | (Category.kind == CategoryKind.TASK),
+                        )
+                    )
+                    .scalars()
+                    .first()
                 )
-                .scalars()
-                .first()
-            )
+            if fallback_cat is None:
+                fallback_cat = (
+                    db.execute(
+                        select(Category)
+                        .where(Category.user_id == user_id)
+                        .order_by(Category.created_at.asc())
+                    )
+                    .scalars()
+                    .first()
+                )
             if fallback_cat is not None:
                 cat_id = fallback_cat.id
 
@@ -544,6 +562,20 @@ def _update_domain_model(
             )
             if db.execute(stmt_cat).scalar_one_or_none() is not None:
                 item.category_id = new_cat_id
+            elif item.task_status or payload.get("task_status"):
+                tarea_cat = (
+                    db.execute(
+                        select(Category).where(
+                            Category.user_id == item.user_id,
+                            (Category.id == CANONICAL_CATEGORY_IDS["tareas"])
+                            | (Category.kind == CategoryKind.TASK),
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+                if tarea_cat is not None:
+                    item.category_id = tarea_cat.id
         if "occurred_at" in payload:
             item.occurred_at = _parse_dt(payload["occurred_at"])
         if "task_status" in payload:

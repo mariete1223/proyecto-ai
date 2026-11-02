@@ -378,6 +378,25 @@ export default function App() {
       }
     }
 
+    // 3c. Sanear entradas con atributos de tarea cuyo category_id sea nulo o huérfano (#147)
+    const existingCats = await database.getAllAsync<{ id: string }>(
+      `SELECT id FROM categories WHERE user_id = ?;`,
+      [uId],
+    );
+    const validCatIds = new Set(existingCats.map((c) => c.id));
+    for (const entry of all) {
+      if (
+        entry.task_status &&
+        !toDeleteIds.includes(entry.id) &&
+        (!entry.category_id || !validCatIds.has(entry.category_id))
+      ) {
+        await database.runAsync(
+          `UPDATE entries SET category_id = ?, version = version + 1, sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ?;`,
+          [CANONICAL_TAREAS_ID, entry.id, uId],
+        );
+      }
+    }
+
     // 4. Limpiar atributos de tarea en entradas de categoría Alerta (avisos puntuales sin estado ni prioridad de tarea)
     await database.runAsync(
       `UPDATE entries SET task_status = NULL, task_priority = NULL, task_recurrence = NULL WHERE category_id = ? AND user_id = ?;`,

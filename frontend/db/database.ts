@@ -578,14 +578,17 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
     }
 
     const match = trimmed.match(
-      /SELECT\s+.*?\s+FROM\s+([a-z0-9_]+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY.+)?$/i,
+      /SELECT\s+.*?\s+FROM\s+([a-z0-9_]+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY.+?)?(?:\s+LIMIT\s+\d+)?$/i,
     );
     if (match && match[1]) {
       const tableName = match[1].toLowerCase();
       const table = this.tables.get(tableName) ?? [];
       let whereClause = match[2];
       if (whereClause) {
-        whereClause = whereClause.replace(/\s+ORDER\s+BY.+$/i, "").trim();
+        whereClause = whereClause
+          .replace(/\s+ORDER\s+BY.+$/i, "")
+          .replace(/\s+LIMIT\s+\d+$/i, "")
+          .trim();
       }
 
       if (!whereClause) {

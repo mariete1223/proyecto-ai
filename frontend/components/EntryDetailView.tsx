@@ -20,6 +20,7 @@ import {
   TaskStatus,
 } from "../types/domain";
 import { DateTimePicker } from "./DateTimePicker";
+import { isCategoryAlert } from "./EntryForm";
 import { LlmBatchProcessor } from "./LlmBatchProcessor";
 import { ReminderConfigSection } from "./ReminderConfigSection";
 import { notificationService } from "../services/notificationService";
@@ -326,6 +327,13 @@ export function EntryDetailView({
   const categoryMap = new Map<string, Category>();
   categories.forEach((c) => categoryMap.set(c.id, c));
   const entryCategory = categoryMap.get(entry.category_id);
+  const isTask = entryCategory
+    ? entryCategory.kind === "TASK" && !isCategoryAlert(entryCategory)
+    : entry.task_status !== null;
+  const fallbackCatName = isTask ? "Tareas" : "Notas";
+  const fallbackCatColor = isTask ? "#F59E0B" : "#6366F1";
+  const catColor = entryCategory?.color || fallbackCatColor;
+  const catName = entryCategory?.name || fallbackCatName;
 
   const tagMap = new Map<string, Tag>();
   tags.forEach((t) => tagMap.set(t.id, t));
@@ -395,34 +403,26 @@ export function EntryDetailView({
               style={[
                 styles.categoryPill,
                 {
-                  backgroundColor: `${entryCategory?.color || "#38BDF8"}18`,
-                  borderColor: `${entryCategory?.color || "#38BDF8"}55`,
+                  backgroundColor: `${catColor}18`,
+                  borderColor: `${catColor}55`,
                 },
               ]}
             >
               <View
-                style={[
-                  styles.categoryDot,
-                  { backgroundColor: entryCategory?.color || "#38BDF8" },
-                ]}
+                style={[styles.categoryDot, { backgroundColor: catColor }]}
               />
-              <Text
-                style={[
-                  styles.categoryName,
-                  { color: entryCategory?.color || "#38BDF8" },
-                ]}
-              >
-                {entryCategory?.name || "Sin Categoría"}
+              <Text style={[styles.categoryName, { color: catColor }]}>
+                {catName}
               </Text>
             </View>
 
-            {entryCategory?.kind === "TASK" && entry.task_status && (
+            {isTask && entry.task_status && (
               <View style={styles.taskBadge}>
                 <Text style={styles.taskBadgeText}>{entry.task_status}</Text>
               </View>
             )}
 
-            {entryCategory?.kind === "TASK" && entry.task_priority && (
+            {isTask && entry.task_priority && (
               <View
                 testID="detail-task-priority-badge"
                 style={[

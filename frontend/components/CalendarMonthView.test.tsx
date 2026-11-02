@@ -1247,4 +1247,55 @@ describe("CalendarMonthView Component (Task 35)", () => {
       );
     });
   });
+
+  it("renders tasks with unmapped or orphaned category_id as Tareas with interactive checkbox instead of General (#147)", async () => {
+    // Insertar una tarea con un category_id huérfano que no está en la base de datos
+    const unmappedCatId = "99999999-9999-9999-9999-999999999999";
+    const entryId = "entry-unmapped-task-147";
+    await db.runAsync(
+      `INSERT INTO entries (id, user_id, category_id, content, occurred_at, task_status, task_priority, task_recurrence, version, sync_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'SYNCED', ?, ?);`,
+      [
+        entryId,
+        userId,
+        unmappedCatId,
+        "Tarea con categoría no mapeada",
+        "2026-09-15T15:00:00Z",
+        "PENDING",
+        "HIGH",
+        "ONCE",
+        "2026-09-15T15:00:00Z",
+        "2026-09-15T15:00:00Z",
+      ],
+    );
+
+    const { getByTestId, queryByText, getByText } = await render(
+      <CalendarMonthView db={db} userId={userId} initialDate={refDate} />,
+    );
+
+    // Hacer click en el día 15
+    await act(async () => {
+      fireEvent.press(getByTestId("day-cell-2026-09-15"));
+    });
+
+    await waitFor(() => {
+      expect(getByText("Tarea con categoría no mapeada")).toBeTruthy();
+    });
+
+    // Debe mostrar la etiqueta "Tareas", NO "General"
+    expect(queryByText("General")).toBeNull();
+    expect(getByText("Tareas")).toBeTruthy();
+
+    // El checkbox interactivo de tarea debe existir y ser funcional
+    const checkbox = getByTestId(`btn-toggle-task-${entryId}`);
+    expect(checkbox).toBeTruthy();
+
+    // Togglear la tarea a completada
+    await act(async () => {
+      fireEvent.press(checkbox);
+    });
+
+    await waitFor(() => {
+      expect(getByText("✅ Tarea completada")).toBeTruthy();
+    });
+  });
 });

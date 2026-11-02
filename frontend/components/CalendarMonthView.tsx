@@ -300,7 +300,10 @@ export function CalendarMonthView({
 
   const handleToggleTaskStatus = async (entry: Entry) => {
     const cat = categoryMap.get(entry.category_id);
-    if (!cat || cat.kind !== "TASK" || isCategoryAlert(cat)) {
+    const isTask =
+      (cat?.kind === "TASK" || entry.task_status !== null) &&
+      !isCategoryAlert(cat);
+    if (!isTask) {
       return;
     }
     const nextStatus: TaskStatus =
@@ -916,7 +919,11 @@ export function CalendarMonthView({
               <View style={styles.badgesContainer}>
                 {visibleEntries.map((ent) => {
                   const cat = categoryMap.get(ent.category_id);
-                  const color = cat?.color || "#38BDF8";
+                  const isTask =
+                    (cat?.kind === "TASK" || ent.task_status !== null) &&
+                    !isCategoryAlert(cat);
+                  const fallbackColor = isTask ? "#F59E0B" : "#6366F1";
+                  const color = cat?.color || fallbackColor;
                   return (
                     <View
                       key={ent.id}
@@ -1426,9 +1433,13 @@ export function CalendarMonthView({
               exactTimeLabel?: string,
             ) => {
               const cat = categoryMap.get(ent.category_id);
-              const isTask = cat?.kind === "TASK" && !isCategoryAlert(cat);
+              const isTask =
+                (cat?.kind === "TASK" || ent.task_status !== null) &&
+                !isCategoryAlert(cat);
               const isCompleted = isTask && ent.task_status === "DONE";
-              const catColor = cat?.color || "#38BDF8";
+              const fallbackCatName = isTask ? "Tareas" : "Notas";
+              const fallbackCatColor = isTask ? "#F59E0B" : "#6366F1";
+              const catColor = cat?.color || fallbackCatColor;
               const timeNorm =
                 normalizeUtcIso(ent.occurred_at) || ent.occurred_at;
               const timeStr = timeNorm
@@ -1484,7 +1495,7 @@ export function CalendarMonthView({
                         style={[styles.catBadge, { backgroundColor: catColor }]}
                       >
                         <Text style={styles.catBadgeText}>
-                          {cat?.name || "General"}
+                          {cat?.name || fallbackCatName}
                         </Text>
                       </View>
 
