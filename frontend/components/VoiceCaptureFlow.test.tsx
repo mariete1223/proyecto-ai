@@ -809,5 +809,15 @@ describe("VoiceCaptureFlow Component (Task 31)", () => {
 
       expect(input.props.value).toBe(longDictation);
     });
+
+    it("renders Toca para Dictar button inside pinned bottom dock (#144)", async () => {
+      const { getByTestId } = await render(
+        <VoiceCaptureFlow db={db} userId={userId} />,
+      );
+      const pinnedDock = getByTestId("pinned-dictate-dock");
+      expect(pinnedDock).toBeTruthy();
+      expect(getByTestId("btn-start-listening")).toBeTruthy();
+      expect(getByTestId("voice-commands-guide")).toBeTruthy();
+    });
   });
 });

@@ -59,15 +59,16 @@ export function MobileHomeVoiceView({
   }, [db, userId, refreshSignal]);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      testID="mobile-home-voice-view"
-    >
+    <View style={styles.container} testID="mobile-home-voice-view">
       {!activeVoiceModal ? (
         <View style={styles.mainLayoutWrapper}>
-          {/* Upper Reading Zone: Title & Commands Cheatsheet */}
-          <View style={styles.readingSection}>
+          {/* Upper Reading Zone: Scrollable Title & Commands Cheatsheet */}
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContentContainer}
+            testID="mobile-home-scroll-area"
+            showsVerticalScrollIndicator={true}
+          >
             <View style={styles.titleCard}>
               <Text style={styles.heroTitle}>Dictado y Captura de Voz</Text>
               <Text style={styles.heroSubtitle}>
@@ -158,9 +159,9 @@ export function MobileHomeVoiceView({
                 </View>
               )}
             </View>
-          </View>
+          </ScrollView>
 
-          {/* Lower Thumb Zone: Action Dock (Big Mic & Quick Actions) */}
+          {/* Lower Thumb Zone: Pinned Action Dock (Big Mic & Quick Actions) */}
           <View style={styles.thumbZoneCard} testID="mobile-thumb-zone-card">
             <View style={styles.thumbZoneHeaderRow}>
               <View style={styles.thumbZoneGlowDot} />
@@ -206,32 +207,42 @@ export function MobileHomeVoiceView({
         </View>
       ) : (
         /* Voice Capture Component Overlay Modal / Container */
-        <View style={styles.voiceModalCard} testID="mobile-voice-capture-panel">
-          <View style={styles.voiceModalHeader}>
-            <Text style={styles.voiceModalTitle}>🎙️ Captura de Voz Activa</Text>
+        <ScrollView
+          style={styles.voiceModalScrollView}
+          contentContainerStyle={styles.voiceModalContentContainer}
+        >
+          <View
+            style={styles.voiceModalCard}
+            testID="mobile-voice-capture-panel"
+          >
+            <View style={styles.voiceModalHeader}>
+              <Text style={styles.voiceModalTitle}>
+                🎙️ Captura de Voz Activa
+              </Text>
 
-            <Pressable
-              testID="btn-close-mobile-voice"
-              style={styles.closeModalButton}
-              onPress={() => setActiveVoiceModal(false)}
-            >
-              <Text style={styles.closeModalText}>✕ Cerrar</Text>
-            </Pressable>
+              <Pressable
+                testID="btn-close-mobile-voice"
+                style={styles.closeModalButton}
+                onPress={() => setActiveVoiceModal(false)}
+              >
+                <Text style={styles.closeModalText}>✕ Cerrar</Text>
+              </Pressable>
+            </View>
+
+            <VoiceCaptureFlow
+              db={db}
+              userId={userId}
+              saveMode="PREVIEW_BEFORE_SAVE"
+              onEntryCreated={(createdId) => {
+                setActiveVoiceModal(false);
+                onEntryCreated?.(createdId);
+              }}
+              onClose={() => setActiveVoiceModal(false)}
+            />
           </View>
-
-          <VoiceCaptureFlow
-            db={db}
-            userId={userId}
-            saveMode="PREVIEW_BEFORE_SAVE"
-            onEntryCreated={(createdId) => {
-              setActiveVoiceModal(false);
-              onEntryCreated?.(createdId);
-            }}
-            onClose={() => setActiveVoiceModal(false)}
-          />
-        </View>
+        </ScrollView>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -248,7 +259,21 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "space-between",
     width: "100%",
-    gap: 16,
+  },
+  scrollArea: {
+    flex: 1,
+    width: "100%",
+  },
+  scrollContentContainer: {
+    paddingBottom: 16,
+  },
+  voiceModalScrollView: {
+    flex: 1,
+    width: "100%",
+  },
+  voiceModalContentContainer: {
+    flexGrow: 1,
+    paddingBottom: 24,
   },
   readingSection: {
     width: "100%",

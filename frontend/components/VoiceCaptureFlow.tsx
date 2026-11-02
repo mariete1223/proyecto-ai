@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -501,261 +502,284 @@ export function VoiceCaptureFlow({
       {currentStep === "DICTATE" ? (
         /* SCREEN 1: DICTATE SCREEN */
         <View style={styles.screenContainer}>
-          {/* Hero Voice Dictation Button - Rendered first (#89) */}
-          <View style={styles.heroButtonContainer}>
-            {voiceState === "LISTENING" || Boolean(transcript.trim()) ? (
-              <Pressable
-                testID="btn-stop-listening"
-                style={styles.heroStopButton}
-                onPress={handleStopListening}
-              >
-                <View style={styles.heroButtonContent}>
-                  <Text style={styles.heroButtonIcon}>⏹️</Text>
-                  <View style={styles.heroButtonTextCol}>
-                    <Text style={styles.heroStopButtonTitle}>
-                      Detener y Procesar
+          {/* Scrollable Upper Area for Live Dictation and Voice Guide (#144) */}
+          <ScrollView
+            style={styles.dictateScrollArea}
+            contentContainerStyle={styles.dictateScrollContent}
+            showsVerticalScrollIndicator={true}
+          >
+            {/* Live Dictation Display Box - Simplified and Real-Time (#85, #89) */}
+            {showLiveDictation ? (
+              <View style={styles.liveDictationBox} testID="live-dictation-box">
+                <View style={styles.liveDictationHeaderRow}>
+                  {voiceState === "LISTENING" ? (
+                    <View style={styles.liveListeningBadge}>
+                      <View style={styles.pulsingDot} />
+                      <Text style={styles.liveListeningBadgeText}>
+                        EN DIRECTO
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.liveDictationSubtleLabel}>
+                      Transcripción en directo
                     </Text>
-                    <Text style={styles.heroStopButtonSubtitle}>
-                      Toca para finalizar la grabación y ver el resultado
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            ) : (
-              <Pressable
-                testID="btn-start-listening"
-                style={styles.heroListenButton}
-                onPress={handleStartListening}
-              >
-                <View style={styles.heroButtonContent}>
-                  <Text style={styles.heroButtonIcon}>🎙️</Text>
-                  <View style={styles.heroButtonTextCol}>
-                    <Text style={styles.heroButtonTitle}>Toca para Dictar</Text>
-                    <Text style={styles.heroButtonSubtitle}>
-                      Presiona aquí y habla con comandos o texto libre
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            )}
-          </View>
+                  )}
 
-          {/* Voice Wave Visualizer indicator */}
-          {voiceState === "LISTENING" && (
-            <View style={styles.waveVisualizer} testID="voice-wave-visualizer">
-              <View style={[styles.waveBar, { height: 18 }]} />
-              <View style={[styles.waveBar, { height: 36 }]} />
-              <View style={[styles.waveBar, { height: 24 }]} />
-              <View style={[styles.waveBar, { height: 42 }]} />
-              <View style={[styles.waveBar, { height: 30 }]} />
-              <View style={[styles.waveBar, { height: 20 }]} />
-            </View>
-          )}
-
-          {/* Live Dictation Display Box - Simplified and Real-Time (#85, #89) */}
-          {showLiveDictation ? (
-            <View style={styles.liveDictationBox} testID="live-dictation-box">
-              <View style={styles.liveDictationHeaderRow}>
-                {voiceState === "LISTENING" ? (
-                  <View style={styles.liveListeningBadge}>
-                    <View style={styles.pulsingDot} />
-                    <Text style={styles.liveListeningBadgeText}>
-                      EN DIRECTO
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.liveDictationSubtleLabel}>
-                    Transcripción en directo
-                  </Text>
-                )}
-
-                {/* Real-time detected entity breakdown (#85, #95) */}
-                {liveParsed &&
-                  (liveParsed.categoryName ||
-                    liveParsed.occurredAt ||
-                    (liveParsed.tagNames &&
-                      liveParsed.tagNames.length > 0)) && (
-                    <View
-                      style={styles.liveParsedEntitiesRow}
-                      testID="live-parsed-entities"
-                    >
-                      {liveParsed.categoryName && (
-                        <View style={styles.liveEntityBadge}>
-                          <Text style={styles.liveEntityBadgeText}>
-                            📁 {liveParsed.categoryName}
-                          </Text>
-                        </View>
-                      )}
-                      {liveParsed.occurredAt && (
-                        <View style={styles.liveEntityBadge}>
-                          <Text style={styles.liveEntityBadgeText}>
-                            📅 {liveParsed.occurredAt.split("T")[0]}
-                          </Text>
-                        </View>
-                      )}
-                      {liveParsed.tagNames &&
-                        liveParsed.tagNames.map((tag) => (
-                          <View key={tag} style={styles.liveEntityTagBadge}>
-                            <Text style={styles.liveEntityTagBadgeText}>
-                              #{tag}
+                  {/* Real-time detected entity breakdown (#85, #95) */}
+                  {liveParsed &&
+                    (liveParsed.categoryName ||
+                      liveParsed.occurredAt ||
+                      (liveParsed.tagNames &&
+                        liveParsed.tagNames.length > 0)) && (
+                      <View
+                        style={styles.liveParsedEntitiesRow}
+                        testID="live-parsed-entities"
+                      >
+                        {liveParsed.categoryName && (
+                          <View style={styles.liveEntityBadge}>
+                            <Text style={styles.liveEntityBadgeText}>
+                              📁 {liveParsed.categoryName}
                             </Text>
                           </View>
-                        ))}
-                    </View>
-                  )}
+                        )}
+                        {liveParsed.occurredAt && (
+                          <View style={styles.liveEntityBadge}>
+                            <Text style={styles.liveEntityBadgeText}>
+                              📅 {liveParsed.occurredAt.split("T")[0]}
+                            </Text>
+                          </View>
+                        )}
+                        {liveParsed.tagNames &&
+                          liveParsed.tagNames.map((tag) => (
+                            <View key={tag} style={styles.liveEntityTagBadge}>
+                              <Text style={styles.liveEntityTagBadgeText}>
+                                #{tag}
+                              </Text>
+                            </View>
+                          ))}
+                      </View>
+                    )}
+                </View>
+
+                <View style={styles.manualTranscriptRow}>
+                  <TextInput
+                    testID="input-transcript"
+                    style={styles.transcriptInput}
+                    placeholder="Escribe o edita el texto aquí..."
+                    placeholderTextColor="#64748B"
+                    value={transcript}
+                    multiline={true}
+                    numberOfLines={3}
+                    scrollEnabled={true}
+                    selection={
+                      voiceState === "LISTENING"
+                        ? { start: transcript.length, end: transcript.length }
+                        : undefined
+                    }
+                    onChangeText={(text) => {
+                      transcriptRef.current = text;
+                      setTranscript(text);
+                    }}
+                  />
+                </View>
+              </View>
+            ) : (
+              <TextInput
+                testID="input-transcript"
+                style={{
+                  width: 0,
+                  height: 0,
+                  opacity: 0,
+                  position: "absolute",
+                }}
+                value={transcript}
+                onChangeText={(text) => {
+                  transcriptRef.current = text;
+                  setTranscript(text);
+                }}
+              />
+            )}
+
+            {/* Mobile Keyboard Dictation Notice if WebSpeech is unsupported in Expo Go */}
+            {typeof window !== "undefined" &&
+              !(
+                "SpeechRecognition" in window ||
+                "webkitSpeechRecognition" in window
+              ) && (
+                <View
+                  style={styles.mobileDictationHintBox}
+                  testID="mobile-dictation-hint"
+                >
+                  <Text style={styles.mobileDictationHintText}>
+                    💡{" "}
+                    <Text style={{ fontWeight: "700" }}>
+                      Dictado por Móvil:
+                    </Text>{" "}
+                    En Expo Go (iOS), toca la casilla superior de texto y
+                    presiona el ícono de micrófono 🎙️ en la barra espaciadora de
+                    tu teclado nativo para dictar con tu voz.
+                  </Text>
+                </View>
+              )}
+
+            {/* Visual Voice Commands Guide (Dynamic) */}
+            <View style={styles.guideContainer} testID="voice-commands-guide">
+              <View style={styles.guideHeaderRow}>
+                <Text style={styles.guideHeader}>
+                  💡 Comandos de Voz Disponibles:
+                </Text>
               </View>
 
-              <View style={styles.manualTranscriptRow}>
-                <TextInput
-                  testID="input-transcript"
-                  style={styles.transcriptInput}
-                  placeholder="Escribe o edita el texto aquí..."
-                  placeholderTextColor="#64748B"
-                  value={transcript}
-                  multiline={true}
-                  numberOfLines={3}
-                  scrollEnabled={true}
-                  selection={
-                    voiceState === "LISTENING"
-                      ? { start: transcript.length, end: transcript.length }
-                      : undefined
-                  }
-                  onChangeText={(text) => {
-                    transcriptRef.current = text;
-                    setTranscript(text);
-                  }}
-                />
+              <View style={styles.guideGrid}>
+                {/* Dynamic Categories */}
+                <View style={styles.guideRowColumn}>
+                  <View style={styles.guideRowHeader}>
+                    <Text style={styles.guideBadgeCat}>
+                      📁 Categorías ({categories.length})
+                    </Text>
+                    <Text style={styles.guideSubtext}>
+                      Comienza diciendo el comando de la categoría:
+                    </Text>
+                  </View>
+                  <View
+                    style={styles.catCommandsWrap}
+                    testID="help-category-commands"
+                  >
+                    {categories.map((cat) => (
+                      <View
+                        key={cat.id}
+                        style={[
+                          styles.catCommandChip,
+                          { borderColor: cat.color || "#38BDF8" },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.catDot,
+                            { backgroundColor: cat.color || "#38BDF8" },
+                          ]}
+                        />
+                        <Text style={styles.catCommandText}>
+                          {`"${cat.voice_command || cat.name.toLowerCase()}"`}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Dates & Times */}
+                <View style={styles.guideRow}>
+                  <Text style={styles.guideBadgeDate}>📅 Fechas & Horas</Text>
+                  <Text style={styles.guideText}>
+                    Di <Text style={styles.boldCode}>{'"fecha hoy"'}</Text>,{" "}
+                    <Text style={styles.boldCode}>{'"para el 6 del 10"'}</Text>,{" "}
+                    <Text style={styles.boldCode}>{'"pasado mañana"'}</Text> o{" "}
+                    <Text style={styles.boldCode}>{'"a las 16:00"'}</Text>
+                  </Text>
+                </View>
+
+                {/* Task priority */}
+                <View style={styles.guideRow} testID="help-priority-command">
+                  <Text style={styles.guideBadgeDate}>Prioridad de tareas</Text>
+                  <Text style={styles.guideText}>
+                    Solo para tareas, di{" "}
+                    <Text style={styles.boldCode}>{'"prioridad alta"'}</Text>,{" "}
+                    <Text style={styles.boldCode}>{'"prioridad media"'}</Text> o{" "}
+                    <Text style={styles.boldCode}>{'"prioridad baja"'}</Text>.
+                  </Text>
+                </View>
+
+                {/* Dynamic Tags */}
+                <View style={styles.guideRowColumn}>
+                  <View style={styles.guideRowHeader}>
+                    <Text style={styles.guideBadgeTag}>
+                      🏷️ Etiquetas ({uniqueTags.length})
+                    </Text>
+                    <Text style={styles.guideSubtext}>
+                      Di <Text style={styles.boldCode}>{'"etiquetas"'}</Text>{" "}
+                      seguido de:
+                    </Text>
+                  </View>
+                  <View
+                    style={styles.catCommandsWrap}
+                    testID="help-tag-commands"
+                  >
+                    {uniqueTags.length === 0 ? (
+                      <Text style={styles.guideText}>
+                        Di{" "}
+                        <Text style={styles.boldCode}>
+                          {'"etiquetas urgente"'}
+                        </Text>
+                      </Text>
+                    ) : (
+                      uniqueTags.map((tag) => (
+                        <View key={tag.id} style={styles.tagCommandChip}>
+                          <Text
+                            style={styles.tagCommandText}
+                          >{`#${tag.name}`}</Text>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                </View>
               </View>
             </View>
-          ) : (
-            <TextInput
-              testID="input-transcript"
-              style={{ width: 0, height: 0, opacity: 0, position: "absolute" }}
-              value={transcript}
-              onChangeText={(text) => {
-                transcriptRef.current = text;
-                setTranscript(text);
-              }}
-            />
-          )}
+          </ScrollView>
 
-          {/* Mobile Keyboard Dictation Notice if WebSpeech is unsupported in Expo Go */}
-          {typeof window !== "undefined" &&
-            !(
-              "SpeechRecognition" in window ||
-              "webkitSpeechRecognition" in window
-            ) && (
+          {/* Bottom Thumb Zone: Voice Wave Visualizer & Dictation Trigger (#144) */}
+          <View style={styles.pinnedDictateDock} testID="pinned-dictate-dock">
+            {voiceState === "LISTENING" && (
               <View
-                style={styles.mobileDictationHintBox}
-                testID="mobile-dictation-hint"
+                style={styles.waveVisualizer}
+                testID="voice-wave-visualizer"
               >
-                <Text style={styles.mobileDictationHintText}>
-                  💡{" "}
-                  <Text style={{ fontWeight: "700" }}>Dictado por Móvil:</Text>{" "}
-                  En Expo Go (iOS), toca la casilla superior de texto y presiona
-                  el ícono de micrófono 🎙️ en la barra espaciadora de tu teclado
-                  nativo para dictar con tu voz.
-                </Text>
+                <View style={[styles.waveBar, { height: 18 }]} />
+                <View style={[styles.waveBar, { height: 36 }]} />
+                <View style={[styles.waveBar, { height: 24 }]} />
+                <View style={[styles.waveBar, { height: 42 }]} />
+                <View style={[styles.waveBar, { height: 30 }]} />
+                <View style={[styles.waveBar, { height: 20 }]} />
               </View>
             )}
 
-          {/* Visual Voice Commands Guide (Dynamic) */}
-          <View style={styles.guideContainer} testID="voice-commands-guide">
-            <View style={styles.guideHeaderRow}>
-              <Text style={styles.guideHeader}>
-                💡 Comandos de Voz Disponibles:
-              </Text>
-            </View>
-
-            <View style={styles.guideGrid}>
-              {/* Dynamic Categories */}
-              <View style={styles.guideRowColumn}>
-                <View style={styles.guideRowHeader}>
-                  <Text style={styles.guideBadgeCat}>
-                    📁 Categorías ({categories.length})
-                  </Text>
-                  <Text style={styles.guideSubtext}>
-                    Comienza diciendo el comando de la categoría:
-                  </Text>
-                </View>
-                <View
-                  style={styles.catCommandsWrap}
-                  testID="help-category-commands"
+            <View style={styles.heroButtonContainer}>
+              {voiceState === "LISTENING" || Boolean(transcript.trim()) ? (
+                <Pressable
+                  testID="btn-stop-listening"
+                  style={styles.heroStopButton}
+                  onPress={handleStopListening}
                 >
-                  {categories.map((cat) => (
-                    <View
-                      key={cat.id}
-                      style={[
-                        styles.catCommandChip,
-                        { borderColor: cat.color || "#38BDF8" },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.catDot,
-                          { backgroundColor: cat.color || "#38BDF8" },
-                        ]}
-                      />
-                      <Text style={styles.catCommandText}>
-                        {`"${cat.voice_command || cat.name.toLowerCase()}"`}
+                  <View style={styles.heroButtonContent}>
+                    <Text style={styles.heroButtonIcon}>⏹️</Text>
+                    <View style={styles.heroButtonTextCol}>
+                      <Text style={styles.heroStopButtonTitle}>
+                        Detener y Procesar
+                      </Text>
+                      <Text style={styles.heroStopButtonSubtitle}>
+                        Toca para finalizar la grabación y ver el resultado
                       </Text>
                     </View>
-                  ))}
-                </View>
-              </View>
-
-              {/* Dates & Times */}
-              <View style={styles.guideRow}>
-                <Text style={styles.guideBadgeDate}>📅 Fechas & Horas</Text>
-                <Text style={styles.guideText}>
-                  Di <Text style={styles.boldCode}>{'"fecha hoy"'}</Text>,{" "}
-                  <Text style={styles.boldCode}>{'"para el 6 del 10"'}</Text>,{" "}
-                  <Text style={styles.boldCode}>{'"pasado mañana"'}</Text> o{" "}
-                  <Text style={styles.boldCode}>{'"a las 16:00"'}</Text>
-                </Text>
-              </View>
-
-              {/* Task priority */}
-              <View style={styles.guideRow} testID="help-priority-command">
-                <Text style={styles.guideBadgeDate}>Prioridad de tareas</Text>
-                <Text style={styles.guideText}>
-                  Solo para tareas, di{" "}
-                  <Text style={styles.boldCode}>{'"prioridad alta"'}</Text>,{" "}
-                  <Text style={styles.boldCode}>{'"prioridad media"'}</Text> o{" "}
-                  <Text style={styles.boldCode}>{'"prioridad baja"'}</Text>.
-                </Text>
-              </View>
-
-              {/* Dynamic Tags */}
-              <View style={styles.guideRowColumn}>
-                <View style={styles.guideRowHeader}>
-                  <Text style={styles.guideBadgeTag}>
-                    🏷️ Etiquetas ({uniqueTags.length})
-                  </Text>
-                  <Text style={styles.guideSubtext}>
-                    Di <Text style={styles.boldCode}>{'"etiquetas"'}</Text>{" "}
-                    seguido de:
-                  </Text>
-                </View>
-                <View style={styles.catCommandsWrap} testID="help-tag-commands">
-                  {uniqueTags.length === 0 ? (
-                    <Text style={styles.guideText}>
-                      Di{" "}
-                      <Text style={styles.boldCode}>
-                        {'"etiquetas urgente"'}
+                  </View>
+                </Pressable>
+              ) : (
+                <Pressable
+                  testID="btn-start-listening"
+                  style={styles.heroListenButton}
+                  onPress={handleStartListening}
+                >
+                  <View style={styles.heroButtonContent}>
+                    <Text style={styles.heroButtonIcon}>🎙️</Text>
+                    <View style={styles.heroButtonTextCol}>
+                      <Text style={styles.heroButtonTitle}>
+                        Toca para Dictar
                       </Text>
-                    </Text>
-                  ) : (
-                    uniqueTags.map((tag) => (
-                      <View key={tag.id} style={styles.tagCommandChip}>
-                        <Text
-                          style={styles.tagCommandText}
-                        >{`#${tag.name}`}</Text>
-                      </View>
-                    ))
-                  )}
-                </View>
-              </View>
+                      <Text style={styles.heroButtonSubtitle}>
+                        Presiona aquí y habla con comandos o texto libre
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              )}
             </View>
           </View>
         </View>
@@ -1150,6 +1174,23 @@ const styles = StyleSheet.create({
     padding: 16,
     width: "100%",
     flex: 1,
+  },
+  screenContainer: {
+    flex: 1,
+    justifyContent: "space-between",
+    width: "100%",
+  },
+  dictateScrollArea: {
+    flex: 1,
+    width: "100%",
+  },
+  dictateScrollContent: {
+    paddingBottom: 16,
+  },
+  pinnedDictateDock: {
+    width: "100%",
+    marginTop: "auto",
+    paddingTop: 8,
   },
   title: {
     fontSize: 20,
@@ -1774,9 +1815,6 @@ const styles = StyleSheet.create({
   },
   stepBadgeTextResult: {
     color: "#10B981",
-  },
-  screenContainer: {
-    width: "100%",
   },
   liveDictationBox: {
     backgroundColor: "#0B132B",

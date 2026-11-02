@@ -33,6 +33,7 @@ describe("MobileHomeVoiceView Component", () => {
       );
 
     expect(getByTestId("mobile-home-voice-view")).toBeTruthy();
+    expect(getByTestId("mobile-home-scroll-area")).toBeTruthy();
     expect(getByTestId("mobile-thumb-zone-card")).toBeTruthy();
     expect(getByTestId("btn-big-mic-start")).toBeTruthy();
     expect(
