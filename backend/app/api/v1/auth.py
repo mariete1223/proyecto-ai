@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -194,7 +195,9 @@ def logout(
     return MessageResponse(message="Successfully logged out.")
 
 
-@router.post("/refresh", response_model=TokenResponse, summary="Refresh JWT access token")
+@router.post(
+    "/refresh", response_model=TokenResponse, summary="Refresh JWT access token"
+)
 def refresh_token(
     request: Request,
     db: Annotated[Session, Depends(get_db)],

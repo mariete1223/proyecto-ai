@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -23,15 +24,11 @@ from app.models.domain import (
 from app.models.enums import CategoryKind, TombstoneEntity
 from app.schemas.sync import SyncAction, SyncClientChange
 from app.services.category_service import CANONICAL_CATEGORY_IDS
-from app.services.sync_service import (
-    _resolve_category_id_for_user,
-    process_sync_pull,
-    process_sync_push,
-)
+from app.services.sync_service import process_sync_pull, process_sync_push
 
 
 @pytest.fixture
-def memory_db() -> Session:
+def memory_db() -> Generator[Session, None, None]:
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -39,7 +36,9 @@ def memory_db() -> Session:
     )
 
     @event.listens_for(engine, "connect")
-    def register_sqlite_functions(dbapi_connection: Any, connection_record: Any) -> None:
+    def register_sqlite_functions(
+        dbapi_connection: Any, connection_record: Any
+    ) -> None:
         dbapi_connection.create_function(
             "btrim", 1, lambda val: val.strip() if val is not None else None
         )
@@ -75,7 +74,9 @@ def memory_db() -> Session:
         session.close()
 
 
-def test_sync_push_resolves_canonical_eventos_to_legacy_category(memory_db: Session) -> None:
+def test_sync_push_resolves_canonical_eventos_to_legacy_category(
+    memory_db: Session,
+) -> None:
     now = datetime.now(UTC)
     # Another user already owns canonical EVENTOS ID
     other_user = User(
@@ -181,14 +182,18 @@ def test_sync_push_resolves_canonical_eventos_to_legacy_category(memory_db: Sess
     assert len(results) == 1
     assert results[0].status.value == "APPLIED"
 
-    saved_entry = memory_db.execute(select(Entry).where(Entry.id == entry_id)).scalar_one()
+    saved_entry = memory_db.execute(
+        select(Entry).where(Entry.id == entry_id)
+    ).scalar_one()
     # It must NOT have mutated to Alerta!
     assert saved_entry.category_id != alerta_legacy_id
     # It must resolve to the user's Eventos category
     assert saved_entry.category_id == eventos_legacy_id
 
 
-def test_sync_push_unknown_category_falls_back_to_neutral_not_alerta(memory_db: Session) -> None:
+def test_sync_push_unknown_category_falls_back_to_neutral_not_alerta(
+    memory_db: Session,
+) -> None:
     now = datetime.now(UTC)
     # Other user owns canonical NOTAS ID
     other_user = User(
@@ -289,7 +294,9 @@ def test_sync_push_unknown_category_falls_back_to_neutral_not_alerta(memory_db: 
     assert len(results) == 1
     assert results[0].status.value == "APPLIED"
 
-    saved_entry = memory_db.execute(select(Entry).where(Entry.id == entry_id)).scalar_one()
+    saved_entry = memory_db.execute(
+        select(Entry).where(Entry.id == entry_id)
+    ).scalar_one()
     # It must fall back to Notas, NOT Alerta!
     assert saved_entry.category_id == notas_legacy_id
     assert saved_entry.category_id != cat_alerta.id
@@ -377,10 +384,11 @@ def test_sync_pull_maps_user_legacy_category_ids_to_canonical_ids(
 
     changes, _, _, _ = process_sync_pull(memory_db, user.id)
     entry_changes = [
-        c for c in changes if c.entity_type == TombstoneEntity.ENTRY and c.entity_id == entry_id
+        c
+        for c in changes
+        if c.entity_type == TombstoneEntity.ENTRY and c.entity_id == entry_id
     ]
     assert len(entry_changes) == 1
     assert entry_changes[0].payload["category_id"] == str(
         CANONICAL_CATEGORY_IDS["eventos"]
     )
-

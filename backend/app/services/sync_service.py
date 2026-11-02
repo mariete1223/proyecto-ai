@@ -759,7 +759,9 @@ def _update_domain_model(
         if "reminder_offset_minutes" in payload:
             item.reminder_offset_minutes = int(payload["reminder_offset_minutes"] or 0)
         if item.reminder_enabled and item.occurred_at and not item.reminder_time:
-            item.reminder_time = item.occurred_at - timedelta(minutes=item.reminder_offset_minutes or 0)
+            item.reminder_time = item.occurred_at - timedelta(
+                minutes=item.reminder_offset_minutes or 0
+            )
     elif entity_type == TombstoneEntity.SAVE_PREFERENCE:
         if "mode" in payload:
             item.mode = SaveMode(payload["mode"])

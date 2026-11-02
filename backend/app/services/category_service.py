@@ -357,7 +357,8 @@ def delete_category(db: Session, user_id: uuid.UUID, category_id: uuid.UUID) -> 
     if (
         category.name_normalized in PROTECTED_SYSTEM_CATEGORY_NAMES
         or category.voice_command_normalized in PROTECTED_SYSTEM_CATEGORY_NAMES
-        or category.id in (CANONICAL_CATEGORY_IDS["tareas"], CANONICAL_CATEGORY_IDS["alerta"])
+        or category.id
+        in (CANONICAL_CATEGORY_IDS["tareas"], CANONICAL_CATEGORY_IDS["alerta"])
     ):
         raise ProtectedCategoryError(
             "Las categorías fijas del sistema (Tarea y Alerta) no se pueden eliminar."
@@ -365,17 +366,13 @@ def delete_category(db: Session, user_id: uuid.UUID, category_id: uuid.UUID) -> 
 
     # Reassign entries belonging to this category to Tareas or another existing category
     try:
-        other_cat = (
-            db.execute(
-                select(Category)
-                .where(
-                    Category.user_id == user_id,
-                    Category.id != category_id,
-                    Category.id == CANONICAL_CATEGORY_IDS["tareas"],
-                )
+        other_cat = db.execute(
+            select(Category).where(
+                Category.user_id == user_id,
+                Category.id != category_id,
+                Category.id == CANONICAL_CATEGORY_IDS["tareas"],
             )
-            .scalar_one_or_none()
-        )
+        ).scalar_one_or_none()
         if other_cat is None:
             other_cat = (
                 db.execute(

@@ -89,11 +89,15 @@ export function EntryForm({
               }
               const neutralCat =
                 cats.find((c) => {
-                  const norm = (c.name_normalized || c.name || "").toLowerCase().trim();
+                  const norm = (c.name_normalized || c.name || "")
+                    .toLowerCase()
+                    .trim();
                   return norm === "nota" || norm === "notas";
                 }) ||
                 cats.find((c) => {
-                  const norm = (c.name_normalized || c.name || "").toLowerCase().trim();
+                  const norm = (c.name_normalized || c.name || "")
+                    .toLowerCase()
+                    .trim();
                   return norm === "evento" || norm === "eventos";
                 }) ||
                 cats.find((c) => !isCategoryAlert(c) && c.kind !== "TASK") ||

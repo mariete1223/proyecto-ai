@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-from datetime import UTC, datetime
-import time
-from typing import Any, cast
 import uuid
+from collections.abc import Generator
+from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,7 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_db
-from app.core.auth import create_access_token, decode_access_token, decode_token_for_refresh
+from app.core.auth import create_access_token, decode_access_token
 from app.main import app
 from app.models.domain import User
 from app.services.user_service import create_user
@@ -60,11 +58,19 @@ def client(test_db_session: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
-def test_refresh_token_valid_header(client: TestClient, test_db_session: Session) -> None:
-    user = create_user(test_db_session, "user.refresh@example.com", "Password123!", is_verified=True)
-    token = create_access_token(user_id=str(user.id), email=user.email, expires_in_seconds=3600)
+def test_refresh_token_valid_header(
+    client: TestClient, test_db_session: Session
+) -> None:
+    user = create_user(
+        test_db_session, "user.refresh@example.com", "Password123!", is_verified=True
+    )
+    token = create_access_token(
+        user_id=str(user.id), email=user.email, expires_in_seconds=3600
+    )
 
-    res = client.post("/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"})
+    res = client.post(
+        "/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"}
+    )
     assert res.status_code == 200
     data = res.json()
     assert "access_token" in data
@@ -76,8 +82,12 @@ def test_refresh_token_valid_header(client: TestClient, test_db_session: Session
 
 
 def test_refresh_token_valid_body(client: TestClient, test_db_session: Session) -> None:
-    user = create_user(test_db_session, "user.body@example.com", "Password123!", is_verified=True)
-    token = create_access_token(user_id=str(user.id), email=user.email, expires_in_seconds=3600)
+    user = create_user(
+        test_db_session, "user.body@example.com", "Password123!", is_verified=True
+    )
+    token = create_access_token(
+        user_id=str(user.id), email=user.email, expires_in_seconds=3600
+    )
 
     res = client.post("/api/v1/auth/refresh", json={"token": token})
     assert res.status_code == 200
@@ -87,17 +97,25 @@ def test_refresh_token_valid_body(client: TestClient, test_db_session: Session) 
     assert payload["sub"] == str(user.id)
 
 
-def test_refresh_token_expired_within_grace(client: TestClient, test_db_session: Session) -> None:
-    user = create_user(test_db_session, "user.expired@example.com", "Password123!", is_verified=True)
+def test_refresh_token_expired_within_grace(
+    client: TestClient, test_db_session: Session
+) -> None:
+    user = create_user(
+        test_db_session, "user.expired@example.com", "Password123!", is_verified=True
+    )
     # Token expired 2 hours ago (-7200 seconds)
-    token = create_access_token(user_id=str(user.id), email=user.email, expires_in_seconds=-7200)
+    token = create_access_token(
+        user_id=str(user.id), email=user.email, expires_in_seconds=-7200
+    )
 
     # Standard decode_access_token should reject it
     with pytest.raises(Exception):
         decode_access_token(token)
 
     # But refresh endpoint accepts it within grace period!
-    res = client.post("/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"})
+    res = client.post(
+        "/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"}
+    )
     assert res.status_code == 200
     data = res.json()
     assert "access_token" in data
@@ -105,21 +123,37 @@ def test_refresh_token_expired_within_grace(client: TestClient, test_db_session:
     assert payload["sub"] == str(user.id)
 
 
-def test_refresh_token_expired_beyond_grace(client: TestClient, test_db_session: Session) -> None:
-    user = create_user(test_db_session, "user.ancient@example.com", "Password123!", is_verified=True)
+def test_refresh_token_expired_beyond_grace(
+    client: TestClient, test_db_session: Session
+) -> None:
+    user = create_user(
+        test_db_session, "user.ancient@example.com", "Password123!", is_verified=True
+    )
     # Token expired 35 days ago
-    token = create_access_token(user_id=str(user.id), email=user.email, expires_in_seconds=-35 * 86400)
+    token = create_access_token(
+        user_id=str(user.id), email=user.email, expires_in_seconds=-35 * 86400
+    )
 
-    res = client.post("/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"})
+    res = client.post(
+        "/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"}
+    )
     assert res.status_code == 401
     assert "expired" in res.json()["detail"].lower()
 
 
-def test_refresh_token_invalid_signature(client: TestClient, test_db_session: Session) -> None:
-    user = create_user(test_db_session, "user.fake@example.com", "Password123!", is_verified=True)
-    token = create_access_token(user_id=str(user.id), email=user.email, secret_key="different-secret")
+def test_refresh_token_invalid_signature(
+    client: TestClient, test_db_session: Session
+) -> None:
+    user = create_user(
+        test_db_session, "user.fake@example.com", "Password123!", is_verified=True
+    )
+    token = create_access_token(
+        user_id=str(user.id), email=user.email, secret_key="different-secret"
+    )
 
-    res = client.post("/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"})
+    res = client.post(
+        "/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"}
+    )
     assert res.status_code == 401
 
 
@@ -128,17 +162,30 @@ def test_refresh_token_missing(client: TestClient) -> None:
     assert res.status_code == 401
 
 
-def test_refresh_token_unverified_user(client: TestClient, test_db_session: Session) -> None:
-    user = create_user(test_db_session, "user.unverified@example.com", "Password123!", is_verified=False)
+def test_refresh_token_unverified_user(
+    client: TestClient, test_db_session: Session
+) -> None:
+    user = create_user(
+        test_db_session,
+        "user.unverified@example.com",
+        "Password123!",
+        is_verified=False,
+    )
     token = create_access_token(user_id=str(user.id), email=user.email)
 
-    res = client.post("/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"})
+    res = client.post(
+        "/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"}
+    )
     assert res.status_code == 403
 
 
-def test_refresh_token_nonexistent_user(client: TestClient, test_db_session: Session) -> None:
+def test_refresh_token_nonexistent_user(
+    client: TestClient, test_db_session: Session
+) -> None:
     random_id = str(uuid.uuid4())
     token = create_access_token(user_id=random_id, email="ghost@example.com")
 
-    res = client.post("/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"})
+    res = client.post(
+        "/api/v1/auth/refresh", headers={"Authorization": f"Bearer {token}"}
+    )
     assert res.status_code == 401

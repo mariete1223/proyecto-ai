@@ -285,7 +285,10 @@ describe("EntryForm Component", () => {
 
     // Enter content and submit without manually choosing any category
     await act(async () => {
-      fireEvent.changeText(getByTestId("input-content"), "Contenido sin tocar categoria");
+      fireEvent.changeText(
+        getByTestId("input-content"),
+        "Contenido sin tocar categoria",
+      );
     });
     await act(async () => {
       fireEvent.press(getByTestId("btn-submit-entry"));
@@ -306,4 +309,3 @@ describe("EntryForm Component", () => {
     expect(savedEntry?.reminder_enabled).toBe(0);
   });
 });
-

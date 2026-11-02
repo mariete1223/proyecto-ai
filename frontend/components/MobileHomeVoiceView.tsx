@@ -253,7 +253,10 @@ export function MobileHomeVoiceView({
           </ScrollView>
 
           {/* Lower Thumb Zone: Pinned Action Dock (Big Mic & Quick Actions) */}
-          <View style={styles.pinnedDockContainer} testID="mobile-pinned-dock-container">
+          <View
+            style={styles.pinnedDockContainer}
+            testID="mobile-pinned-dock-container"
+          >
             {/* Dock separator boundary that distinguishes the pinned dock from the scrollable feed above */}
             <View style={styles.dockSurfaceSeparator} />
 
