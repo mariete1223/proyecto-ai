@@ -453,8 +453,11 @@ export async function ensureCanonicalCategories(
 
   // Remapear categorías si tenían un UUID aleatorio viejo
   const canonicalMap: Record<string, string> = {
+    nota: CANONICAL_CATEGORIES.NOTAS.id,
     notas: CANONICAL_CATEGORIES.NOTAS.id,
+    tarea: CANONICAL_CATEGORIES.TAREAS.id,
     tareas: CANONICAL_CATEGORIES.TAREAS.id,
+    evento: CANONICAL_CATEGORIES.EVENTOS.id,
     eventos: CANONICAL_CATEGORIES.EVENTOS.id,
     alerta: CANONICAL_CATEGORIES.ALERTA.id,
     alertas: CANONICAL_CATEGORIES.ALERTA.id,

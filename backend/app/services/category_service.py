@@ -165,8 +165,53 @@ def create_category(
     return category
 
 
+def harmonize_canonical_category_ids_for_user(db: Session, user_id: uuid.UUID) -> None:
+    """Safely align legacy category IDs with canonical IDs for standard categories if no conflict exists."""
+    for item in INITIAL_CATEGORIES:
+        canonical_id: uuid.UUID = item["id"]
+        name_norm = normalize_text_key(item["name"])
+        plural_norm = name_norm + "s"
+
+        existing_canonical = db.execute(
+            select(Category).where(
+                Category.user_id == user_id, Category.id == canonical_id
+            )
+        ).scalar_one_or_none()
+        if existing_canonical is not None:
+            continue
+
+        # En BD multiusuario categories.id es primary key global; si ya está ocupado por otro usuario, no forzar
+        global_taken = db.execute(
+            select(Category).where(Category.id == canonical_id)
+        ).scalar_one_or_none()
+        if global_taken is not None:
+            continue
+
+        legacy_cat = db.execute(
+            select(Category).where(
+                Category.user_id == user_id,
+                Category.name_normalized.in_([name_norm, plural_norm]),
+            )
+        ).scalar_one_or_none()
+
+        if legacy_cat is not None:
+            old_id = legacy_cat.id
+            db.execute(
+                update(Entry)
+                .where(Entry.user_id == user_id, Entry.category_id == old_id)
+                .values(category_id=canonical_id)
+            )
+            db.execute(
+                update(Category)
+                .where(Category.user_id == user_id, Category.id == old_id)
+                .values(id=canonical_id)
+            )
+            db.flush()
+
+
 def seed_initial_categories(db: Session, user_id: uuid.UUID) -> list[Category]:
     """Idempotently seed standard MVP initial categories for a user."""
+    harmonize_canonical_category_ids_for_user(db, user_id)
     created_categories: list[Category] = []
     for item in INITIAL_CATEGORIES:
         kind = item["kind"]

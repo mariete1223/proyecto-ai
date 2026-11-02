@@ -264,4 +264,46 @@ describe("EntryForm Component", () => {
     expect(savedEntry).toBeTruthy();
     expect(savedEntry?.reminder_enabled).toBe(0);
   });
+
+  it("preselects neutral category (Notas) by default even if Alerta is alphabetically first", async () => {
+    // Add Alerta category which is alphabetically before Notas and Tareas
+    const alertaCat = await createLocalCategory(db, userId, {
+      name: "Alerta",
+      voice_command: "alerta",
+      kind: "STANDARD",
+    });
+
+    const { getByTestId, queryByTestId, findByTestId } = await render(
+      <EntryForm db={db} userId={userId} />,
+    );
+
+    // Wait for chips
+    await waitFor(() => {
+      expect(getByTestId(`cat-chip-${alertaCat.id}`)).toBeTruthy();
+      expect(getByTestId("input-content")).toBeTruthy();
+    });
+
+    // Enter content and submit without manually choosing any category
+    await act(async () => {
+      fireEvent.changeText(getByTestId("input-content"), "Contenido sin tocar categoria");
+    });
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-submit-entry"));
+    });
+
+    expect(await findByTestId("entry-form-success")).toBeTruthy();
+
+    const savedEntry = await db.getFirstAsync<{
+      category_id: string;
+      reminder_enabled: number;
+    }>(
+      `SELECT category_id, reminder_enabled FROM entries WHERE content = 'Contenido sin tocar categoria';`,
+    );
+
+    expect(savedEntry).toBeTruthy();
+    // Must NOT be Alerta
+    expect(savedEntry?.category_id).not.toBe(alertaCat.id);
+    expect(savedEntry?.reminder_enabled).toBe(0);
+  });
 });
+

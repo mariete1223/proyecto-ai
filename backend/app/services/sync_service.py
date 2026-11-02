@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.domain import (
@@ -358,6 +358,150 @@ def _process_single_change(
     )
 
 
+def _resolve_category_id_for_user(
+    db: Session,
+    user_id: uuid.UUID,
+    raw_cat_id: Any,
+    default_entity_id: uuid.UUID,
+    is_task: bool = False,
+) -> uuid.UUID:
+    """Resolve category ID for a user, handling exact matches, canonical ID aliases, and neutral fallbacks."""
+    cat_id = uuid.UUID(str(raw_cat_id)) if raw_cat_id else default_entity_id
+
+    # 1. Exact match on user's category
+    stmt_cat = select(Category).where(
+        Category.id == cat_id, Category.user_id == user_id
+    )
+    if db.execute(stmt_cat).scalar_one_or_none() is not None:
+        return cat_id
+
+    # 2. Canonical category alias rules (legacy UUID mapping)
+    canonical_alias_rules: dict[uuid.UUID, list[Any]] = {
+        CANONICAL_CATEGORY_IDS.get(
+            "eventos", uuid.UUID("45e5d9a3-b1d9-4268-acbf-cbe98c0d1ccd")
+        ): [
+            Category.kind == CategoryKind.EVENT,
+            Category.name_normalized.in_(["evento", "eventos"]),
+            Category.voice_command_normalized.in_(["evento", "eventos"]),
+        ],
+        CANONICAL_CATEGORY_IDS.get(
+            "notas", uuid.UUID("740d7f77-ae95-4898-a80b-4a31bc58061b")
+        ): [
+            Category.name_normalized.in_(["nota", "notas"]),
+            Category.voice_command_normalized.in_(["nota", "notas"]),
+        ],
+        CANONICAL_CATEGORY_IDS.get(
+            "tareas", uuid.UUID("20e8f404-c429-43e8-8cf8-af9d51416d58")
+        ): [
+            Category.kind == CategoryKind.TASK,
+            Category.name_normalized.in_(["tarea", "tareas"]),
+            Category.voice_command_normalized.in_(["tarea", "tareas"]),
+        ],
+        CANONICAL_CATEGORY_IDS.get(
+            "proyectos", uuid.UUID("994777f6-09d3-4ef9-876a-3b29d09d5fa4")
+        ): [
+            Category.name_normalized.in_(["proyecto", "proyectos"]),
+            Category.voice_command_normalized.in_(["proyecto", "proyectos"]),
+        ],
+        CANONICAL_CATEGORY_IDS.get(
+            "alerta", uuid.UUID("c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9")
+        ): [
+            Category.name_normalized.in_(["alerta", "alertas"]),
+            Category.voice_command_normalized.in_(["alerta", "alertas"]),
+        ],
+    }
+
+    if cat_id in canonical_alias_rules:
+        filters = canonical_alias_rules[cat_id]
+        alias_cat = (
+            db.execute(
+                select(Category).where(
+                    Category.user_id == user_id,
+                    or_(*filters),
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if alias_cat is not None:
+            return alias_cat.id
+
+    # 3. If payload indicates task, look for task category
+    if is_task:
+        task_cat = (
+            db.execute(
+                select(Category).where(
+                    Category.user_id == user_id,
+                    or_(
+                        Category.id == CANONICAL_CATEGORY_IDS.get("tareas"),
+                        Category.kind == CategoryKind.TASK,
+                        Category.name_normalized.in_(["tarea", "tareas"]),
+                    ),
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if task_cat is not None:
+            return task_cat.id
+
+    # 4. Neutral fallbacks (never blindly fall back to Alerta)
+    neutral_cat = (
+        db.execute(
+            select(Category).where(
+                Category.user_id == user_id,
+                Category.name_normalized.in_(["nota", "notas"]),
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if neutral_cat is not None:
+        return neutral_cat.id
+
+    neutral_cat = (
+        db.execute(
+            select(Category).where(
+                Category.user_id == user_id,
+                Category.name_normalized.in_(["evento", "eventos"]),
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if neutral_cat is not None:
+        return neutral_cat.id
+
+    neutral_cat = (
+        db.execute(
+            select(Category).where(
+                Category.user_id == user_id,
+                Category.kind != CategoryKind.TASK,
+                ~Category.name_normalized.in_(["alerta", "alertas"]),
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if neutral_cat is not None:
+        return neutral_cat.id
+
+    # 5. Last resort fallback
+    last_resort = (
+        db.execute(
+            select(Category)
+            .where(Category.user_id == user_id)
+            .order_by(Category.created_at.asc())
+        )
+        .scalars()
+        .first()
+    )
+    if last_resort is not None:
+        return last_resort.id
+
+    return cat_id
+
+
 def _create_domain_model(
     db: Session,
     entity_type: TombstoneEntity,
@@ -414,38 +558,9 @@ def _create_domain_model(
         elif rec_str and not status_str:
             status_str = "PENDING"
         cat_id_raw = payload.get("category_id")
-        cat_id = uuid.UUID(cat_id_raw) if cat_id_raw else entity_id
-
-        # Comprobar que la categoría exista para evitar IntegrityError / Foreign Key failure
-        stmt_cat = select(Category).where(
-            Category.id == cat_id, Category.user_id == user_id
+        cat_id = _resolve_category_id_for_user(
+            db, user_id, cat_id_raw, entity_id, is_task=bool(status_str)
         )
-        if db.execute(stmt_cat).scalar_one_or_none() is None:
-            fallback_cat = None
-            if status_str:
-                fallback_cat = (
-                    db.execute(
-                        select(Category).where(
-                            Category.user_id == user_id,
-                            (Category.id == CANONICAL_CATEGORY_IDS["tareas"])
-                            | (Category.kind == CategoryKind.TASK),
-                        )
-                    )
-                    .scalars()
-                    .first()
-                )
-            if fallback_cat is None:
-                fallback_cat = (
-                    db.execute(
-                        select(Category)
-                        .where(Category.user_id == user_id)
-                        .order_by(Category.created_at.asc())
-                    )
-                    .scalars()
-                    .first()
-                )
-            if fallback_cat is not None:
-                cat_id = fallback_cat.id
 
         session_id_raw = payload.get("capture_session_id")
         session_id = uuid.UUID(session_id_raw) if session_id_raw else None
@@ -562,26 +677,10 @@ def _update_domain_model(
         if "content" in payload:
             item.content = str(payload["content"]).strip()
         if "category_id" in payload:
-            new_cat_id = uuid.UUID(str(payload["category_id"]))
-            stmt_cat = select(Category).where(
-                Category.id == new_cat_id, Category.user_id == item.user_id
+            is_task_entry = bool(item.task_status or payload.get("task_status"))
+            item.category_id = _resolve_category_id_for_user(
+                db, item.user_id, payload["category_id"], item.category_id, is_task=is_task_entry
             )
-            if db.execute(stmt_cat).scalar_one_or_none() is not None:
-                item.category_id = new_cat_id
-            elif item.task_status or payload.get("task_status"):
-                tarea_cat = (
-                    db.execute(
-                        select(Category).where(
-                            Category.user_id == item.user_id,
-                            (Category.id == CANONICAL_CATEGORY_IDS["tareas"])
-                            | (Category.kind == CategoryKind.TASK),
-                        )
-                    )
-                    .scalars()
-                    .first()
-                )
-                if tarea_cat is not None:
-                    item.category_id = tarea_cat.id
         if "occurred_at" in payload:
             item.occurred_at = _parse_dt(payload["occurred_at"])
         if "task_status" in payload:

@@ -84,12 +84,30 @@ export function EntryForm({
           setTags(tgs);
           if (cats.length > 0) {
             setSelectedCategoryId((prev) => {
-              const nextId = prev ? prev : cats[0].id;
+              if (prev && cats.some((c) => c.id === prev)) {
+                return prev;
+              }
+              const neutralCat =
+                cats.find((c) => {
+                  const norm = (c.name_normalized || c.name || "").toLowerCase().trim();
+                  return norm === "nota" || norm === "notas";
+                }) ||
+                cats.find((c) => {
+                  const norm = (c.name_normalized || c.name || "").toLowerCase().trim();
+                  return norm === "evento" || norm === "eventos";
+                }) ||
+                cats.find((c) => !isCategoryAlert(c) && c.kind !== "TASK") ||
+                cats.find((c) => !isCategoryAlert(c)) ||
+                cats[0];
+
+              const nextId = neutralCat.id;
               const cat = cats.find((c) => c.id === nextId);
               if (isCategoryAlert(cat)) {
                 setReminderEnabled(true);
                 setReminderOffsetMinutes(0);
                 setOccurredAt((cur) => (cur ? cur : new Date().toISOString()));
+              } else {
+                setReminderEnabled(false);
               }
               return nextId;
             });

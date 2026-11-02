@@ -83,6 +83,7 @@ describe("App", () => {
         getByTestId("input-content"),
         "Cita con el dentista en el calendario",
       );
+      fireEvent.press(getByTestId("preset-now"));
     });
 
     await act(async () => {
