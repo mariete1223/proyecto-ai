@@ -969,10 +969,11 @@ export default function App() {
           </View>
         )}
 
-        {/* Proactive Startup Permissions Banner (#77) */}
+        {/* Proactive Startup Permissions Banner (#77, #152) */}
         <StartupPermissionsPrompt
           backendUrl={getBackendUrl()}
           token={authSession?.token}
+          onComplete={() => setLastSyncTime(Date.now())}
         />
 
         {/* Floating Action Bar (Only on Desktop Web view) */}

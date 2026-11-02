@@ -15,6 +15,38 @@ import { VoiceCaptureFlow } from "./VoiceCaptureFlow";
 import { Category, Tag } from "../types/domain";
 import { notificationService } from "../services/notificationService";
 
+export const MOBILE_NOTIF_BANNER_DISMISSED_KEY =
+  "voxdaily_notif_banner_dismissed";
+
+function getStorage(): Storage | null {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      return window.localStorage;
+    }
+    if (
+      typeof globalThis !== "undefined" &&
+      (globalThis as unknown as { localStorage?: Storage }).localStorage
+    ) {
+      return (globalThis as unknown as { localStorage: Storage }).localStorage;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function isNotifBannerDismissedInStorage(): boolean {
+  const storage = getStorage();
+  if (storage) {
+    try {
+      return storage.getItem(MOBILE_NOTIF_BANNER_DISMISSED_KEY) === "true";
+    } catch {
+      // ignore
+    }
+  }
+  return false;
+}
+
 export interface MobileHomeVoiceViewProps {
   db: DatabaseAdapter;
   userId: string;
@@ -40,18 +72,77 @@ export function MobileHomeVoiceView({
     notificationService.getPermissionStatus(),
   );
   const [isActivatingNotif, setIsActivatingNotif] = useState<boolean>(false);
+  const [showUnsupportedGuidance, setShowUnsupportedGuidance] =
+    useState<boolean>(false);
+  const [isNotifBannerDismissed, setIsNotifBannerDismissed] = useState<boolean>(
+    () => isNotifBannerDismissedInStorage(),
+  );
+
+  const handleDismissNotifBanner = () => {
+    setIsNotifBannerDismissed(true);
+    const storage = getStorage();
+    if (storage) {
+      try {
+        storage.setItem(MOBILE_NOTIF_BANNER_DISMISSED_KEY, "true");
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   const handleActivateNotifications = async () => {
     setIsActivatingNotif(true);
+    let timerId: ReturnType<typeof setTimeout> | null = null;
     try {
-      const status = await notificationService.requestPermissions();
+      const fallbackStatus = notificationService.getPermissionStatus();
+      const status = await Promise.race([
+        notificationService.requestPermissions(),
+        new Promise<string>((resolve) => {
+          timerId = setTimeout(() => resolve(fallbackStatus), 3500);
+        }),
+      ]);
       setNotifStatus(status);
+      if (status === "granted") {
+        setShowUnsupportedGuidance(false);
+        notificationService.subscribeToWebPush().catch(() => {});
+      } else if (status === "unsupported") {
+        setShowUnsupportedGuidance(true);
+      }
     } catch {
-      // ignore
+      const fallbackStatus = notificationService.getPermissionStatus();
+      setNotifStatus(fallbackStatus);
+      if (fallbackStatus === "unsupported") {
+        setShowUnsupportedGuidance(true);
+      }
     } finally {
+      if (timerId !== null) {
+        clearTimeout(timerId);
+      }
       setIsActivatingNotif(false);
     }
   };
+
+  useEffect(() => {
+    const latestStatus = notificationService.getPermissionStatus();
+    setNotifStatus(latestStatus);
+    if (latestStatus === "granted") {
+      setShowUnsupportedGuidance(false);
+    }
+    setIsNotifBannerDismissed(isNotifBannerDismissedInStorage());
+  }, [refreshSignal]);
+
+  useEffect(() => {
+    if (typeof notificationService.onPermissionChange !== "function") {
+      return;
+    }
+    const unsubscribe = notificationService.onPermissionChange((newStatus) => {
+      setNotifStatus(newStatus);
+      if (newStatus === "granted") {
+        setShowUnsupportedGuidance(false);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -129,28 +220,58 @@ export function MobileHomeVoiceView({
               </Text>
             </View>
 
-            {/* Persistent Android / Mobile Web Notifications Status Banner (#148) */}
-            {notifStatus !== "granted" && (
+            {/* Persistent Android / Mobile Web Notifications Status Banner (#148, #152) */}
+            {!isNotifBannerDismissed && notifStatus !== "granted" && (
               <View
                 style={styles.notifBanner}
                 testID="mobile-notif-status-banner"
               >
                 <View style={styles.notifBannerContent}>
+                  <View style={styles.notifBannerHeaderRow}>
+                    <Text
+                      style={styles.notifBannerTitle}
+                      testID="mobile-notif-banner-title"
+                    >
+                      {notifStatus === "denied"
+                        ? "🚫 Notificaciones bloqueadas"
+                        : showUnsupportedGuidance
+                          ? "📲 Añade la web a Inicio en iPhone/iPad"
+                          : "🔔 Notificaciones inactivas"}
+                    </Text>
+                    {(notifStatus === "denied" || showUnsupportedGuidance) && (
+                      <Pressable
+                        testID="btn-close-notif-banner"
+                        style={styles.notifBannerCloseBtn}
+                        onPress={handleDismissNotifBanner}
+                        accessibilityLabel="Cerrar aviso de notificaciones"
+                      >
+                        <Text style={styles.notifBannerCloseText}>✕</Text>
+                      </Pressable>
+                    )}
+                  </View>
                   <Text
-                    style={styles.notifBannerTitle}
-                    testID="mobile-notif-banner-title"
+                    style={styles.notifBannerDesc}
+                    testID="mobile-notif-banner-desc"
                   >
                     {notifStatus === "denied"
-                      ? "🚫 Notificaciones bloqueadas"
-                      : "🔔 Notificaciones inactivas"}
-                  </Text>
-                  <Text style={styles.notifBannerDesc}>
-                    {notifStatus === "denied"
                       ? "Para recibir avisos con la pantalla apagada en Android, pulsa el icono 🔒 en la barra de Chrome y activa 'Permitir notificaciones'."
-                      : "Actívalas para que tus avisos y alertas te despierten incluso con la pantalla apagada."}
+                      : showUnsupportedGuidance
+                        ? "En Safari para iPhone/iPad, pulsa Compartir (⬆️) y selecciona «Añadir a pantalla de inicio» para activar las notificaciones Web Push."
+                        : "Actívalas para que tus avisos y alertas te despierten incluso con la pantalla apagada."}
                   </Text>
                 </View>
-                {notifStatus !== "denied" && (
+                {notifStatus === "denied" || showUnsupportedGuidance ? (
+                  <Pressable
+                    testID="btn-dismiss-notif-banner"
+                    style={styles.notifBannerDismissButton}
+                    onPress={handleDismissNotifBanner}
+                    accessibilityLabel="Entendido, ocultar aviso de notificaciones"
+                  >
+                    <Text style={styles.notifBannerDismissButtonText}>
+                      Entendido
+                    </Text>
+                  </Pressable>
+                ) : (
                   <Pressable
                     testID="btn-activate-notif-banner"
                     style={[
@@ -728,16 +849,36 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    flexWrap: "wrap",
     gap: 12,
   },
   notifBannerContent: {
     flex: 1,
+    minWidth: 180,
+  },
+  notifBannerHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 4,
   },
   notifBannerTitle: {
     color: "#FDE68A",
     fontSize: 14,
     fontWeight: "700",
-    marginBottom: 4,
+    flex: 1,
+  },
+  notifBannerCloseBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+  },
+  notifBannerCloseText: {
+    color: "#FDE68A",
+    fontSize: 12,
+    fontWeight: "700",
   },
   notifBannerDesc: {
     color: "#FDE047",
@@ -757,6 +898,21 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     fontSize: 12,
     fontWeight: "800",
+  },
+  notifBannerDismissButton: {
+    backgroundColor: "rgba(245, 158, 11, 0.25)",
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notifBannerDismissButtonText: {
+    color: "#FDE68A",
+    fontSize: 12,
+    fontWeight: "700",
   },
   buttonDisabled: {
     opacity: 0.6,

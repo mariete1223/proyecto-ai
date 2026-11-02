@@ -6,7 +6,10 @@ import {
   render,
   waitFor,
 } from "@testing-library/react-native";
-import { MobileHomeVoiceView } from "./MobileHomeVoiceView";
+import {
+  MOBILE_NOTIF_BANNER_DISMISSED_KEY,
+  MobileHomeVoiceView,
+} from "./MobileHomeVoiceView";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
 import { createLocalCategory } from "../db/categories";
 import { notificationService } from "../services/notificationService";
@@ -14,9 +17,32 @@ import { notificationService } from "../services/notificationService";
 describe("MobileHomeVoiceView Component", () => {
   let db: MemoryDatabaseAdapter;
   const userId = "user-mobile-test";
+  const mockStorage: Record<string, string> = {};
+
+  beforeAll(() => {
+    const existingWindow =
+      (globalThis as unknown as { window?: Record<string, unknown> }).window ||
+      {};
+    (globalThis as unknown as { window: unknown }).window = {
+      ...existingWindow,
+      localStorage: {
+        getItem: (k: string) => mockStorage[k] ?? null,
+        setItem: (k: string, v: string) => {
+          mockStorage[k] = String(v);
+        },
+        removeItem: (k: string) => {
+          delete mockStorage[k];
+        },
+        clear: () => {
+          Object.keys(mockStorage).forEach((k) => delete mockStorage[k]);
+        },
+      },
+    };
+  });
 
   beforeEach(async () => {
     jest.restoreAllMocks();
+    Object.keys(mockStorage).forEach((k) => delete mockStorage[k]);
     db = new MemoryDatabaseAdapter();
     await runMigrations(db);
     await createLocalCategory(db, userId, {
@@ -30,13 +56,16 @@ describe("MobileHomeVoiceView Component", () => {
     cleanup();
   });
 
-  it("renders notification status banner when permission is default and activates on button press (#148)", async () => {
+  it("renders notification status banner when permission is default and activates on button press (#148, #152)", async () => {
     jest
       .spyOn(notificationService, "getPermissionStatus")
       .mockReturnValue("default");
     const requestSpy = jest
       .spyOn(notificationService, "requestPermissions")
       .mockResolvedValue("granted");
+    const subscribeSpy = jest
+      .spyOn(notificationService, "subscribeToWebPush")
+      .mockResolvedValue(true);
 
     const { getByTestId, findByTestId, queryByTestId } = await render(
       <MobileHomeVoiceView
@@ -55,6 +84,139 @@ describe("MobileHomeVoiceView Component", () => {
     fireEvent.press(activateBtn);
 
     expect(requestSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(queryByTestId("mobile-notif-status-banner")).toBeNull();
+    });
+    expect(subscribeSpy).toHaveBeenCalled();
+  });
+
+  it("shows iOS Safari Home Screen guidance when requestPermissions returns 'unsupported' and persists dismissal (#152)", async () => {
+    jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("unsupported");
+    const requestSpy = jest
+      .spyOn(notificationService, "requestPermissions")
+      .mockResolvedValue("unsupported");
+
+    const { getByTestId, findByTestId, queryByTestId } = await render(
+      <MobileHomeVoiceView
+        db={db}
+        userId={userId}
+        onOpenManualForm={jest.fn()}
+        onOpenLlmImport={jest.fn()}
+      />,
+    );
+
+    expect(await findByTestId("mobile-notif-status-banner")).toBeTruthy();
+    const activateBtn = getByTestId("btn-activate-notif-banner");
+    expect(activateBtn).toBeTruthy();
+
+    fireEvent.press(activateBtn);
+
+    expect(requestSpy).toHaveBeenCalled();
+
+    await waitFor(() => {
+      const title = getByTestId("mobile-notif-banner-title");
+      expect(title.props.children).toContain("Añade la web a Inicio");
+    });
+
+    const desc = getByTestId("mobile-notif-banner-desc");
+    expect(desc.props.children).toContain("Compartir");
+    expect(desc.props.children).toContain("Añadir a pantalla de inicio");
+
+    expect(queryByTestId("btn-activate-notif-banner")).toBeNull();
+    const dismissBtn = getByTestId("btn-dismiss-notif-banner");
+    expect(dismissBtn).toBeTruthy();
+
+    fireEvent.press(dismissBtn);
+
+    await waitFor(() => {
+      expect(queryByTestId("mobile-notif-status-banner")).toBeNull();
+    });
+    expect(mockStorage[MOBILE_NOTIF_BANNER_DISMISSED_KEY]).toBe("true");
+  });
+
+  it("does not render notification banner on mount if previously dismissed in localStorage (#152)", async () => {
+    mockStorage[MOBILE_NOTIF_BANNER_DISMISSED_KEY] = "true";
+    jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("unsupported");
+
+    const { queryByTestId } = await render(
+      <MobileHomeVoiceView
+        db={db}
+        userId={userId}
+        onOpenManualForm={jest.fn()}
+        onOpenLlmImport={jest.fn()}
+      />,
+    );
+
+    expect(queryByTestId("mobile-notif-status-banner")).toBeNull();
+  });
+
+  it("transitions banner to blocked state when requestPermissions returns 'denied' and allows dismissing (#152)", async () => {
+    jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("default");
+    jest
+      .spyOn(notificationService, "requestPermissions")
+      .mockResolvedValue("denied");
+
+    const { getByTestId, findByTestId, queryByTestId } = await render(
+      <MobileHomeVoiceView
+        db={db}
+        userId={userId}
+        onOpenManualForm={jest.fn()}
+        onOpenLlmImport={jest.fn()}
+      />,
+    );
+
+    expect(await findByTestId("mobile-notif-status-banner")).toBeTruthy();
+    fireEvent.press(getByTestId("btn-activate-notif-banner"));
+
+    await waitFor(() => {
+      const title = getByTestId("mobile-notif-banner-title");
+      expect(title.props.children).toBe("🚫 Notificaciones bloqueadas");
+    });
+    expect(queryByTestId("btn-activate-notif-banner")).toBeNull();
+
+    const closeBtn = getByTestId("btn-close-notif-banner");
+    fireEvent.press(closeBtn);
+
+    await waitFor(() => {
+      expect(queryByTestId("mobile-notif-status-banner")).toBeNull();
+    });
+    expect(mockStorage[MOBILE_NOTIF_BANNER_DISMISSED_KEY]).toBe("true");
+  });
+
+  it("synchronizes banner state when refreshSignal updates after StartupPermissionsPrompt completes (#152)", async () => {
+    const statusSpy = jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("default");
+
+    const { findByTestId, queryByTestId, rerender } = await render(
+      <MobileHomeVoiceView
+        db={db}
+        userId={userId}
+        refreshSignal={1}
+        onOpenManualForm={jest.fn()}
+        onOpenLlmImport={jest.fn()}
+      />,
+    );
+
+    expect(await findByTestId("mobile-notif-status-banner")).toBeTruthy();
+
+    statusSpy.mockReturnValue("granted");
+    await rerender(
+      <MobileHomeVoiceView
+        db={db}
+        userId={userId}
+        refreshSignal={2}
+        onOpenManualForm={jest.fn()}
+        onOpenLlmImport={jest.fn()}
+      />,
+    );
+
     await waitFor(() => {
       expect(queryByTestId("mobile-notif-status-banner")).toBeNull();
     });

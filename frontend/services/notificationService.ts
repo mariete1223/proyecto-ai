@@ -124,6 +124,32 @@ class NotificationService {
   }
 
   private pushSubscriptionActive: boolean = false;
+  private permissionListeners: Set<
+    (status: "granted" | "denied" | "default" | "unsupported") => void
+  > = new Set();
+
+  public onPermissionChange(
+    listener: (
+      status: "granted" | "denied" | "default" | "unsupported",
+    ) => void,
+  ): () => void {
+    this.permissionListeners.add(listener);
+    return () => {
+      this.permissionListeners.delete(listener);
+    };
+  }
+
+  private emitPermissionChange(
+    status: "granted" | "denied" | "default" | "unsupported",
+  ): void {
+    this.permissionListeners.forEach((listener) => {
+      try {
+        listener(status);
+      } catch {
+        // ignore
+      }
+    });
+  }
 
   public setAuth(apiBaseUrl?: string | null, token?: string | null): void {
     if (apiBaseUrl !== undefined) this.lastApiBaseUrl = apiBaseUrl;
@@ -185,7 +211,10 @@ class NotificationService {
   public async requestPermissions(): Promise<
     "granted" | "denied" | "default" | "unsupported"
   > {
-    if (!this.isSupported()) return "unsupported";
+    if (!this.isSupported()) {
+      this.emitPermissionChange("unsupported");
+      return "unsupported";
+    }
     try {
       if (typeof Notification.requestPermission === "function") {
         let perm: NotificationPermission = Notification.permission;
@@ -220,12 +249,15 @@ class NotificationService {
             })
             .catch(() => {});
         }
+        this.emitPermissionChange(status);
         return status;
       }
     } catch (e) {
       console.warn("[NotificationService] Error solicitando permisos:", e);
     }
-    return this.getPermissionStatus();
+    const fallbackStatus = this.getPermissionStatus();
+    this.emitPermissionChange(fallbackStatus);
+    return fallbackStatus;
   }
 
   public async subscribeToWebPush(
