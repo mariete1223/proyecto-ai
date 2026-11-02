@@ -167,11 +167,9 @@ export function MobileMainLayout({
     Platform.OS === "web"
       ? ({
           minHeight: 0,
-          height: "100%",
-          maxHeight: "100%",
           overflow: "hidden",
           paddingBottom:
-            "calc(max(8px, env(safe-area-inset-bottom, 0px)) + 54px)",
+            "calc(max(8px, env(safe-area-inset-bottom, 0px)) + 68px)",
         } as any)
       : undefined;
 
@@ -545,6 +543,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.08)",
     width: "100%",
     maxWidth: "100%",
+    flexShrink: 0,
     overflow: "hidden",
   },
   brandRow: {
@@ -630,9 +629,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingHorizontal: 12,
     paddingTop: 8,
-    paddingBottom: 54, // Intrinsic clearance for bottom tab bar
+    paddingBottom: 68, // Intrinsic clearance for bottom tab bar + breathing room
     width: "100%",
-    height: "100%",
   },
   swipeContainer: {
     flex: 1,

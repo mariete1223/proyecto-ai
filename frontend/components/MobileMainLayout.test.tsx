@@ -5,7 +5,7 @@ import {
   render,
   waitFor,
 } from "@testing-library/react-native";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { checkBackendHealth } from "../services/webApi";
 import {
   getSwipePanResponderConfig,
@@ -100,8 +100,53 @@ describe("MobileMainLayout Component", () => {
         : contentArea.props.style;
 
       expect(contentStyle.paddingTop).toBeLessThanOrEqual(10);
+      expect(contentStyle.paddingBottom).toBeGreaterThanOrEqual(64);
       expect(contentStyle.paddingBottom).toBeLessThanOrEqual(75);
+      expect(contentStyle.flex).toBe(1);
+      expect(contentStyle.minHeight).toBe(0);
+      expect(contentStyle.height).toBeUndefined();
+      expect(contentStyle.maxHeight).toBeUndefined();
     });
+  });
+
+  it("sizes contentArea strictly to remaining flex space without height: 100% overflow and reserves safe bottom clearance on web (#153)", async () => {
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, "OS", {
+      get: () => "web",
+      configurable: true,
+    });
+
+    try {
+      const { getByTestId } = await render(
+        <MobileMainLayout
+          apiConfig={defaultApiConfig}
+          activeTab="VOICE_CAPTURE"
+          onTabChange={jest.fn()}
+        >
+          <View />
+        </MobileMainLayout>,
+      );
+
+      await waitFor(() => {
+        const contentArea = getByTestId("mobile-content-area");
+        const contentStyle = Array.isArray(contentArea.props.style)
+          ? Object.assign({}, ...contentArea.props.style.filter(Boolean))
+          : contentArea.props.style;
+
+        expect(contentStyle.flex).toBe(1);
+        expect(contentStyle.minHeight).toBe(0);
+        expect(contentStyle.height).toBeUndefined();
+        expect(contentStyle.maxHeight).toBeUndefined();
+        expect(contentStyle.paddingBottom).toBe(
+          "calc(max(8px, env(safe-area-inset-bottom, 0px)) + 68px)",
+        );
+      });
+    } finally {
+      Object.defineProperty(Platform, "OS", {
+        get: () => originalOS,
+        configurable: true,
+      });
+    }
   });
 
   it("handles tab clicks on bottom navigation bar", async () => {

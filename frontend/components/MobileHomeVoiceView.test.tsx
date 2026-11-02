@@ -296,7 +296,7 @@ describe("MobileHomeVoiceView Component", () => {
       ? Object.assign({}, ...pinnedDockContainer.props.style)
       : pinnedDockContainer.props.style;
     expect(dockStyle.flexShrink).toBe(0);
-    expect(dockStyle.paddingBottom).toBeGreaterThanOrEqual(12);
+    expect(dockStyle.paddingBottom).toBeGreaterThanOrEqual(14);
 
     const thumbDock = getByTestId("mobile-thumb-zone-card");
     expect(thumbDock).toBeTruthy();
@@ -304,6 +304,8 @@ describe("MobileHomeVoiceView Component", () => {
       ? Object.assign({}, ...thumbDock.props.style)
       : thumbDock.props.style;
     expect(thumbStyle.flexShrink).toBe(0);
+    expect(thumbStyle.marginBottom).toBeGreaterThanOrEqual(4);
+    expect(thumbStyle.borderRadius).toBe(20);
 
     expect(getByTestId("btn-big-mic-start")).toBeTruthy();
     expect(getByText("Toca para Grabar por Voz")).toBeTruthy();
@@ -329,7 +331,12 @@ describe("MobileHomeVoiceView Component", () => {
     expect(queryByText("✕ Salir")).toBeNull();
     expect(queryByTestId("btn-header-close-voice")).toBeNull();
 
-    // Verify pinned dictate dock is mounted in voice modal (#150)
+    // Verify pinned dictate dock is mounted in voice modal and panel respects bottom separation (#150, #153)
+    const voiceCapturePanel = getByTestId("mobile-voice-capture-panel");
+    const panelStyle = Array.isArray(voiceCapturePanel.props.style)
+      ? Object.assign({}, ...voiceCapturePanel.props.style)
+      : voiceCapturePanel.props.style;
+    expect(panelStyle.paddingBottom).toBeGreaterThanOrEqual(14);
     const pinnedDictateDock = await findByTestId("pinned-dictate-dock");
     expect(pinnedDictateDock).toBeTruthy();
     expect(getByTestId("btn-start-listening")).toBeTruthy();
