@@ -9,12 +9,14 @@ import {
 import { MobileHomeVoiceView } from "./MobileHomeVoiceView";
 import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
 import { createLocalCategory } from "../db/categories";
+import { notificationService } from "../services/notificationService";
 
 describe("MobileHomeVoiceView Component", () => {
   let db: MemoryDatabaseAdapter;
   const userId = "user-mobile-test";
 
   beforeEach(async () => {
+    jest.restoreAllMocks();
     db = new MemoryDatabaseAdapter();
     await runMigrations(db);
     await createLocalCategory(db, userId, {
@@ -22,6 +24,79 @@ describe("MobileHomeVoiceView Component", () => {
       voice_command: "nota",
       kind: "STANDARD",
     });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders notification status banner when permission is default and activates on button press (#148)", async () => {
+    jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("default");
+    const requestSpy = jest
+      .spyOn(notificationService, "requestPermissions")
+      .mockResolvedValue("granted");
+
+    const { getByTestId, findByTestId, queryByTestId } = await render(
+      <MobileHomeVoiceView
+        db={db}
+        userId={userId}
+        onOpenManualForm={jest.fn()}
+        onOpenLlmImport={jest.fn()}
+      />,
+    );
+
+    const banner = await findByTestId("mobile-notif-status-banner");
+    expect(banner).toBeTruthy();
+    const activateBtn = getByTestId("btn-activate-notif-banner");
+    expect(activateBtn).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(activateBtn);
+    });
+
+    expect(requestSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(queryByTestId("mobile-notif-status-banner")).toBeNull();
+    });
+  });
+
+  it("does not render notification status banner when permission is already granted (#148)", async () => {
+    jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("granted");
+
+    const { queryByTestId } = await render(
+      <MobileHomeVoiceView
+        db={db}
+        userId={userId}
+        onOpenManualForm={jest.fn()}
+        onOpenLlmImport={jest.fn()}
+      />,
+    );
+
+    expect(queryByTestId("mobile-notif-status-banner")).toBeNull();
+  });
+
+  it("renders denied notice without activation button when permission is denied (#148)", async () => {
+    jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("denied");
+
+    const { getByTestId, queryByTestId } = await render(
+      <MobileHomeVoiceView
+        db={db}
+        userId={userId}
+        onOpenManualForm={jest.fn()}
+        onOpenLlmImport={jest.fn()}
+      />,
+    );
+
+    const title = getByTestId("mobile-notif-banner-title");
+    expect(title).toBeTruthy();
+    expect(title.props.children).toBe("🚫 Notificaciones bloqueadas");
+    expect(queryByTestId("btn-activate-notif-banner")).toBeNull();
   });
 
   it("renders big mic hero button, pinned action dock, and confines layout (#146)", async () => {

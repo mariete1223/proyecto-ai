@@ -177,6 +177,15 @@ export async function createLocalEntry(
     ? JSON.stringify(reminderOffsetsMinutes)
     : null;
 
+  let reminderTime = data.reminder_time ?? null;
+  if (!reminderTime && reminderEnabled && occurredAt) {
+    const occDate = new Date(occurredAt);
+    if (!isNaN(occDate.getTime())) {
+      const offsetMs = (reminderOffsetMinutes ?? 0) * 60 * 1000;
+      reminderTime = new Date(occDate.getTime() - offsetMs).toISOString();
+    }
+  }
+
   const entry: Entry = {
     id,
     user_id: userId,
@@ -189,7 +198,7 @@ export async function createLocalEntry(
     task_priority: taskPriority,
     capture_session_id: data.capture_session_id ?? null,
     reminder_enabled: reminderEnabled ?? null,
-    reminder_time: data.reminder_time ?? null,
+    reminder_time: reminderTime,
     reminder_end_time: data.reminder_end_time ?? null,
     reminder_recurrence: data.reminder_recurrence ?? null,
     reminder_offset_minutes: reminderOffsetMinutes ?? null,
@@ -581,18 +590,6 @@ export async function updateLocalEntry(
     : data.reminder_enabled !== undefined
       ? data.reminder_enabled
       : (existing.reminder_enabled ?? null);
-  const reminderTime =
-    data.reminder_time !== undefined
-      ? data.reminder_time
-      : (existing.reminder_time ?? null);
-  const reminderEndTime =
-    data.reminder_end_time !== undefined
-      ? data.reminder_end_time
-      : (existing.reminder_end_time ?? null);
-  const reminderRecurrence =
-    data.reminder_recurrence !== undefined
-      ? data.reminder_recurrence
-      : (existing.reminder_recurrence ?? null);
   const reminderOffsetMinutes = isAlertCategory
     ? 0
     : data.reminder_offset_minutes !== undefined
@@ -603,6 +600,25 @@ export async function updateLocalEntry(
     : data.reminder_offsets_minutes !== undefined
       ? data.reminder_offsets_minutes
       : (existing.reminder_offsets_minutes ?? null);
+  let reminderTime =
+    data.reminder_time !== undefined
+      ? data.reminder_time
+      : (existing.reminder_time ?? null);
+  if (!reminderTime && reminderEnabled && occurredAt) {
+    const occDate = new Date(occurredAt);
+    if (!isNaN(occDate.getTime())) {
+      const offsetMs = (reminderOffsetMinutes ?? 0) * 60 * 1000;
+      reminderTime = new Date(occDate.getTime() - offsetMs).toISOString();
+    }
+  }
+  const reminderEndTime =
+    data.reminder_end_time !== undefined
+      ? data.reminder_end_time
+      : (existing.reminder_end_time ?? null);
+  const reminderRecurrence =
+    data.reminder_recurrence !== undefined
+      ? data.reminder_recurrence
+      : (existing.reminder_recurrence ?? null);
   const reminderOffsetsStr = reminderOffsetsMinutes
     ? JSON.stringify(reminderOffsetsMinutes)
     : null;

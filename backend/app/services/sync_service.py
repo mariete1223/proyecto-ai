@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, select, update
@@ -456,22 +456,28 @@ def _create_domain_model(
             prio_str = "MEDIUM"
         elif not status_str:
             prio_str = None
+        rem_enabled = bool(payload.get("reminder_enabled"))
+        rem_time = _parse_dt(payload.get("reminder_time"))
+        occ_at = _parse_dt(payload.get("occurred_at"))
+        rem_offset = int(payload.get("reminder_offset_minutes") or 0)
+        if rem_enabled and occ_at and not rem_time:
+            rem_time = occ_at - timedelta(minutes=rem_offset)
         return Entry(
             id=entity_id,
             user_id=user_id,
             category_id=cat_id,
             title=title,
-            occurred_at=_parse_dt(payload.get("occurred_at")),
+            occurred_at=occ_at,
             content=str(payload.get("content", "")).strip(),
             task_status=TaskStatus(status_str) if status_str else None,
             task_priority=TaskPriority(prio_str) if prio_str else None,
             task_recurrence=TaskRecurrence(rec_str) if rec_str else None,
             capture_session_id=session_id,
-            reminder_enabled=bool(payload.get("reminder_enabled")),
-            reminder_time=_parse_dt(payload.get("reminder_time")),
+            reminder_enabled=rem_enabled,
+            reminder_time=rem_time,
             reminder_end_time=_parse_dt(payload.get("reminder_end_time")),
             reminder_recurrence=str(payload.get("reminder_recurrence") or "NONE"),
-            reminder_offset_minutes=int(payload.get("reminder_offset_minutes") or 0),
+            reminder_offset_minutes=rem_offset,
             created_at=now,
             updated_at=now,
             version=1,
@@ -605,6 +611,8 @@ def _update_domain_model(
             item.reminder_recurrence = str(payload["reminder_recurrence"] or "NONE")
         if "reminder_offset_minutes" in payload:
             item.reminder_offset_minutes = int(payload["reminder_offset_minutes"] or 0)
+        if item.reminder_enabled and item.occurred_at and not item.reminder_time:
+            item.reminder_time = item.occurred_at - timedelta(minutes=item.reminder_offset_minutes or 0)
     elif entity_type == TombstoneEntity.SAVE_PREFERENCE:
         if "mode" in payload:
             item.mode = SaveMode(payload["mode"])

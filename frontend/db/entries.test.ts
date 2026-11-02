@@ -220,6 +220,7 @@ describe("Local Entries and Tasks Storage Layer", () => {
       expect(entry.reminder_enabled).toBe(true);
       expect(entry.reminder_offset_minutes).toBe(0);
       expect(entry.reminder_offsets_minutes).toEqual([0]);
+      expect(entry.reminder_time).toBe("2026-10-15T08:00:00.000Z");
 
       // Si el usuario especificó explícitamente desactivarlo, se respeta false
       const disabledEntry = await createLocalEntry(db, userId, {
@@ -247,6 +248,7 @@ describe("Local Entries and Tasks Storage Layer", () => {
       expect(entry.occurred_at).toBeTruthy();
       expect(entry.reminder_enabled).toBe(true);
       expect(entry.reminder_offset_minutes).toBe(0);
+      expect(entry.reminder_time).toBeTruthy();
       expect(entry.task_status).toBeNull();
       expect(entry.task_priority).toBeNull();
     });
@@ -262,6 +264,7 @@ describe("Local Entries and Tasks Storage Layer", () => {
       expect(taskWithDate.reminder_enabled).toBe(true);
       expect(taskWithDate.reminder_offset_minutes).toBe(1440);
       expect(taskWithDate.reminder_offsets_minutes).toEqual([1440]);
+      expect(taskWithDate.reminder_time).toBe("2026-10-19T10:00:00.000Z");
 
       // Notas estándar con fecha
       const noteWithDate = await createLocalEntry(db, userId, {
@@ -273,6 +276,7 @@ describe("Local Entries and Tasks Storage Layer", () => {
       expect(noteWithDate.reminder_enabled).toBe(true);
       expect(noteWithDate.reminder_offset_minutes).toBe(1440);
       expect(noteWithDate.reminder_offsets_minutes).toEqual([1440]);
+      expect(noteWithDate.reminder_time).toBe("2026-10-20T16:00:00.000Z");
 
       // Entrada sin fecha no activa recordatorio automático
       const datelessEntry = await createLocalEntry(db, userId, {

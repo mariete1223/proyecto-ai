@@ -13,6 +13,7 @@ import { DatabaseAdapter } from "../db/database";
 import { listTags } from "../db/tags";
 import { VoiceCaptureFlow } from "./VoiceCaptureFlow";
 import { Category, Tag } from "../types/domain";
+import { notificationService } from "../services/notificationService";
 
 export interface MobileHomeVoiceViewProps {
   db: DatabaseAdapter;
@@ -35,6 +36,22 @@ export function MobileHomeVoiceView({
   const [tags, setTags] = useState<Tag[]>([]);
   const [showCheatsheet, setShowCheatsheet] = useState<boolean>(true);
   const [activeVoiceModal, setActiveVoiceModal] = useState<boolean>(false);
+  const [notifStatus, setNotifStatus] = useState<string>(() =>
+    notificationService.getPermissionStatus(),
+  );
+  const [isActivatingNotif, setIsActivatingNotif] = useState<boolean>(false);
+
+  const handleActivateNotifications = async () => {
+    setIsActivatingNotif(true);
+    try {
+      const status = await notificationService.requestPermissions();
+      setNotifStatus(status);
+    } catch {
+      // ignore
+    } finally {
+      setIsActivatingNotif(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -111,6 +128,46 @@ export function MobileHomeVoiceView({
                 organizarte a tu medida.
               </Text>
             </View>
+
+            {/* Persistent Android / Mobile Web Notifications Status Banner (#148) */}
+            {notifStatus !== "granted" && (
+              <View
+                style={styles.notifBanner}
+                testID="mobile-notif-status-banner"
+              >
+                <View style={styles.notifBannerContent}>
+                  <Text
+                    style={styles.notifBannerTitle}
+                    testID="mobile-notif-banner-title"
+                  >
+                    {notifStatus === "denied"
+                      ? "🚫 Notificaciones bloqueadas"
+                      : "🔔 Notificaciones inactivas"}
+                  </Text>
+                  <Text style={styles.notifBannerDesc}>
+                    {notifStatus === "denied"
+                      ? "Para recibir avisos con la pantalla apagada en Android, pulsa el icono 🔒 en la barra de Chrome y activa 'Permitir notificaciones'."
+                      : "Actívalas para que tus avisos y alertas te despierten incluso con la pantalla apagada."}
+                  </Text>
+                </View>
+                {notifStatus !== "denied" && (
+                  <Pressable
+                    testID="btn-activate-notif-banner"
+                    style={[
+                      styles.notifBannerButton,
+                      isActivatingNotif && styles.buttonDisabled,
+                    ]}
+                    disabled={isActivatingNotif}
+                    onPress={handleActivateNotifications}
+                    accessibilityLabel="Activar notificaciones"
+                  >
+                    <Text style={styles.notifBannerButtonText}>
+                      {isActivatingNotif ? "Activando..." : "Activar 🔔"}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
 
             {/* Cheatsheet section in reading area */}
             <View style={styles.cheatsheetCard}>
@@ -617,5 +674,48 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     textAlign: "center",
     fontWeight: "500",
+  },
+  notifBanner: {
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderColor: "#F59E0B",
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  notifBannerContent: {
+    flex: 1,
+  },
+  notifBannerTitle: {
+    color: "#FDE68A",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  notifBannerDesc: {
+    color: "#FDE047",
+    fontSize: 12,
+    lineHeight: 16,
+    opacity: 0.9,
+  },
+  notifBannerButton: {
+    backgroundColor: "#F59E0B",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notifBannerButtonText: {
+    color: "#0F172A",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });

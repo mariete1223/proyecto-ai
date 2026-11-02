@@ -34,6 +34,7 @@ export function StartupPermissionsPrompt({
   const [visible, setVisible] = useState<boolean>(false);
   const [isRequesting, setIsRequesting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [deniedMessage, setDeniedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (forceVisible) {
@@ -74,6 +75,7 @@ export function StartupPermissionsPrompt({
 
   const handleGrantPermissions = async () => {
     setIsRequesting(true);
+    setDeniedMessage(null);
     try {
       // 1. Solicitar notificaciones del navegador con timeout de seguridad (3.5s)
       let notifStatus: "granted" | "denied" | "default" | "unsupported" =
@@ -89,20 +91,30 @@ export function StartupPermissionsPrompt({
       }
 
       // 2. Suscribir a Web Push si hay token y backend configurados
-      if (notifStatus === "granted" && backendUrl && token) {
-        notificationService
-          .subscribeToWebPush(backendUrl, token)
-          .catch(() => {});
-      }
-
-      saveDismissed();
-
-      setSuccessMessage("✅ ¡Notificaciones activadas!");
-      setTimeout(() => {
+      if (notifStatus === "granted") {
+        if (backendUrl && token) {
+          notificationService
+            .subscribeToWebPush(backendUrl, token)
+            .catch(() => {});
+        }
+        saveDismissed();
+        setSuccessMessage("✅ ¡Notificaciones activadas!");
+        setTimeout(() => {
+          setIsRequesting(false);
+          setVisible(false);
+          onComplete?.();
+        }, 800);
+      } else if (notifStatus === "denied") {
+        setDeniedMessage(
+          "🚫 Permiso denegado en el navegador. En Android, pulsa el icono 🔒 junto a la URL en Chrome y activa 'Permitir notificaciones' para que tus alertas suenen con la pantalla apagada.",
+        );
+        setIsRequesting(false);
+      } else {
+        saveDismissed();
         setIsRequesting(false);
         setVisible(false);
         onComplete?.();
-      }, 800);
+      }
     } catch {
       saveDismissed();
       setIsRequesting(false);
@@ -145,11 +157,14 @@ export function StartupPermissionsPrompt({
           <View style={styles.successPill}>
             <Text style={styles.successText}>{successMessage}</Text>
           </View>
+        ) : deniedMessage ? (
+          <View style={styles.deniedPill}>
+            <Text style={styles.deniedText}>{deniedMessage}</Text>
+          </View>
         ) : (
           <Text style={styles.descriptionText}>
-            Para que suenen tus avisos a la hora exacta, permite las
-            notificaciones del sistema. El micrófono se activará automáticamente
-            cuando pulses para dictar.
+            Para que suenen tus avisos a la hora exacta incluso con la pantalla
+            apagada, permite las notificaciones del sistema.
           </Text>
         )}
 
@@ -174,7 +189,9 @@ export function StartupPermissionsPrompt({
               style={styles.dismissButton}
               onPress={handleDismiss}
             >
-              <Text style={styles.dismissButtonText}>Ahora no</Text>
+              <Text style={styles.dismissButtonText}>
+                {deniedMessage ? "Entendido" : "Ahora no"}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -294,5 +311,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     textAlign: "center",
+  },
+  deniedPill: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  deniedText: {
+    color: "#FCA5A5",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
   },
 });
