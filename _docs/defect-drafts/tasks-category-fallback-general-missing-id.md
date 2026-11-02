@@ -1,6 +1,6 @@
 ---
 fingerprint: tasks-category-fallback-general-missing-id
-status: published
+status: resolved
 github_issue: https://github.com/mariete1223/proyecto-ai/issues/147
 first_seen: 2026-11-02
 last_seen: 2026-11-02
