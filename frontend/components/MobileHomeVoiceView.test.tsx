@@ -123,6 +123,7 @@ describe("MobileHomeVoiceView Component", () => {
     const desc = getByTestId("mobile-notif-banner-desc");
     expect(desc.props.children).toContain("Compartir");
     expect(desc.props.children).toContain("Añadir a pantalla de inicio");
+    expect(desc.props.children).toContain("Android (Chrome)");
 
     expect(queryByTestId("btn-activate-notif-banner")).toBeNull();
     const dismissBtn = getByTestId("btn-dismiss-notif-banner");

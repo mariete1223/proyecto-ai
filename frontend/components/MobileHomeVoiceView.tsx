@@ -235,7 +235,7 @@ export function MobileHomeVoiceView({
                       {notifStatus === "denied"
                         ? "🚫 Notificaciones bloqueadas"
                         : showUnsupportedGuidance
-                          ? "📲 Añade la web a Inicio en iPhone/iPad"
+                          ? "📲 Añade la web a Inicio (iOS y Android)"
                           : "🔔 Notificaciones inactivas"}
                     </Text>
                     {(notifStatus === "denied" || showUnsupportedGuidance) && (
@@ -254,9 +254,9 @@ export function MobileHomeVoiceView({
                     testID="mobile-notif-banner-desc"
                   >
                     {notifStatus === "denied"
-                      ? "Para recibir avisos con la pantalla apagada en Android, pulsa el icono 🔒 en la barra de Chrome y activa 'Permitir notificaciones'."
+                      ? "• En Android (Chrome): pulsa el icono 🔒 en la barra de Chrome y activa «Permitir notificaciones».\n• En iPhone/iPad (Safari): pulsa Compartir (⬆️) → «Añadir a pantalla de inicio» y actívalas en Ajustes."
                       : showUnsupportedGuidance
-                        ? "En Safari para iPhone/iPad, pulsa Compartir (⬆️) y selecciona «Añadir a pantalla de inicio» para activar las notificaciones Web Push."
+                        ? "• En iPhone/iPad (Safari): pulsa Compartir (⬆️) y selecciona «Añadir a pantalla de inicio».\n• En Android (Chrome): pulsa el menú (⋮) → «Instalar aplicación» o «Añadir a pantalla de inicio» y activa «Permitir notificaciones» en el icono 🔒."
                         : "Actívalas para que tus avisos y alertas te despierten incluso con la pantalla apagada."}
                   </Text>
                 </View>
