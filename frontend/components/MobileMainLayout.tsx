@@ -98,6 +98,7 @@ export interface MobileMainLayoutProps {
   onSync?: () => void;
   isSyncing?: boolean;
   currentUserEmail?: string | null;
+  isSessionExpired?: boolean;
   onOpenAuth?: () => void;
   onLogout?: () => void;
   onOpenOnboarding?: () => void;
@@ -113,6 +114,7 @@ export function MobileMainLayout({
   onSync,
   isSyncing,
   currentUserEmail,
+  isSessionExpired,
   onOpenAuth,
   onLogout,
   onOpenOnboarding,
@@ -233,13 +235,21 @@ export function MobileMainLayout({
             <Pressable
               style={[
                 styles.statusChip,
-                isBackendConnected === true
-                  ? styles.statusChipConnected
-                  : isBackendConnected === false
-                    ? styles.statusChipOffline
-                    : undefined,
+                isSessionExpired
+                  ? styles.statusChipOffline
+                  : isBackendConnected === true
+                    ? styles.statusChipConnected
+                    : isBackendConnected === false
+                      ? styles.statusChipOffline
+                      : undefined,
               ]}
-              onPress={() => setShowAccountModal(true)}
+              onPress={() => {
+                if (isSessionExpired) {
+                  onOpenAuth?.();
+                } else {
+                  setShowAccountModal(true);
+                }
+              }}
               testID="btn-connection-status"
               accessibilityRole="button"
               accessibilityLabel="Estado de conexión y cuenta"
@@ -247,24 +257,29 @@ export function MobileMainLayout({
               <View
                 style={[
                   styles.statusDot,
-                  isBackendConnected === true
-                    ? styles.dotConnected
-                    : isBackendConnected === false
-                      ? styles.dotDisconnected
-                      : styles.dotPending,
+                  isSessionExpired
+                    ? styles.dotDisconnected
+                    : isBackendConnected === true
+                      ? styles.dotConnected
+                      : isBackendConnected === false
+                        ? styles.dotDisconnected
+                        : styles.dotPending,
                 ]}
               />
               <Text
                 style={[
                   styles.statusText,
-                  isBackendConnected === false && styles.statusTextOffline,
+                  (isBackendConnected === false || isSessionExpired) &&
+                    styles.statusTextOffline,
                 ]}
               >
-                {isBackendConnected === true
-                  ? "Online"
-                  : isBackendConnected === false
-                    ? "Offline"
-                    : "..."}
+                {isSessionExpired
+                  ? "Sesión caducada"
+                  : isBackendConnected === true
+                    ? "Online"
+                    : isBackendConnected === false
+                      ? "Offline"
+                      : "..."}
               </Text>
             </Pressable>
           ) : (

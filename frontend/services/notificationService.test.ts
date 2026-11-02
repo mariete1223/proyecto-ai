@@ -342,6 +342,7 @@ describe("NotificationService", () => {
     it("discards local notification when timer callback fires late (> 5000ms) IF online with active Web Push backend to prevent duplicates (#138)", () => {
       notificationService.clearNotifiedHistory();
       notificationService.setAuth("http://localhost:8000", "mock-token");
+      notificationService.setPushSubscriptionActive(true);
       const originalOnLine = navigator.onLine;
       Object.defineProperty(navigator, "onLine", {
         configurable: true,
@@ -388,6 +389,74 @@ describe("NotificationService", () => {
 
       // sendNotification should NOT be called because backend Web Push handles it online
       expect(sendSpy).not.toHaveBeenCalled();
+
+      Date.now = realNow;
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        value: originalOnLine,
+      });
+      notificationService.clearNotifiedHistory();
+      notificationService.setAuth(null, null);
+      notificationService.setPushSubscriptionActive(false);
+    });
+
+    it("fires local notification when timer callback fires late IF push subscription is NOT confirmed/active on server (#145)", () => {
+      notificationService.clearNotifiedHistory();
+      // Even if baseUrl and token exist in memory, if push subscription failed (e.g. 401 Unauthorized), pushSubscriptionActive is false
+      notificationService.setAuth("http://localhost:8000", "expired-token");
+      notificationService.setPushSubscriptionActive(false);
+      const originalOnLine = navigator.onLine;
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        value: true,
+      });
+
+      const sendSpy = jest
+        .spyOn(notificationService, "sendNotification")
+        .mockReturnValue(true);
+      const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+
+      const entry = {
+        id: "late-unconfirmed-push-entry",
+        user_id: "user-1",
+        category_id: "cat-1",
+        title: "Limpiar el ordenador a las 9:45",
+        content: "Limpiar el ordenador que debe sonar siempre",
+        reminder_enabled: true,
+        reminder_time: new Date(Date.now() + 2000).toISOString(),
+        reminder_offset_minutes: 0,
+        reminder_recurrence: "NONE",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      notificationService.scheduleForEntry(entry);
+
+      expect(setTimeoutSpy).toHaveBeenCalled();
+      const callback = setTimeoutSpy.mock.calls[
+        setTimeoutSpy.mock.calls.length - 1
+      ][0] as () => void;
+
+      notificationService.cancelNotification(entry.id);
+
+      // Timer fires 15s late after targetDate
+      const realNow = Date.now;
+      jest
+        .spyOn(Date, "now")
+        .mockReturnValue(new Date(entry.reminder_time!).getTime() + 15000);
+
+      callback();
+
+      // Since push subscription was not active on server, local sound/notification MUST fire!
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      expect(sendSpy).toHaveBeenCalledWith(
+        "🔔 Limpiar el ordenador a las 9:45",
+        "Limpiar el ordenador que debe sonar siempre",
+        undefined,
+        true,
+        "entry-reminder-late-unconfirmed-push-entry",
+      );
 
       Date.now = realNow;
       Object.defineProperty(navigator, "onLine", {

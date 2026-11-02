@@ -3,6 +3,7 @@ import { MemoryDatabaseAdapter, runMigrations } from "../db/database";
 import { createLocalEntry, deleteLocalEntry } from "../db/entries";
 import { createLocalTag } from "../db/tags";
 import { getPendingLocalChanges, syncEngine } from "./syncEngine";
+import { onSessionExpired } from "./authService";
 
 describe("SyncEngine Service (Task 40)", () => {
   let db: MemoryDatabaseAdapter;
@@ -334,5 +335,117 @@ describe("SyncEngine Service (Task 40)", () => {
     // Debe haber seleccionado la categoría TASK (Tareas) y NUNCA la categoría Alerta
     expect((entryChange?.payload as any).category_id).toBe(taskCat.id);
     expect((entryChange?.payload as any).category_id).not.toBe(alertCat.id);
+  });
+
+  it("automatically refreshes token on HTTP 401 during push and retries successfully (#145)", async () => {
+    const cat = await createLocalCategory(db, userId, {
+      name: "Notas",
+      voice_command: "notas",
+    });
+    await createLocalEntry(db, userId, {
+      category_id: cat.id,
+      content: "Nota creada que necesita refresh de token",
+    });
+
+    let pushAttempts = 0;
+    const mockFetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/v1/sync/push")) {
+        pushAttempts++;
+        if (pushAttempts === 1) {
+          return Promise.resolve({ ok: false, status: 401 });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              results: [
+                {
+                  change_id: "fake-ch-1",
+                  status: "APPLIED",
+                  new_version: 2,
+                },
+              ],
+            }),
+        });
+      }
+
+      if (url.includes("/api/v1/auth/refresh")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              access_token: "refreshed-jwt-token-456",
+              token_type: "bearer",
+            }),
+        });
+      }
+
+      if (url.includes("/api/v1/sync/pull")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              changes: [],
+              tombstones: [],
+              next_cursor: null,
+              has_more: false,
+            }),
+        });
+      }
+
+      return Promise.reject(new Error("Unknown endpoint: " + url));
+    });
+
+    const res = await syncEngine(db, {
+      apiBaseUrl,
+      token: "initial-expired-token",
+      userId,
+      fetchFn: mockFetch as any,
+    });
+
+    expect(res.success).toBe(true);
+    expect(pushAttempts).toBe(2);
+  });
+
+  it("notifies session expired when HTTP 401 cannot be refreshed (#145)", async () => {
+    const expiredListener = jest.fn();
+    const unsubscribe = onSessionExpired(expiredListener);
+
+    const cat = await createLocalCategory(db, userId, {
+      name: "Notas",
+      voice_command: "notas",
+    });
+    await createLocalEntry(db, userId, {
+      category_id: cat.id,
+      content: "Nota con sesión completamente caducada",
+    });
+
+    const mockFetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/v1/sync/push")) {
+        return Promise.resolve({ ok: false, status: 401 });
+      }
+      if (url.includes("/api/v1/auth/refresh")) {
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () =>
+            Promise.resolve({ detail: "Token refresh window expired" }),
+        });
+      }
+      return Promise.reject(new Error("Unknown endpoint"));
+    });
+
+    const res = await syncEngine(db, {
+      apiBaseUrl,
+      token: "unrefreshable-token",
+      userId,
+      fetchFn: mockFetch as any,
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("401");
+    expect(expiredListener).toHaveBeenCalled();
+
+    unsubscribe();
   });
 });

@@ -66,7 +66,11 @@ import {
   OnboardingModal,
   isOnboardingCompleted,
 } from "./components/OnboardingModal";
-import { AuthSession, authStorage } from "./services/authService";
+import {
+  AuthSession,
+  authStorage,
+  onSessionExpired,
+} from "./services/authService";
 import appConfig from "./app.json";
 
 const ACTIVE_BACKEND_TUNNEL = "https://raging-degraded-reptile.ngrok-free.dev";
@@ -177,6 +181,7 @@ export default function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showOfflineNoticeModal, setShowOfflineNoticeModal] = useState(false);
+  const [isSessionExpired, setIsSessionExpired] = useState(false);
   const userId = authSession
     ? authSession.userId
     : offlineUserId || "user-demo-123";
@@ -253,7 +258,15 @@ export default function App() {
   }, [selectedEntryId, showVoiceCaptureModal, showEntryFormModal]);
 
   useEffect(() => {
+    const unsubscribe = onSessionExpired(() => {
+      setIsSessionExpired(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     if (authSession?.token) {
+      setIsSessionExpired(false);
       notificationService.setAuth(getBackendUrl(), authSession.token);
       if (notificationService.getPermissionStatus() === "granted") {
         notificationService
@@ -421,6 +434,11 @@ export default function App() {
             });
             if (!syncRes.success && syncRes.error) {
               console.warn("[Sync] Engine returned warning:", syncRes.error);
+              if (syncRes.error.includes("401")) {
+                setIsSessionExpired(true);
+              }
+            } else if (syncRes.success) {
+              setIsSessionExpired(false);
             }
           } catch (syncErr) {
             console.warn("[Sync] Perform sync error:", syncErr);
@@ -894,6 +912,31 @@ export default function App() {
           </View>
         )}
 
+        {/* Banner de Sesión Caducada */}
+        {isSessionExpired && (
+          <View
+            style={styles.sessionExpiredBanner}
+            testID="banner-session-expired"
+          >
+            <View style={styles.sessionExpiredBannerContent}>
+              <Text style={styles.sessionExpiredBannerText}>
+                ⚠️ <Text style={{ fontWeight: "700" }}>Sesión caducada:</Text>{" "}
+                Vuelve a iniciar sesión para sincronizar tus notas y activar las
+                alertas en este dispositivo.
+              </Text>
+            </View>
+            <Pressable
+              style={styles.sessionExpiredBannerBtn}
+              onPress={() => setShowAuthModal(true)}
+              testID="btn-renew-session"
+            >
+              <Text style={styles.sessionExpiredBannerBtnText}>
+                Iniciar sesión
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Proactive Startup Permissions Banner (#77) */}
         <StartupPermissionsPrompt
           backendUrl={getBackendUrl()}
@@ -1081,6 +1124,7 @@ export default function App() {
         onSync={loadDatabaseState}
         isSyncing={isSyncing}
         currentUserEmail={authSession ? authSession.email : null}
+        isSessionExpired={isSessionExpired}
         onOpenAuth={() => setShowAuthModal(true)}
         onOpenOnboarding={() => setShowOnboardingModal(true)}
         onOpenOfflineNotice={() => setShowOfflineNoticeModal(true)}
@@ -1115,6 +1159,7 @@ export default function App() {
       onSync={loadDatabaseState}
       isSyncing={isSyncing}
       currentUserEmail={authSession ? authSession.email : null}
+      isSessionExpired={isSessionExpired}
       onOpenAuth={() => setShowAuthModal(true)}
       onOpenOnboarding={() => setShowOnboardingModal(true)}
       onLogout={() => {
@@ -1304,6 +1349,41 @@ const styles = StyleSheet.create({
   },
   offlineNoticeBannerBtnText: {
     color: "#FDE68A",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  sessionExpiredBanner: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.45)",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    width: "100%",
+  },
+  sessionExpiredBannerContent: {
+    flex: 1,
+  },
+  sessionExpiredBannerText: {
+    color: "#FEE2E2",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  sessionExpiredBannerBtn: {
+    backgroundColor: "rgba(239, 68, 68, 0.3)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.6)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  sessionExpiredBannerBtnText: {
+    color: "#FECACA",
     fontSize: 12,
     fontWeight: "700",
   },

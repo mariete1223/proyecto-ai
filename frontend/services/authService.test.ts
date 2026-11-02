@@ -1,6 +1,9 @@
 import {
   authStorage,
   loginUser,
+  notifySessionExpired,
+  onSessionExpired,
+  refreshToken,
   registerUser,
   resendVerification,
   verifyEmail,
@@ -212,5 +215,72 @@ describe("authService", () => {
     // explicit clearLastAccount
     authStorage.clearLastAccount();
     expect(authStorage.getLastAccount()).toBeNull();
+  });
+
+  it("handles successful token refresh and updates session in authStorage", async () => {
+    authStorage.saveSession({
+      token: "old-token-xyz",
+      email: "user@example.com",
+      userId: "user-123",
+    });
+
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          access_token: "refreshed-token-abc",
+          token_type: "bearer",
+        }),
+    });
+
+    const res = await refreshToken(
+      "http://test-server",
+      "old-token-xyz",
+      mockFetch as any,
+    );
+    expect(res.success).toBe(true);
+    expect(res.session?.token).toBe("refreshed-token-abc");
+
+    const loaded = authStorage.loadSession();
+    expect(loaded?.token).toBe("refreshed-token-abc");
+    expect(loaded?.email).toBe("user@example.com");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://test-server/api/v1/auth/refresh",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer old-token-xyz",
+        }),
+      }),
+    );
+  });
+
+  it("handles failed token refresh on 401 error", async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ detail: "Token refresh window expired" }),
+    });
+
+    const res = await refreshToken(
+      "http://test-server",
+      "expired-token",
+      mockFetch as any,
+    );
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("Token refresh window expired");
+  });
+
+  it("notifies session expired listeners", () => {
+    const listener = jest.fn();
+    const unsubscribe = onSessionExpired(listener);
+
+    notifySessionExpired();
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    notifySessionExpired();
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });

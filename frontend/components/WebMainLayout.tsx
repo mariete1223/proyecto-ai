@@ -30,6 +30,7 @@ export interface WebMainLayoutProps {
   onSync?: () => void;
   isSyncing?: boolean;
   currentUserEmail?: string | null;
+  isSessionExpired?: boolean;
   onOpenAuth?: () => void;
   onLogout?: () => void;
   onOpenOnboarding?: () => void;
@@ -44,6 +45,7 @@ export function WebMainLayout({
   onSync,
   isSyncing,
   currentUserEmail,
+  isSessionExpired,
   onOpenAuth,
   onLogout,
   onOpenOnboarding,
@@ -158,20 +160,39 @@ export function WebMainLayout({
           </Pressable>
 
           {/* User Account / Auth Button */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.authBadge,
-              pressed && { opacity: 0.7 },
-            ]}
-            onPress={currentUserEmail ? onLogout : onOpenAuth}
-            testID="btn-user-auth"
-          >
-            <Text style={styles.authBadgeText}>
-              {currentUserEmail
-                ? `👤 ${currentUserEmail} (Salir)`
-                : "👤 Iniciar Sesión"}
-            </Text>
-          </Pressable>
+          {isSessionExpired ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.authBadge,
+                {
+                  borderColor: "rgba(239, 68, 68, 0.5)",
+                  backgroundColor: "rgba(239, 68, 68, 0.15)",
+                },
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={onOpenAuth}
+              testID="btn-user-auth"
+            >
+              <Text style={[styles.authBadgeText, { color: "#FCA5A5" }]}>
+                ⚠️ Sesión caducada (Entrar)
+              </Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [
+                styles.authBadge,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={currentUserEmail ? onLogout : onOpenAuth}
+              testID="btn-user-auth"
+            >
+              <Text style={styles.authBadgeText}>
+                {currentUserEmail
+                  ? `👤 ${currentUserEmail} (Salir)`
+                  : "👤 Iniciar Sesión"}
+              </Text>
+            </Pressable>
+          )}
         </View>
       </View>
 

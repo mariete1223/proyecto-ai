@@ -3,6 +3,7 @@ import {
   applyRemoteDeletion,
   RemoteDeletionEntityType,
 } from "./remoteDeletion";
+import { notifySessionExpired, refreshToken } from "./authService";
 
 export interface SyncConfig {
   apiBaseUrl: string;
@@ -956,17 +957,40 @@ export async function syncEngine(
     // Phase 1: Push local pending changes
     const pendingChanges = await getPendingLocalChanges(db, config.userId);
     if (pendingChanges.length > 0) {
-      const pushRes = await fetchImpl(`${config.apiBaseUrl}/api/v1/sync/push`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.token}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({ client_changes: pendingChanges }),
-      });
+      const executePush = (authToken: string) =>
+        fetchImpl(`${config.apiBaseUrl}/api/v1/sync/push`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+            "ngrok-skip-browser-warning": "true",
+          },
+          body: JSON.stringify({ client_changes: pendingChanges }),
+        });
+
+      let pushRes = await executePush(config.token);
+
+      if (pushRes.status === 401 && config.apiBaseUrl && config.token) {
+        console.warn(
+          "[SyncEngine] HTTP 401 en push, intentando renovación automática del token...",
+        );
+        const refreshRes = await refreshToken(
+          config.apiBaseUrl,
+          config.token,
+          fetchImpl,
+        );
+        if (refreshRes.success && refreshRes.session?.token) {
+          config.token = refreshRes.session.token;
+          pushRes = await executePush(config.token);
+        } else {
+          notifySessionExpired();
+        }
+      }
 
       if (!pushRes.ok) {
+        if (pushRes.status === 401) {
+          notifySessionExpired();
+        }
         return {
           success: false,
           pushed_applied: 0,
@@ -1003,15 +1027,38 @@ export async function syncEngine(
         pullUrl += `&cursor=${encodeURIComponent(cursor)}`;
       }
 
-      const pullRes = await fetchImpl(pullUrl, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${config.token}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-      });
+      const executePull = (authToken: string) =>
+        fetchImpl(pullUrl, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            "ngrok-skip-browser-warning": "true",
+          },
+        });
+
+      let pullRes = await executePull(config.token);
+
+      if (pullRes.status === 401 && config.apiBaseUrl && config.token) {
+        console.warn(
+          "[SyncEngine] HTTP 401 en pull, intentando renovación automática del token...",
+        );
+        const refreshRes = await refreshToken(
+          config.apiBaseUrl,
+          config.token,
+          fetchImpl,
+        );
+        if (refreshRes.success && refreshRes.session?.token) {
+          config.token = refreshRes.session.token;
+          pullRes = await executePull(config.token);
+        } else {
+          notifySessionExpired();
+        }
+      }
 
       if (!pullRes.ok) {
+        if (pullRes.status === 401) {
+          notifySessionExpired();
+        }
         return {
           success: false,
           pushed_applied: pushedApplied,

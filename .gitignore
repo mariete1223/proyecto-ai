@@ -22,4 +22,4 @@ __pycache__/
 .vscode/
 *.pem
 *.db
-
+scratch/

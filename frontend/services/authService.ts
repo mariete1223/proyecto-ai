@@ -336,3 +336,80 @@ export async function resendVerification(
     };
   }
 }
+
+type SessionExpiredListener = () => void;
+const sessionExpiredListeners = new Set<SessionExpiredListener>();
+
+export function onSessionExpired(listener: SessionExpiredListener): () => void {
+  sessionExpiredListeners.add(listener);
+  return () => {
+    sessionExpiredListeners.delete(listener);
+  };
+}
+
+export function notifySessionExpired(): void {
+  for (const listener of sessionExpiredListeners) {
+    try {
+      listener();
+    } catch (e) {
+      console.warn("[Auth] Error notifying session expired:", e);
+    }
+  }
+}
+
+export async function refreshToken(
+  baseUrl: string,
+  currentToken: string,
+  fetchFn?: typeof fetch,
+): Promise<AuthResult> {
+  const fetchImpl =
+    fetchFn || (globalThis.fetch ? globalThis.fetch.bind(globalThis) : fetch);
+  try {
+    const res = await fetchImpl(`${baseUrl}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${currentToken}`,
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: JSON.stringify({ token: currentToken }),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => null);
+      const detail =
+        errorData?.detail || `Error al renovar sesión (HTTP ${res.status})`;
+      return { success: false, error: detail };
+    }
+
+    const tokenData = (await res.json()) as {
+      access_token: string;
+      token_type: string;
+    };
+
+    const currentSession = authStorage.loadSession();
+    if (currentSession) {
+      const updatedSession: AuthSession = {
+        ...currentSession,
+        token: tokenData.access_token,
+      };
+      authStorage.saveSession(updatedSession);
+      return { success: true, session: updatedSession };
+    }
+
+    return {
+      success: true,
+      session: {
+        token: tokenData.access_token,
+        email: "",
+        userId: "",
+      },
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      error: `No se pudo conectar con el servidor para renovar sesión: ${msg}`,
+    };
+  }
+}

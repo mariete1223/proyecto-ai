@@ -37,3 +37,7 @@ class VerifyEmailRequest(BaseModel):
 
 class ResendVerificationRequest(BaseModel):
     email: str
+
+
+class RefreshTokenRequest(BaseModel):
+    token: str | None = None

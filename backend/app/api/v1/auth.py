@@ -4,15 +4,16 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_user, get_db, security_bearer
 from app.core.auth import (
     InvalidTokenError,
     create_access_token,
     create_verification_token,
+    decode_token_for_refresh,
     decode_verification_token,
 )
 from app.core.security import verify_password
@@ -20,6 +21,7 @@ from app.models.domain import User
 from app.schemas.auth import (
     LoginRequest,
     MessageResponse,
+    RefreshTokenRequest,
     RegisterResponse,
     ResendVerificationRequest,
     TokenResponse,
@@ -190,3 +192,61 @@ def logout(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> MessageResponse:
     return MessageResponse(message="Successfully logged out.")
+
+
+@router.post("/refresh", response_model=TokenResponse, summary="Refresh JWT access token")
+def refresh_token(
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(security_bearer)
+    ] = None,
+    body: RefreshTokenRequest | None = Body(None),
+) -> TokenResponse:
+    raw_token: str | None = None
+    if credentials is not None and credentials.credentials:
+        raw_token = credentials.credentials
+    elif request.headers.get("authorization", "").startswith("Bearer "):
+        raw_token = request.headers.get("authorization", "")[7:].strip()
+    elif body is not None and body.token:
+        raw_token = body.token
+
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token is required to refresh session.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        payload = decode_token_for_refresh(raw_token)
+        user_id_str = payload.get("sub")
+        if not user_id_str or not isinstance(user_id_str, str):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        user_id = uuid.UUID(user_id_str)
+    except (InvalidTokenError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Cannot refresh token: {exc}",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from None
+
+    user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email address is not verified.",
+        )
+
+    new_token = create_access_token(user_id=str(user.id), email=user.email)
+    return TokenResponse(access_token=new_token, token_type="bearer")

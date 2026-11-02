@@ -95,6 +95,53 @@ def decode_access_token(token: str, secret_key: str | None = None) -> dict[str, 
     return payload
 
 
+def decode_token_for_refresh(
+    token: str,
+    max_grace_seconds: int = 30 * 86400,
+    secret_key: str | None = None,
+) -> dict[str, Any]:
+    """Decode and verify an access token for refresh, allowing an expired token within grace period."""
+    if secret_key is None:
+        secret_key = get_secret_key()
+
+    parts = token.split(".")
+    if len(parts) != 3:
+        raise InvalidTokenError("Invalid token structure.")
+
+    header_b64, payload_b64, signature_b64 = parts
+    unsigned_token = f"{header_b64}.{payload_b64}"
+
+    expected_signature = hmac.new(
+        secret_key.encode("utf-8"),
+        unsigned_token.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+
+    try:
+        provided_signature = _b64decode(signature_b64)
+    except Exception:
+        raise InvalidTokenError("Invalid token signature encoding.") from None
+
+    if not hmac.compare_digest(provided_signature, expected_signature):
+        raise InvalidTokenError("Token signature verification failed.")
+
+    try:
+        payload_bytes = _b64decode(payload_b64)
+        payload: dict[str, Any] = json.loads(payload_bytes.decode("utf-8"))
+    except Exception:
+        raise InvalidTokenError("Invalid token payload.") from None
+
+    now = int(time.time())
+    exp = payload.get("exp")
+    if exp is None or not isinstance(exp, (int, float)):
+        raise InvalidTokenError("Token exp is invalid.")
+
+    if now >= exp + max_grace_seconds:
+        raise InvalidTokenError("Token refresh window expired. Please re-authenticate.")
+
+    return payload
+
+
 def create_verification_token(
     user_id: str,
     email: str,

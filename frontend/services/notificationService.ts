@@ -8,6 +8,7 @@ import {
   normalizeUtcIso,
   ReminderRecurrence,
 } from "../types/domain";
+import { notifySessionExpired, refreshToken } from "./authService";
 
 export type { ReminderRecurrence };
 
@@ -122,9 +123,15 @@ class NotificationService {
     }
   }
 
+  private pushSubscriptionActive: boolean = false;
+
   public setAuth(apiBaseUrl?: string | null, token?: string | null): void {
     if (apiBaseUrl !== undefined) this.lastApiBaseUrl = apiBaseUrl;
     if (token !== undefined) this.lastToken = token;
+  }
+
+  public setPushSubscriptionActive(active: boolean): void {
+    this.pushSubscriptionActive = active;
   }
 
   public canRelyOnRemotePush(): boolean {
@@ -132,6 +139,9 @@ class NotificationService {
       return false;
     }
     if (!this.lastApiBaseUrl || !this.lastToken) {
+      return false;
+    }
+    if (!this.pushSubscriptionActive) {
       return false;
     }
     return true;
@@ -297,41 +307,62 @@ class NotificationService {
         return false;
       }
 
-      const res = await fetch(`${targetBaseUrl}/api/v1/push/subscribe`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${targetToken}`,
-          "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({
-          endpoint,
-          keys: {
-            p256dh: keys.p256dh,
-            auth: keys.auth,
+      let activeToken = targetToken;
+      const sendSubscribe = (tok: string) =>
+        fetch(`${targetBaseUrl}/api/v1/push/subscribe`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tok}`,
+            "ngrok-skip-browser-warning": "true",
           },
-          user_agent:
-            typeof navigator !== "undefined" ? navigator.userAgent : null,
-        }),
-      });
+          body: JSON.stringify({
+            endpoint,
+            keys: {
+              p256dh: keys.p256dh,
+              auth: keys.auth,
+            },
+            user_agent:
+              typeof navigator !== "undefined" ? navigator.userAgent : null,
+          }),
+        });
+
+      let res = await sendSubscribe(activeToken);
+
+      if (res.status === 401 && targetBaseUrl && activeToken) {
+        console.warn(
+          "[NotificationService] HTTP 401 registrando Web Push, intentando renovar token...",
+        );
+        const refreshRes = await refreshToken(targetBaseUrl, activeToken);
+        if (refreshRes.success && refreshRes.session?.token) {
+          activeToken = refreshRes.session.token;
+          this.lastToken = activeToken;
+          res = await sendSubscribe(activeToken);
+        } else {
+          notifySessionExpired();
+        }
+      }
 
       if (!res.ok) {
         console.warn(
           "[NotificationService] Error registrando suscripción push en el backend:",
           res.status,
         );
+        this.pushSubscriptionActive = false;
         return false;
       }
 
       console.info(
         "[NotificationService] Suscripción Web Push registrada con éxito",
       );
+      this.pushSubscriptionActive = true;
       return true;
     } catch (err) {
       console.warn(
         "[NotificationService] Excepción al registrar Web Push:",
         err,
       );
+      this.pushSubscriptionActive = false;
       return false;
     }
   }
