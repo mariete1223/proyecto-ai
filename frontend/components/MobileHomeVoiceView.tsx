@@ -170,8 +170,6 @@ export function MobileHomeVoiceView({
   const webContainerStyle =
     Platform.OS === "web"
       ? ({
-          height: "100%",
-          maxHeight: "100%",
           minHeight: 0,
           overflow: "hidden",
         } as any)
@@ -180,8 +178,6 @@ export function MobileHomeVoiceView({
   const webMainLayoutWrapperStyle =
     Platform.OS === "web"
       ? ({
-          height: "100%",
-          maxHeight: "100%",
           minHeight: 0,
           overflow: "hidden",
         } as any)
@@ -469,7 +465,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: "100%",
-    height: "100%",
     minHeight: 0,
     overflow: "hidden",
   },
@@ -479,7 +474,6 @@ const styles = StyleSheet.create({
   },
   mainLayoutWrapper: {
     flex: 1,
-    height: "100%",
     minHeight: 0,
     overflow: "hidden",
     justifyContent: "space-between",
@@ -662,7 +656,6 @@ const styles = StyleSheet.create({
   voiceModalContainer: {
     flex: 1,
     width: "100%",
-    height: "100%",
     minHeight: 0,
     overflow: "hidden",
     paddingBottom: Platform.OS === "web" ? 16 : 14,

@@ -92,6 +92,9 @@ def decode_access_token(token: str, secret_key: str | None = None) -> dict[str, 
     if exp is None or not isinstance(exp, (int, float)) or now >= exp:
         raise InvalidTokenError("Token has expired.")
 
+    if payload.get("type") == "verify_email":
+        raise InvalidTokenError("Invalid token type.")
+
     return payload
 
 
@@ -138,6 +141,9 @@ def decode_token_for_refresh(
 
     if now >= exp + max_grace_seconds:
         raise InvalidTokenError("Token refresh window expired. Please re-authenticate.")
+
+    if payload.get("type") == "verify_email":
+        raise InvalidTokenError("Invalid token type.")
 
     return payload
 

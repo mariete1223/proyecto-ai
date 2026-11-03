@@ -13,6 +13,9 @@ When the user reports unexpected behaviour:
    and environment, frequency, impact, and any missing information.
 3. Inspect relevant code, tests, and available read-only state only far enough
    to establish whether the report is reproducible and where it may originate.
+   - **For Sync / Category / Tag reports:** trace the full chain (`UI Component -> Local DB -> Sync Push -> Backend Service -> Sync Pull -> UI Resolution`) to identify whether the mismatch occurs on push, pull, or local fallback.
+   - **For Mobile Layout / Overflow reports:** inspect the entire Flexbox ancestor chain (`MobileMainLayout -> contentArea -> Screen Wrapper -> ScrollView + Pinned Dock`) and check for `height: "100%"` / `maxHeight: "100%"` on flex children that share a container with sibling headers or footers.
+   - **For Browser API / Permission reports:** check all 4 permission states (`"granted"`, `"denied"`, `"default"`, `"unsupported"`) across both iOS Safari (browser tab vs. Home Screen PWA) and Android Chrome.
 4. Classify it as `confirmed`, `needs-triage`, `duplicate`, or
    `expected-behaviour`. State facts separately from hypotheses.
 5. Search open and closed GitHub issues and `_docs/defect-drafts/` using the

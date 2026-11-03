@@ -35,10 +35,41 @@ from app.schemas.sync import (
 )
 from app.services.category_service import (
     CANONICAL_CATEGORY_IDS,
+    PROTECTED_SYSTEM_CATEGORY_NAMES,
     normalize_text_key,
     seed_initial_categories,
 )
 from app.services.tag_service import normalize_tag_name
+
+EVENT_CATEGORY_ALIASES: set[str] = {"evento", "eventos", "event", "events"}
+TASK_CATEGORY_ALIASES: set[str] = {"tarea", "tareas", "task", "tasks"}
+ALERT_CATEGORY_ALIASES: set[str] = {"alerta", "alertas", "alert", "alerts"}
+NEUTRAL_CATEGORY_ALIASES: set[str] = {"nota", "notas", "note", "notes", "general"}
+PROJECT_CATEGORY_ALIASES: set[str] = {"proyecto", "proyectos", "project", "projects"}
+HEALTH_CATEGORY_ALIASES: set[str] = {"salud", "health"}
+
+SHORTHAND_CATEGORY_ALIASES: dict[str, str] = {
+    "cat-events": "eventos",
+    "cat-event": "eventos",
+    "evento": "eventos",
+    "eventos": "eventos",
+    "cat-tasks": "tareas",
+    "cat-task": "tareas",
+    "tarea": "tareas",
+    "tareas": "tareas",
+    "cat-alerts": "alerta",
+    "cat-alert": "alerta",
+    "alerta": "alerta",
+    "alertas": "alerta",
+    "cat-notes": "notas",
+    "cat-note": "notas",
+    "nota": "notas",
+    "notas": "notas",
+    "cat-projects": "proyectos",
+    "cat-project": "proyectos",
+    "proyecto": "proyectos",
+    "proyectos": "proyectos",
+}
 
 
 def _model_to_dict(model: Any) -> dict[str, Any]:
@@ -155,13 +186,20 @@ def _process_single_change(
                 status=PushResultStatus.ALREADY_APPLIED,
                 applied_version=tombstone.deleted_version,
             )
-        return SyncPushChangeResult(
-            change_id=change.change_id,
-            entity_type=change.entity_type,
-            entity_id=change.entity_id,
-            status=PushResultStatus.CONFLICT,
-            error_message="Entity was deleted on server.",
-        )
+        if change.action == SyncAction.CREATE and change.entity_type in (
+            TombstoneEntity.CATEGORY,
+            TombstoneEntity.TAG,
+        ):
+            db.delete(tombstone)
+            db.flush()
+        else:
+            return SyncPushChangeResult(
+                change_id=change.change_id,
+                entity_type=change.entity_type,
+                entity_id=change.entity_id,
+                status=PushResultStatus.CONFLICT,
+                error_message="Entity was deleted on server.",
+            )
 
     # Map model class
     model_cls_map: dict[TombstoneEntity, Any] = {
@@ -188,31 +226,91 @@ def _process_single_change(
     existing_item: Any = db.execute(stmt_existing).scalar_one_or_none()
 
     if change.entity_type == TombstoneEntity.CATEGORY and existing_item is None:
-        name_val = str(change.payload.get("name", "")).strip()
-        name_norm = normalize_text_key(name_val) if name_val else ""
-        if name_norm:
-            same_name_cat = (
+        canonical_lookup: dict[uuid.UUID, list[Any]] = {
+            CANONICAL_CATEGORY_IDS["eventos"]: [
+                Category.kind == CategoryKind.EVENT,
+                Category.name_normalized.in_(EVENT_CATEGORY_ALIASES),
+                Category.voice_command_normalized.in_(EVENT_CATEGORY_ALIASES),
+            ],
+            CANONICAL_CATEGORY_IDS["tareas"]: [
+                Category.kind == CategoryKind.TASK,
+                Category.name_normalized.in_(TASK_CATEGORY_ALIASES),
+                Category.voice_command_normalized.in_(TASK_CATEGORY_ALIASES),
+            ],
+            CANONICAL_CATEGORY_IDS["alerta"]: [
+                Category.name_normalized.in_(ALERT_CATEGORY_ALIASES),
+                Category.voice_command_normalized.in_(ALERT_CATEGORY_ALIASES),
+            ],
+            CANONICAL_CATEGORY_IDS["notas"]: [
+                Category.name_normalized.in_(NEUTRAL_CATEGORY_ALIASES),
+                Category.voice_command_normalized.in_(NEUTRAL_CATEGORY_ALIASES),
+            ],
+            CANONICAL_CATEGORY_IDS["proyectos"]: [
+                Category.name_normalized.in_(PROJECT_CATEGORY_ALIASES),
+                Category.voice_command_normalized.in_(PROJECT_CATEGORY_ALIASES),
+            ],
+        }
+        if "salud" in CANONICAL_CATEGORY_IDS:
+            canonical_lookup[CANONICAL_CATEGORY_IDS["salud"]] = [
+                Category.name_normalized.in_(HEALTH_CATEGORY_ALIASES),
+                Category.voice_command_normalized.in_(HEALTH_CATEGORY_ALIASES),
+            ]
+        if change.entity_id in canonical_lookup:
+            existing_item = (
                 db.execute(
                     select(Category).where(
                         Category.user_id == user_id,
-                        Category.name_normalized.in_([name_norm, name_norm + "s"]),
+                        or_(*canonical_lookup[change.entity_id]),
                     )
                 )
                 .scalars()
                 .first()
             )
-            if same_name_cat is not None:
-                existing_item = same_name_cat
+        if existing_item is None:
+            name_val = str(change.payload.get("name", "")).strip()
+            name_norm = normalize_text_key(name_val) if name_val else ""
+            if name_norm:
+                same_name_cat = (
+                    db.execute(
+                        select(Category).where(
+                            Category.user_id == user_id,
+                            Category.name_normalized.in_([name_norm, name_norm + "s"]),
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+                if same_name_cat is not None:
+                    existing_item = same_name_cat
+
+    if (
+        change.entity_type == TombstoneEntity.TAG
+        and existing_item is None
+        and change.action == SyncAction.CREATE
+    ):
+        name_val = str(change.payload.get("name", "")).strip()
+        if name_val:
+            name_norm = normalize_tag_name(name_val)
+            if name_norm:
+                existing_tag_by_name = db.execute(
+                    select(Tag).where(
+                        Tag.user_id == user_id,
+                        Tag.name_normalized == name_norm,
+                    )
+                ).scalar_one_or_none()
+                if existing_tag_by_name is not None:
+                    existing_item = existing_tag_by_name
 
     if change.action == SyncAction.CREATE:
         if existing_item is not None:
-            if existing_item.version == 1:
+            if existing_item.version == 1 or existing_item.id != change.entity_id:
                 return SyncPushChangeResult(
                     change_id=change.change_id,
                     entity_type=change.entity_type,
                     entity_id=change.entity_id,
                     status=PushResultStatus.ALREADY_APPLIED,
-                    applied_version=1,
+                    applied_version=existing_item.version,
+                    server_entity=_model_to_dict(existing_item),
                 )
             return SyncPushChangeResult(
                 change_id=change.change_id,
@@ -282,6 +380,27 @@ def _process_single_change(
                 status=PushResultStatus.ALREADY_APPLIED,
             )
 
+        if change.entity_type == TombstoneEntity.CATEGORY:
+            name_norm = getattr(existing_item, "name_normalized", "")
+            vc_norm = getattr(existing_item, "voice_command_normalized", "")
+            protected_ids = {
+                CANONICAL_CATEGORY_IDS["tareas"],
+                CANONICAL_CATEGORY_IDS["alerta"],
+            }
+            if (
+                name_norm in PROTECTED_SYSTEM_CATEGORY_NAMES
+                or vc_norm in PROTECTED_SYSTEM_CATEGORY_NAMES
+                or existing_item.id in protected_ids
+                or change.entity_id in protected_ids
+            ):
+                return SyncPushChangeResult(
+                    change_id=change.change_id,
+                    entity_type=change.entity_type,
+                    entity_id=change.entity_id,
+                    status=PushResultStatus.REJECTED,
+                    error_message="System category cannot be deleted.",
+                )
+
         if (
             existing_item.version > change.base_version
             and existing_item.version != change.base_version + 1
@@ -300,13 +419,13 @@ def _process_single_change(
 
         # Cascading / Reassignment cleanup to avoid foreign key errors
         if change.entity_type == TombstoneEntity.CATEGORY:
-            # Reassign any entries referencing this category to another remaining category
+            target_cat_ids = [change.entity_id, existing_item.id]
             other_cat = (
                 db.execute(
                     select(Category)
                     .where(
                         Category.user_id == user_id,
-                        Category.id != change.entity_id,
+                        Category.id.notin_(target_cat_ids),
                     )
                     .order_by(Category.created_at.asc())
                 )
@@ -318,7 +437,7 @@ def _process_single_change(
                     update(Entry)
                     .where(
                         Entry.user_id == user_id,
-                        Entry.category_id == change.entity_id,
+                        Entry.category_id.in_(target_cat_ids),
                     )
                     .values(
                         category_id=other_cat.id,
@@ -331,7 +450,7 @@ def _process_single_change(
             db.execute(
                 delete(EntryTag).where(
                     EntryTag.user_id == user_id,
-                    EntryTag.tag_id == change.entity_id,
+                    EntryTag.tag_id.in_([change.entity_id, existing_item.id]),
                 )
             )
             db.flush()
@@ -383,8 +502,18 @@ def _resolve_category_id_for_user(
     is_task: bool = False,
     has_occurred_at: bool = False,
 ) -> uuid.UUID:
-    """Resolve category ID for a user, handling exact matches, canonical ID aliases, and neutral fallbacks."""
-    cat_id = uuid.UUID(str(raw_cat_id)) if raw_cat_id else default_entity_id
+    """Resolve category ID for a user, handling exact matches, aliases, and fallbacks."""
+    cat_id = default_entity_id
+    if raw_cat_id:
+        raw_str = str(raw_cat_id).strip().lower()
+        canon_key = SHORTHAND_CATEGORY_ALIASES.get(raw_str)
+        if canon_key and canon_key in CANONICAL_CATEGORY_IDS:
+            cat_id = CANONICAL_CATEGORY_IDS[canon_key]
+        else:
+            try:
+                cat_id = uuid.UUID(str(raw_cat_id).strip())
+            except (ValueError, TypeError):
+                cat_id = default_entity_id
 
     # 1. Exact match on user's category
     stmt_cat = select(Category).where(
@@ -399,33 +528,33 @@ def _resolve_category_id_for_user(
             "eventos", uuid.UUID("45e5d9a3-b1d9-4268-acbf-cbe98c0d1ccd")
         ): [
             Category.kind == CategoryKind.EVENT,
-            Category.name_normalized.in_(["evento", "eventos"]),
-            Category.voice_command_normalized.in_(["evento", "eventos"]),
+            Category.name_normalized.in_(EVENT_CATEGORY_ALIASES),
+            Category.voice_command_normalized.in_(EVENT_CATEGORY_ALIASES),
         ],
         CANONICAL_CATEGORY_IDS.get(
             "notas", uuid.UUID("740d7f77-ae95-4898-a80b-4a31bc58061b")
         ): [
-            Category.name_normalized.in_(["nota", "notas"]),
-            Category.voice_command_normalized.in_(["nota", "notas"]),
+            Category.name_normalized.in_(NEUTRAL_CATEGORY_ALIASES),
+            Category.voice_command_normalized.in_(NEUTRAL_CATEGORY_ALIASES),
         ],
         CANONICAL_CATEGORY_IDS.get(
             "tareas", uuid.UUID("20e8f404-c429-43e8-8cf8-af9d51416d58")
         ): [
             Category.kind == CategoryKind.TASK,
-            Category.name_normalized.in_(["tarea", "tareas"]),
-            Category.voice_command_normalized.in_(["tarea", "tareas"]),
+            Category.name_normalized.in_(TASK_CATEGORY_ALIASES),
+            Category.voice_command_normalized.in_(TASK_CATEGORY_ALIASES),
         ],
         CANONICAL_CATEGORY_IDS.get(
             "proyectos", uuid.UUID("994777f6-09d3-4ef9-876a-3b29d09d5fa4")
         ): [
-            Category.name_normalized.in_(["proyecto", "proyectos"]),
-            Category.voice_command_normalized.in_(["proyecto", "proyectos"]),
+            Category.name_normalized.in_(PROJECT_CATEGORY_ALIASES),
+            Category.voice_command_normalized.in_(PROJECT_CATEGORY_ALIASES),
         ],
         CANONICAL_CATEGORY_IDS.get(
             "alerta", uuid.UUID("c3d4e5f6-a7b8-4901-c2d3-e4f5a6b7c8d9")
         ): [
-            Category.name_normalized.in_(["alerta", "alertas"]),
-            Category.voice_command_normalized.in_(["alerta", "alertas"]),
+            Category.name_normalized.in_(ALERT_CATEGORY_ALIASES),
+            Category.voice_command_normalized.in_(ALERT_CATEGORY_ALIASES),
         ],
     }
 
@@ -453,7 +582,7 @@ def _resolve_category_id_for_user(
                     or_(
                         Category.id == CANONICAL_CATEGORY_IDS.get("tareas"),
                         Category.kind == CategoryKind.TASK,
-                        Category.name_normalized.in_(["tarea", "tareas"]),
+                        Category.name_normalized.in_(TASK_CATEGORY_ALIASES),
                     ),
                 )
             )
@@ -472,7 +601,7 @@ def _resolve_category_id_for_user(
                     or_(
                         Category.id == CANONICAL_CATEGORY_IDS.get("eventos"),
                         Category.kind == CategoryKind.EVENT,
-                        Category.name_normalized.in_(["evento", "eventos"]),
+                        Category.name_normalized.in_(EVENT_CATEGORY_ALIASES),
                     ),
                 )
             )
@@ -487,7 +616,7 @@ def _resolve_category_id_for_user(
         db.execute(
             select(Category).where(
                 Category.user_id == user_id,
-                Category.name_normalized.in_(["nota", "notas"]),
+                Category.name_normalized.in_(NEUTRAL_CATEGORY_ALIASES),
             )
         )
         .scalars()
@@ -500,7 +629,7 @@ def _resolve_category_id_for_user(
         db.execute(
             select(Category).where(
                 Category.user_id == user_id,
-                Category.name_normalized.in_(["evento", "eventos"]),
+                Category.name_normalized.in_(EVENT_CATEGORY_ALIASES),
             )
         )
         .scalars()
@@ -514,7 +643,7 @@ def _resolve_category_id_for_user(
             select(Category).where(
                 Category.user_id == user_id,
                 Category.kind != CategoryKind.TASK,
-                ~Category.name_normalized.in_(["alerta", "alertas"]),
+                ~Category.name_normalized.in_(ALERT_CATEGORY_ALIASES),
             )
         )
         .scalars()
@@ -557,8 +686,16 @@ def _create_domain_model(
         description = str(payload.get("description") or "Category description").strip()
         if not description:
             description = "Category description"
+        actual_id = entity_id
+        if (
+            db.execute(
+                select(Category.id).where(Category.id == actual_id)
+            ).scalar_one_or_none()
+            is not None
+        ):
+            actual_id = uuid.uuid4()
         return Category(
-            id=entity_id,
+            id=actual_id,
             user_id=user_id,
             kind=CategoryKind(kind_str),
             name=name,

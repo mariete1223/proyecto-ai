@@ -786,380 +786,395 @@ export function VoiceCaptureFlow({
       ) : (
         /* SCREEN 2: RESULT SCREEN (PANTALLA APARTE TRAS DICTAR) */
         <View style={styles.screenContainer}>
-          {/* Spoken Quote Box */}
-          {transcript ? (
-            <View style={styles.transcriptQuoteBox}>
-              <Text style={styles.transcriptQuoteLabel}>🗣️ Frase dictada:</Text>
-              <Text style={styles.transcriptQuoteText}>"{transcript}"</Text>
-            </View>
-          ) : null}
-
-          {/* Recognized Command Tokens Highlights */}
-          {parsedResult &&
-            parsedResult.tokens &&
-            parsedResult.tokens.length > 0 && (
-              <View
-                style={styles.tokensContainer}
-                testID="recognized-tokens-section"
-              >
-                <Text style={styles.tokensHeader}>
-                  ✨ Comandos Reconocidos en la Voz:
+          <ScrollView
+            style={styles.dictateScrollArea}
+            contentContainerStyle={styles.dictateScrollContent}
+            keyboardShouldPersistTaps="handled"
+            testID="result-scroll-area"
+          >
+            {/* Spoken Quote Box */}
+            {transcript ? (
+              <View style={styles.transcriptQuoteBox}>
+                <Text style={styles.transcriptQuoteLabel}>
+                  🗣️ Frase dictada:
                 </Text>
-                <View style={styles.tokensRow}>
-                  {parsedResult.tokens.map((tok, index) => (
-                    <View
-                      key={index}
+                <Text style={styles.transcriptQuoteText}>"{transcript}"</Text>
+              </View>
+            ) : null}
+
+            {/* Recognized Command Tokens Highlights */}
+            {parsedResult &&
+              parsedResult.tokens &&
+              parsedResult.tokens.length > 0 && (
+                <View
+                  style={styles.tokensContainer}
+                  testID="recognized-tokens-section"
+                >
+                  <Text style={styles.tokensHeader}>
+                    ✨ Comandos Reconocidos en la Voz:
+                  </Text>
+                  <View style={styles.tokensRow}>
+                    {parsedResult.tokens.map((tok, index) => (
+                      <View
+                        key={index}
+                        style={[
+                          styles.tokenBadge,
+                          tok.type === "CATEGORY" && styles.tokenCategory,
+                          tok.type === "DATE" && styles.tokenDate,
+                          tok.type === "TAG" && styles.tokenTag,
+                          tok.type === "KEYWORD" && styles.tokenKeyword,
+                          tok.type === "CONTENT" && styles.tokenContent,
+                        ]}
+                      >
+                        <Text style={styles.tokenLabel}>{tok.label}</Text>
+                        <Text style={styles.tokenText}>{`"${tok.text}"`}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Quick Action Bar below tokens: Regrabar + Guardar en paralelo (#88) */}
+                  <View
+                    style={styles.quickSaveTokensRow}
+                    testID="quick-save-tokens-row"
+                  >
+                    <Pressable
+                      testID="btn-quick-rerecord"
+                      accessibilityLabel="Regrabar"
+                      style={styles.quickRerecordBtn}
+                      onPress={handleResetVoiceCapture}
+                    >
+                      <Text
+                        style={styles.quickRerecordBtnText}
+                        numberOfLines={1}
+                      >
+                        🎙️ Regrabar
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      testID="btn-quick-save-tokens"
+                      accessibilityLabel="Guardar Entrada"
                       style={[
-                        styles.tokenBadge,
-                        tok.type === "CATEGORY" && styles.tokenCategory,
-                        tok.type === "DATE" && styles.tokenDate,
-                        tok.type === "TAG" && styles.tokenTag,
-                        tok.type === "KEYWORD" && styles.tokenKeyword,
-                        tok.type === "CONTENT" && styles.tokenContent,
+                        styles.quickSaveBtn,
+                        isQuickSaveDisabled && styles.buttonDisabled,
+                      ]}
+                      disabled={isQuickSaveDisabled}
+                      onPress={() =>
+                        saveParsedEntry(
+                          manualCategoryId,
+                          manualContent,
+                          buildOccurredAtIso() ?? parsedResult.occurredAt,
+                          parsedResult.tagIds || [],
+                          parsedResult.taskPriority ?? manualPriority,
+                        )
+                      }
+                    >
+                      <Text style={styles.quickSaveBtnText} numberOfLines={1}>
+                        💾 Guardar Entrada
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+            {/* Manual preview / correction form */}
+            <View
+              style={styles.correctionContainer}
+              testID="correction-section"
+            >
+              <Text style={styles.sectionTitle}>
+                {saveMode === "PREVIEW_BEFORE_SAVE"
+                  ? "Previsualización antes de Guardar"
+                  : "Corregir Captura Hablada"}
+              </Text>
+
+              {parsedResult?.occurredAt && (
+                <View style={styles.detectedDateBox} testID="detected-date-box">
+                  <Text style={styles.detectedDateText}>
+                    📅 Fecha & Hora Detectada:{" "}
+                    {new Date(parsedResult.occurredAt).toLocaleString("es-ES", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </Text>
+                </View>
+              )}
+
+              <Text style={styles.label}>Categoría Asignada</Text>
+              <View style={styles.chipsRow}>
+                {categories.map((cat) => (
+                  <Pressable
+                    key={cat.id}
+                    testID={`cat-chip-${cat.id}`}
+                    style={[
+                      styles.chip,
+                      manualCategoryId === cat.id && styles.chipActive,
+                    ]}
+                    onPress={() => handleSelectCategory(cat.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        manualCategoryId === cat.id && styles.chipTextActive,
                       ]}
                     >
-                      <Text style={styles.tokenLabel}>{tok.label}</Text>
-                      <Text style={styles.tokenText}>{`"${tok.text}"`}</Text>
-                    </View>
-                  ))}
-                </View>
+                      {cat.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
 
-                {/* Quick Action Bar below tokens: Regrabar + Guardar en paralelo (#88) */}
+              {isCategoryAlert(
+                categories.find((c) => c.id === manualCategoryId),
+              ) && (
                 <View
-                  style={styles.quickSaveTokensRow}
-                  testID="quick-save-tokens-row"
+                  style={styles.alertNoticeBox}
+                  testID="voice-alert-reminder-notice"
                 >
-                  <Pressable
-                    testID="btn-quick-rerecord"
-                    accessibilityLabel="Regrabar"
-                    style={styles.quickRerecordBtn}
-                    onPress={handleResetVoiceCapture}
-                  >
-                    <Text style={styles.quickRerecordBtnText} numberOfLines={1}>
-                      🎙️ Regrabar
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    testID="btn-quick-save-tokens"
-                    accessibilityLabel="Guardar Entrada"
-                    style={[
-                      styles.quickSaveBtn,
-                      isQuickSaveDisabled && styles.buttonDisabled,
-                    ]}
-                    disabled={isQuickSaveDisabled}
-                    onPress={() =>
-                      saveParsedEntry(
-                        manualCategoryId,
-                        manualContent,
-                        buildOccurredAtIso() ?? parsedResult.occurredAt,
-                        parsedResult.tagIds || [],
-                        parsedResult.taskPriority ?? manualPriority,
-                      )
-                    }
-                  >
-                    <Text style={styles.quickSaveBtnText} numberOfLines={1}>
-                      💾 Guardar Entrada
-                    </Text>
-                  </Pressable>
+                  <Text style={styles.alertNoticeText}>
+                    🔔 Alarma automática a la hora exacta configurada (sin
+                    antelación)
+                  </Text>
                 </View>
-              </View>
-            )}
+              )}
 
-          {/* Manual preview / correction form */}
-          <View style={styles.correctionContainer} testID="correction-section">
-            <Text style={styles.sectionTitle}>
-              {saveMode === "PREVIEW_BEFORE_SAVE"
-                ? "Previsualización antes de Guardar"
-                : "Corregir Captura Hablada"}
-            </Text>
+              {categories.find((c) => c.id === manualCategoryId)?.kind ===
+                "TASK" &&
+                !isCategoryAlert(
+                  categories.find((c) => c.id === manualCategoryId),
+                ) && (
+                  <>
+                    <Text style={styles.label}>⚡ Prioridad de la Tarea</Text>
+                    <View style={styles.chipsRow}>
+                      {(
+                        [
+                          {
+                            id: "HIGH",
+                            label: "🔴 Alta",
+                            testId: "voice-prio-high",
+                          },
+                          {
+                            id: "MEDIUM",
+                            label: "🟡 Media",
+                            testId: "voice-prio-med",
+                          },
+                          {
+                            id: "LOW",
+                            label: "🔵 Baja",
+                            testId: "voice-prio-low",
+                          },
+                        ] as const
+                      ).map((p) => (
+                        <Pressable
+                          key={p.id}
+                          testID={p.testId}
+                          style={[
+                            styles.chip,
+                            manualPriority === p.id && styles.chipActive,
+                          ]}
+                          onPress={() => setManualPriority(p.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              manualPriority === p.id && styles.chipTextActive,
+                            ]}
+                          >
+                            {p.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
 
-            {parsedResult?.occurredAt && (
-              <View style={styles.detectedDateBox} testID="detected-date-box">
-                <Text style={styles.detectedDateText}>
-                  📅 Fecha & Hora Detectada:{" "}
-                  {new Date(parsedResult.occurredAt).toLocaleString("es-ES", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-              </View>
-            )}
-
-            <Text style={styles.label}>Categoría Asignada</Text>
-            <View style={styles.chipsRow}>
-              {categories.map((cat) => (
+              <Text style={styles.label}>📅 Ajuste de Fecha y Hora</Text>
+              <View style={styles.datePresetRow}>
                 <Pressable
-                  key={cat.id}
-                  testID={`cat-chip-${cat.id}`}
+                  testID="btn-preset-date-today"
                   style={[
-                    styles.chip,
-                    manualCategoryId === cat.id && styles.chipActive,
+                    styles.datePresetChip,
+                    manualDateStr === toLocalDateString() &&
+                      styles.datePresetChipActive,
                   ]}
-                  onPress={() => handleSelectCategory(cat.id)}
+                  onPress={() => setQuickDate(0)}
                 >
                   <Text
                     style={[
-                      styles.chipText,
-                      manualCategoryId === cat.id && styles.chipTextActive,
+                      styles.datePresetChipText,
+                      manualDateStr === toLocalDateString() &&
+                        styles.datePresetChipTextActive,
                     ]}
                   >
-                    {cat.name}
+                    Hoy
                   </Text>
                 </Pressable>
-              ))}
-            </View>
 
-            {isCategoryAlert(
-              categories.find((c) => c.id === manualCategoryId),
-            ) && (
-              <View
-                style={styles.alertNoticeBox}
-                testID="voice-alert-reminder-notice"
-              >
-                <Text style={styles.alertNoticeText}>
-                  🔔 Alarma automática a la hora exacta configurada (sin
-                  antelación)
-                </Text>
-              </View>
-            )}
-
-            {categories.find((c) => c.id === manualCategoryId)?.kind ===
-              "TASK" &&
-              !isCategoryAlert(
-                categories.find((c) => c.id === manualCategoryId),
-              ) && (
-                <>
-                  <Text style={styles.label}>⚡ Prioridad de la Tarea</Text>
-                  <View style={styles.chipsRow}>
-                    {(
-                      [
-                        {
-                          id: "HIGH",
-                          label: "🔴 Alta",
-                          testId: "voice-prio-high",
-                        },
-                        {
-                          id: "MEDIUM",
-                          label: "🟡 Media",
-                          testId: "voice-prio-med",
-                        },
-                        {
-                          id: "LOW",
-                          label: "🔵 Baja",
-                          testId: "voice-prio-low",
-                        },
-                      ] as const
-                    ).map((p) => (
-                      <Pressable
-                        key={p.id}
-                        testID={p.testId}
-                        style={[
-                          styles.chip,
-                          manualPriority === p.id && styles.chipActive,
-                        ]}
-                        onPress={() => setManualPriority(p.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            manualPriority === p.id && styles.chipTextActive,
-                          ]}
-                        >
-                          {p.label}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </>
-              )}
-
-            <Text style={styles.label}>📅 Ajuste de Fecha y Hora</Text>
-            <View style={styles.datePresetRow}>
-              <Pressable
-                testID="btn-preset-date-today"
-                style={[
-                  styles.datePresetChip,
-                  manualDateStr === toLocalDateString() &&
-                    styles.datePresetChipActive,
-                ]}
-                onPress={() => setQuickDate(0)}
-              >
-                <Text
-                  style={[
-                    styles.datePresetChipText,
-                    manualDateStr === toLocalDateString() &&
-                      styles.datePresetChipTextActive,
-                  ]}
+                <Pressable
+                  testID="btn-preset-date-tomorrow"
+                  style={styles.datePresetChip}
+                  onPress={() => setQuickDate(1)}
                 >
-                  Hoy
-                </Text>
-              </Pressable>
+                  <Text style={styles.datePresetChipText}>Mañana</Text>
+                </Pressable>
 
-              <Pressable
-                testID="btn-preset-date-tomorrow"
-                style={styles.datePresetChip}
-                onPress={() => setQuickDate(1)}
-              >
-                <Text style={styles.datePresetChipText}>Mañana</Text>
-              </Pressable>
+                <Pressable
+                  testID="btn-preset-date-after-tomorrow"
+                  style={styles.datePresetChip}
+                  onPress={() => setQuickDate(2)}
+                >
+                  <Text style={styles.datePresetChipText}>Pasado Mañana</Text>
+                </Pressable>
 
-              <Pressable
-                testID="btn-preset-date-after-tomorrow"
-                style={styles.datePresetChip}
-                onPress={() => setQuickDate(2)}
-              >
-                <Text style={styles.datePresetChipText}>Pasado Mañana</Text>
-              </Pressable>
+                <Pressable
+                  testID="btn-preset-date-clear"
+                  style={styles.datePresetChip}
+                  onPress={() => setQuickDate(null)}
+                >
+                  <Text style={styles.datePresetChipText}>Sin Fecha</Text>
+                </Pressable>
+              </View>
 
-              <Pressable
-                testID="btn-preset-date-clear"
-                style={styles.datePresetChip}
-                onPress={() => setQuickDate(null)}
-              >
-                <Text style={styles.datePresetChipText}>Sin Fecha</Text>
-              </Pressable>
-            </View>
+              {Platform.OS === "web" ? (
+                <View style={styles.dateTimeInputsRow}>
+                  <View style={styles.pickerField}>
+                    <Text style={styles.subInputLabel}>
+                      📅 Fecha (Calendario):
+                    </Text>
+                    <View style={{ position: "relative", width: "100%" }}>
+                      {React.createElement("input", {
+                        type: "date",
+                        value: manualDateStr,
+                        onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                          setManualDateStr(e.target.value),
+                        style: webPickerInputStyle,
+                      })}
+                      {!manualDateStr && (
+                        <Text
+                          style={styles.webDatePlaceholder}
+                          pointerEvents="none"
+                        >
+                          Seleccionar fecha...
+                        </Text>
+                      )}
+                    </View>
+                  </View>
 
-            {Platform.OS === "web" ? (
-              <View style={styles.dateTimeInputsRow}>
-                <View style={styles.pickerField}>
-                  <Text style={styles.subInputLabel}>
-                    📅 Fecha (Calendario):
-                  </Text>
-                  <View style={{ position: "relative", width: "100%" }}>
+                  <View style={styles.pickerField}>
+                    <Text style={styles.subInputLabel}>⏰ Hora (Reloj):</Text>
                     {React.createElement("input", {
-                      type: "date",
-                      value: manualDateStr,
+                      type: "time",
+                      value: manualTimeStr,
                       onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-                        setManualDateStr(e.target.value),
+                        setManualTimeStr(e.target.value),
                       style: webPickerInputStyle,
                     })}
-                    {!manualDateStr && (
-                      <Text
-                        style={styles.webDatePlaceholder}
-                        pointerEvents="none"
-                      >
-                        Seleccionar fecha...
-                      </Text>
-                    )}
                   </View>
-                </View>
 
-                <View style={styles.pickerField}>
-                  <Text style={styles.subInputLabel}>⏰ Hora (Reloj):</Text>
-                  {React.createElement("input", {
-                    type: "time",
-                    value: manualTimeStr,
-                    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-                      setManualTimeStr(e.target.value),
-                    style: webPickerInputStyle,
-                  })}
-                </View>
-
-                <TextInput
-                  testID="input-manual-date"
-                  style={{ display: "none" }}
-                  value={manualDateStr}
-                  onChangeText={setManualDateStr}
-                />
-                <TextInput
-                  testID="input-manual-time"
-                  style={{ display: "none" }}
-                  value={manualTimeStr}
-                  onChangeText={setManualTimeStr}
-                />
-              </View>
-            ) : (
-              <View style={styles.dateTimeInputsRow}>
-                <View style={{ flex: 2 }}>
-                  <Text style={styles.subInputLabel}>Fecha (AAAA-MM-DD)</Text>
                   <TextInput
                     testID="input-manual-date"
-                    style={styles.input}
+                    style={{ display: "none" }}
                     value={manualDateStr}
                     onChangeText={setManualDateStr}
-                    placeholder="AAAA-MM-DD"
-                    placeholderTextColor="#64748B"
                   />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.subInputLabel}>Hora (HH:MM)</Text>
                   <TextInput
                     testID="input-manual-time"
-                    style={styles.input}
+                    style={{ display: "none" }}
                     value={manualTimeStr}
                     onChangeText={setManualTimeStr}
-                    placeholder="16:00"
-                    placeholderTextColor="#64748B"
                   />
                 </View>
-              </View>
-            )}
+              ) : (
+                <View style={styles.dateTimeInputsRow}>
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.subInputLabel}>Fecha (AAAA-MM-DD)</Text>
+                    <TextInput
+                      testID="input-manual-date"
+                      style={styles.input}
+                      value={manualDateStr}
+                      onChangeText={setManualDateStr}
+                      placeholder="AAAA-MM-DD"
+                      placeholderTextColor="#64748B"
+                    />
+                  </View>
 
-            <Text style={styles.label}>Título (Opcional)</Text>
-            <TextInput
-              testID="input-manual-title"
-              style={styles.input}
-              value={manualTitle}
-              onChangeText={setManualTitle}
-              placeholder="Título de la entrada o tarea..."
-              placeholderTextColor="#64748B"
-            />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.subInputLabel}>Hora (HH:MM)</Text>
+                    <TextInput
+                      testID="input-manual-time"
+                      style={styles.input}
+                      value={manualTimeStr}
+                      onChangeText={setManualTimeStr}
+                      placeholder="16:00"
+                      placeholderTextColor="#64748B"
+                    />
+                  </View>
+                </View>
+              )}
 
-            <Text style={styles.label}>Contenido de la Entrada</Text>
-            <TextInput
-              testID="input-manual-content"
-              style={styles.inputArea}
-              multiline
-              value={manualContent}
-              onChangeText={setManualContent}
-              placeholder="Escribe aquí el contenido..."
-              placeholderTextColor="#64748B"
-            />
+              <Text style={styles.label}>Título (Opcional)</Text>
+              <TextInput
+                testID="input-manual-title"
+                style={styles.input}
+                value={manualTitle}
+                onChangeText={setManualTitle}
+                placeholder="Título de la entrada o tarea..."
+                placeholderTextColor="#64748B"
+              />
 
-            {/* Bottom Actions Row: Regrabar + Confirmar y Guardar en paralelo (#88) */}
-            <View style={styles.actionsRow}>
-              <Pressable
-                testID="btn-reset-voice-capture"
-                accessibilityLabel="Regrabar"
-                style={styles.reRecordBtn}
-                onPress={handleResetVoiceCapture}
-              >
-                <Text style={styles.reRecordBtnText} numberOfLines={1}>
-                  🎙️ Regrabar
-                </Text>
-              </Pressable>
-
-              <Pressable
-                testID="btn-save-corrected-entry"
-                accessibilityLabel="Confirmar y Guardar"
-                style={[
-                  styles.saveButton,
-                  isManualSaveDisabled && styles.buttonDisabled,
-                ]}
-                disabled={isManualSaveDisabled}
-                onPress={() =>
-                  saveParsedEntry(
-                    manualCategoryId,
-                    manualContent,
-                    buildOccurredAtIso() ??
-                      (parsedResult ? parsedResult.occurredAt : null),
-                    parsedResult ? parsedResult.tagIds : [],
-                    parsedResult?.taskPriority ?? manualPriority,
-                  )
-                }
-              >
-                <Text style={styles.saveButtonText} numberOfLines={1}>
-                  💾 Confirmar y Guardar
-                </Text>
-              </Pressable>
+              <Text style={styles.label}>Contenido de la Entrada</Text>
+              <TextInput
+                testID="input-manual-content"
+                style={styles.inputArea}
+                multiline
+                value={manualContent}
+                onChangeText={setManualContent}
+                placeholder="Escribe aquí el contenido..."
+                placeholderTextColor="#64748B"
+              />
             </View>
+          </ScrollView>
+
+          {/* Bottom Actions Row: Regrabar + Confirmar y Guardar en paralelo (#88) */}
+          <View style={styles.actionsRow} testID="pinned-result-dock">
+            <Pressable
+              testID="btn-reset-voice-capture"
+              accessibilityLabel="Regrabar"
+              style={styles.reRecordBtn}
+              onPress={handleResetVoiceCapture}
+            >
+              <Text style={styles.reRecordBtnText} numberOfLines={1}>
+                🎙️ Regrabar
+              </Text>
+            </Pressable>
+
+            <Pressable
+              testID="btn-save-corrected-entry"
+              accessibilityLabel="Confirmar y Guardar"
+              style={[
+                styles.saveButton,
+                isManualSaveDisabled && styles.buttonDisabled,
+              ]}
+              disabled={isManualSaveDisabled}
+              onPress={() =>
+                saveParsedEntry(
+                  manualCategoryId,
+                  manualContent,
+                  buildOccurredAtIso() ??
+                    (parsedResult ? parsedResult.occurredAt : null),
+                  parsedResult ? parsedResult.tagIds : [],
+                  parsedResult?.taskPriority ?? manualPriority,
+                )
+              }
+            >
+              <Text style={styles.saveButtonText} numberOfLines={1}>
+                💾 Confirmar y Guardar
+              </Text>
+            </Pressable>
           </View>
         </View>
       )}
@@ -1175,14 +1190,12 @@ const styles = StyleSheet.create({
     width: "100%",
     flex: 1,
     minHeight: 0,
-    height: "100%",
   },
   screenContainer: {
     flex: 1,
     justifyContent: "space-between",
     width: "100%",
     minHeight: 0,
-    height: "100%",
   },
   dictateScrollArea: {
     flex: 1,
@@ -1735,8 +1748,12 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: "row",
     gap: 10,
-    marginTop: 16,
+    marginTop: 8,
+    paddingTop: 8,
+    flexShrink: 0,
     width: "100%",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
   },
   saveButton: {
     flex: 1,

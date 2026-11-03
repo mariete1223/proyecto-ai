@@ -27,12 +27,17 @@ separate agents. It does not groom, implement, or test the issue itself.
 1. Select the next confirmed GitHub issue from the backlog. When processing a
    local fallback draft, publish or reconcile it with GitHub first if write
    access is available.
-2. PM grooms that single issue.
-3. Engineer implements it and adds a regression test that demonstrates the
-   defect where practical.
-4. QA independently verifies every acceptance criterion.
+2. PM grooms that single issue, ensuring acceptance criteria cover end-to-end
+   data flow (offline ↔ sync ↔ online), cross-platform states (iOS Safari tab,
+   iOS PWA standalone, Android Chrome, desktop), and layout invariants.
+3. Engineer implements it, adds regression tests demonstrating the defect where
+   practical, and passes full formatting, lint, typecheck, and test checks.
+4. QA independently verifies every acceptance criterion and architectural
+   invariant (Flexbox layout, canonical ID sync, CI checks).
 5. On FAIL, return the issue and QA evidence to Engineer, then run QA again.
-6. On PASS, the orchestrator records the evidence and closes the issue.
+6. On PASS, the orchestrator records the evidence, updates the local draft
+   status to `resolved`, closes the GitHub issue, and pushes to `origin/main`
+   verifying that the GitHub Actions CI/CD workflow completes green (`✓`).
 7. Select the next issue only after the current issue has passed QA.
 
 The command to solve "all queued defects" means repeat this lifecycle for the
@@ -40,7 +45,7 @@ confirmed defects visible at the start of the run. Report the ordered queue
 before editing code. A newly discovered unrelated defect is recorded for a
 later run rather than silently expanding the current issue.
 
-## Rules
+## Rules & Quality Gates
 
 - Do not skip the PM pass.
 - Engineer does not close the issue.
@@ -51,3 +56,6 @@ later run rather than silently expanding the current issue.
   because the user requested the full queue.
 - Stop the batch and report the blocker if a selected item cannot be made into
   a groomed, verifiable issue.
+- **CI/CD Gate:** Every commit pushed to `main` must pass both `Frontend checks`
+  (`format:check`, `lint`, `typecheck`, `test`) and `Backend checks`
+  (`ruff format --check`, `ruff check`, `mypy`, `pytest`) in GitHub Actions.

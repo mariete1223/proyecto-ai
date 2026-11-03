@@ -45,8 +45,8 @@ import {
   adoptGuestData,
   createLocalEntry,
   getEntryById,
+  listDatelessTasks,
   listLocalEntries,
-  listPendingDatelessTasks,
 } from "./db/entries";
 import { createLocalTag, listTags } from "./db/tags";
 import { theme } from "./styles/theme";
@@ -483,9 +483,9 @@ export default function App() {
         const cats = await listCategories(db, activeUserId);
         const tgs = await listTags(db, activeUserId);
         const allEntries = await listLocalEntries(db, activeUserId);
-        const datelessPending = await listPendingDatelessTasks(
-          db,
-          activeUserId,
+        const allTasks = await listDatelessTasks(db, activeUserId);
+        const datelessPending = allTasks.filter(
+          (t) => t.task_status === "PENDING" || t.task_status === "IN_PROGRESS",
         );
 
         // Doble check: puede que el usuario abriera el formulario MIENTRAS el sync corría
@@ -542,11 +542,14 @@ export default function App() {
       });
 
       // Actualizar conteos del encabezado sin parpadear
-      const [allEntries, cats, datelessPending] = await Promise.all([
+      const [allEntries, cats, allTasks] = await Promise.all([
         listLocalEntries(db, userId),
         listCategories(db, userId),
-        listPendingDatelessTasks(db, userId),
+        listDatelessTasks(db, userId),
       ]);
+      const datelessPending = allTasks.filter(
+        (t) => t.task_status === "PENDING" || t.task_status === "IN_PROGRESS",
+      );
 
       setEntries((prev) =>
         prev.length === allEntries.length ? prev : allEntries,
@@ -1167,8 +1170,14 @@ export default function App() {
           loadDatabaseState(true);
         }}
       >
-        {activeTab === "VOICE_CAPTURE" ? (
-          <View style={styles.mobileVoiceCaptureContainer}>
+        {activeTab === "VOICE_CAPTURE" &&
+        !showEntryFormModal &&
+        !selectedEntryId &&
+        !showVoiceCaptureModal ? (
+          <View
+            style={styles.mobileVoiceCaptureContainer}
+            testID="mobile-voice-capture-container"
+          >
             {renderMainTabContent()}
           </View>
         ) : (
@@ -1177,6 +1186,7 @@ export default function App() {
             style={styles.mainScrollView}
             contentContainerStyle={styles.mainScrollContent}
             keyboardShouldPersistTaps="handled"
+            testID="mobile-main-scroll-view"
           >
             {renderMainTabContent()}
           </ScrollView>
@@ -1225,14 +1235,12 @@ const styles = StyleSheet.create({
   mobileVoiceCaptureContainer: {
     flex: 1,
     width: "100%",
-    height: "100%",
     minHeight: 0,
     overflow: "hidden",
   },
   tabContentWrapper: {
     flex: 1,
     width: "100%",
-    height: "100%",
     minHeight: 0,
     maxWidth: 1040,
     alignSelf: "center",

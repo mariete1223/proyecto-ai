@@ -606,13 +606,20 @@ class NotificationService {
       }
 
       if (diffMs > 0) {
-        // Programar para el futuro
+        // Programar para el futuro (evitando desbordamiento de entero de 32 bits en setTimeout > 24.85 días)
+        const MAX_TIMEOUT_MS = 2147483647;
+        const safeDelayMs = Math.min(diffMs, MAX_TIMEOUT_MS);
         const notifTitle = entry.title?.trim() || "Recordatorio de Agenda AI";
         const offsetLabel = formatOffsetLabel(offsetMins);
         const prefix = offsetMins > 0 ? `[Aviso: ${offsetLabel}] ` : "";
         const notifBody = `${prefix}${entry.content.trim().substring(0, 120)}`;
 
         const timerId = window.setTimeout(() => {
+          if (Date.now() < targetDate!.getTime() - 1000) {
+            this.scheduleForEntry(entry);
+            return;
+          }
+
           if (
             this.notifiedEntryIds.has(reminderKey) ||
             this.notifiedEntryIds.has(entry.id) ||
@@ -623,10 +630,10 @@ class NotificationService {
 
           // Comprobación de suspensión en segundo plano:
           // Si el temporizador ejecuta con retraso (> 5000ms después de targetDate):
-          // - En ONLINE con backend activo (canRelyOnRemotePush() === true), el backend
-          //   (push_worker.py) es el responsable de entregar la notificación remota Web Push.
+          // - En ONLINE con backend activo (canRelyOnRemotePush() === true) y entrada sincronizada,
+          //   el backend (push_worker.py) es el responsable de entregar la notificación remota Web Push.
           //   En tal caso se descarta la notificación local para no duplicar el aviso al entrar a la app.
-          // - En OFFLINE o sin backend activo (canRelyOnRemotePush() === false), ningún servidor
+          // - En OFFLINE, sin backend activo o si la entrada aún está en PENDING_PUSH, ningún servidor
           //   pudo enviar el push. Por tanto, la alerta local DEBE sonar y notificarse de inmediato
           //   (salvo que haya pasado un retraso excesivo de > 2 horas que la deje obsoleta).
           const elapsedLateMs = Date.now() - targetDate!.getTime();
@@ -664,7 +671,7 @@ class NotificationService {
           ) {
             this.scheduleNextRecurrence(entry, targetDate!);
           }
-        }, diffMs);
+        }, safeDelayMs);
 
         scheduledTimers.push(timerId);
       } else {

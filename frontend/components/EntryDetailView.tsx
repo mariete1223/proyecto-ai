@@ -246,7 +246,8 @@ export function EntryDetailView({
   }, [db, userId, entryId]);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
-  const isTaskCategory = selectedCategory?.kind === "TASK";
+  const isAlertCategory = isCategoryAlert(selectedCategory);
+  const isTaskCategory = selectedCategory?.kind === "TASK" && !isAlertCategory;
 
   const toggleTag = (tagId: string) => {
     setSelectedTagIds((prev) =>
@@ -267,6 +268,7 @@ export function EntryDetailView({
 
     setLoading(true);
     try {
+      const effectiveReminderEnabled = isAlertCategory ? true : reminderEnabled;
       const updated = await updateLocalEntry(db, userId, entryId, {
         category_id: categoryId,
         title: title.trim() ? title.trim() : null,
@@ -275,7 +277,7 @@ export function EntryDetailView({
         task_status: isTaskCategory ? taskStatus : null,
         task_recurrence: isTaskCategory ? taskRecurrence : null,
         task_priority: isTaskCategory ? taskPriority : null,
-        reminder_enabled: reminderEnabled,
+        reminder_enabled: effectiveReminderEnabled,
         reminder_time: reminderTime.trim() ? reminderTime.trim() : null,
         reminder_end_time: reminderEndTime.trim()
           ? reminderEndTime.trim()
@@ -286,7 +288,7 @@ export function EntryDetailView({
       });
 
       // Programar o cancelar en el servicio de notificaciones
-      if (reminderEnabled) {
+      if (effectiveReminderEnabled) {
         notificationService.scheduleForEntry(updated);
       } else {
         notificationService.cancelNotification(updated.id);

@@ -280,7 +280,7 @@ export function ClassificationExplorer({
         name: trimmedName,
         voice_command: voiceCmd || trimmedName.toLowerCase(),
         color: trimmedColor,
-        kind: "STANDARD",
+        kind: newCatKind,
       });
 
       setFormSuccess(`¡Categoría "${created.name}" creada con éxito!`);

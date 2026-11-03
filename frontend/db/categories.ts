@@ -347,6 +347,7 @@ export function buildRobustCategoryMap(
     if (c.kind === "EVENT" || nameNorm === "eventos" || nameNorm === "evento") {
       map.set(CANONICAL_CATEGORIES.EVENTOS.id, c);
       map.set("88c26dbc-219e-47a3-a371-531937173c29", c);
+      map.set("cat-events", c);
     } else if (
       c.kind === "TASK" ||
       nameNorm === "tareas" ||
@@ -354,11 +355,14 @@ export function buildRobustCategoryMap(
     ) {
       map.set(CANONICAL_CATEGORIES.TAREAS.id, c);
       map.set("4c1a5526-aa48-4352-a786-1832c5268bc5", c);
+      map.set("cat-tasks", c);
     } else if (nameNorm === "notas" || nameNorm === "nota") {
       map.set(CANONICAL_CATEGORIES.NOTAS.id, c);
       map.set("a9aae3d3-e8b2-419b-bd8e-05e37bca6ce8", c);
+      map.set("cat-notes", c);
     } else if (nameNorm === "alerta" || nameNorm === "alertas") {
       map.set(CANONICAL_CATEGORIES.ALERTA.id, c);
+      map.set("cat-alerts", c);
     }
   }
   return map;
