@@ -605,21 +605,15 @@ class NotificationService {
         continue;
       }
 
-      if (diffMs > 0) {
-        // Programar para el futuro (evitando desbordamiento de entero de 32 bits en setTimeout > 24.85 días)
-        const MAX_TIMEOUT_MS = 2147483647;
-        const safeDelayMs = Math.min(diffMs, MAX_TIMEOUT_MS);
+      const MAX_TIMEOUT_MS = 2147483647;
+      if (diffMs > 0 && diffMs <= MAX_TIMEOUT_MS) {
+        // Programar para el futuro (dentro del límite de entero de 32 bits de setTimeout <= 24.85 días)
         const notifTitle = entry.title?.trim() || "Recordatorio de Agenda AI";
         const offsetLabel = formatOffsetLabel(offsetMins);
         const prefix = offsetMins > 0 ? `[Aviso: ${offsetLabel}] ` : "";
         const notifBody = `${prefix}${entry.content.trim().substring(0, 120)}`;
 
         const timerId = window.setTimeout(() => {
-          if (Date.now() < targetDate!.getTime() - 1000) {
-            this.scheduleForEntry(entry);
-            return;
-          }
-
           if (
             this.notifiedEntryIds.has(reminderKey) ||
             this.notifiedEntryIds.has(entry.id) ||
@@ -671,9 +665,11 @@ class NotificationService {
           ) {
             this.scheduleNextRecurrence(entry, targetDate!);
           }
-        }, safeDelayMs);
+        }, diffMs);
 
         scheduledTimers.push(timerId);
+      } else if (diffMs > MAX_TIMEOUT_MS) {
+        continue;
       } else {
         // Si la hora ya venció (en el pasado o recién transcurrida), NO reproducir notificación local
         // para evitar duplicar alertas que ya fueron entregadas en segundo plano vía Web Push.
