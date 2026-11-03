@@ -388,8 +388,44 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed.tables) {
-            Object.entries(parsed.tables).forEach(([table, rows]) => {
-              this.tables.set(table, rows as Record<string, unknown>[]);
+            Object.entries(parsed.tables).forEach(([table, rawRows]) => {
+              const rows = Array.isArray(rawRows)
+                ? (rawRows as Record<string, unknown>[])
+                : [];
+              const seenPk = new Set<string>();
+              const cleanedRows: Record<string, unknown>[] = [];
+              for (const r of rows) {
+                if (!r || typeof r !== "object") continue;
+                for (const [k, v] of Object.entries(r)) {
+                  if (v === "NULL") {
+                    r[k] = null;
+                  } else if (
+                    k === "version" &&
+                    typeof v === "string" &&
+                    v.includes("+")
+                  ) {
+                    r[k] = 2;
+                  } else if (
+                    k === "reminder_enabled" &&
+                    typeof v === "string" &&
+                    /^\d+$/.test(v)
+                  ) {
+                    r[k] = Number(v);
+                  }
+                }
+                const pkVal =
+                  r.id !== undefined && r.id !== null
+                    ? `id:${String(r.id)}`
+                    : table === "sync_cursors" && r.user_id !== undefined
+                      ? `uid:${String(r.user_id)}`
+                      : null;
+                if (pkVal) {
+                  if (seenPk.has(pkVal)) continue;
+                  seenPk.add(pkVal);
+                }
+                cleanedRows.push(r);
+              }
+              this.tables.set(table, cleanedRows);
             });
           }
           if (parsed.migrations) {
@@ -481,12 +517,39 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
       cols.forEach((col, idx) => {
         const rawVal = rawVals[idx];
         if (rawVal !== undefined && rawVal !== "?") {
-          row[col] = rawVal.replace(/^'|'$/g, "");
+          if (/^NULL$/i.test(rawVal)) {
+            row[col] = null;
+          } else if (/^-?\d+$/.test(rawVal)) {
+            row[col] = Number(rawVal);
+          } else {
+            row[col] = rawVal.replace(/^'|'$/g, "");
+          }
         } else {
           row[col] = params[pIdx++];
         }
       });
-      table.push(row);
+
+      if (row.id !== undefined && row.id !== null) {
+        const existingIdx = table.findIndex((r) => r.id === row.id);
+        if (existingIdx !== -1) {
+          table[existingIdx] = row;
+        } else {
+          table.push(row);
+        }
+      } else if (
+        tableName === "sync_cursors" &&
+        row.user_id !== undefined &&
+        row.user_id !== null
+      ) {
+        const existingIdx = table.findIndex((r) => r.user_id === row.user_id);
+        if (existingIdx !== -1) {
+          table[existingIdx] = row;
+        } else {
+          table.push(row);
+        }
+      } else {
+        table.push(row);
+      }
       this.saveToStorage();
       return { lastInsertRowId: table.length, changes: 1 };
     }
@@ -501,19 +564,99 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
       const setClause = whereSplit[0];
       const whereClause = whereSplit[1];
 
-      const setAssignments = setClause.split(",").map((s) => s.trim());
-      let paramIdx = 0;
-
-      const updates: Record<string, unknown> = {};
-      for (const assign of setAssignments) {
-        const parts = assign.split("=").map((s) => s.trim());
-        const col = parts[0];
-        const valStr = parts[1];
-        if (valStr === "?") {
-          updates[col] = params[paramIdx++];
+      // Split setClause by top-level commas only (not inside parentheses like COALESCE(?, color))
+      const setAssignments: string[] = [];
+      let currentAssign = "";
+      let parenDepth = 0;
+      for (let i = 0; i < setClause.length; i++) {
+        const ch = setClause[i];
+        if (ch === "(") parenDepth++;
+        else if (ch === ")" && parenDepth > 0) parenDepth--;
+        if (ch === "," && parenDepth === 0) {
+          if (currentAssign.trim()) setAssignments.push(currentAssign.trim());
+          currentAssign = "";
         } else {
-          updates[col] = valStr ? valStr.replace(/^'|'$/g, "") : "";
+          currentAssign += ch;
         }
+      }
+      if (currentAssign.trim()) setAssignments.push(currentAssign.trim());
+
+      let paramIdx = 0;
+      const rowUpdaters: ((row: Record<string, unknown>) => void)[] = [];
+
+      for (const assign of setAssignments) {
+        const eqIdx = assign.indexOf("=");
+        if (eqIdx === -1) continue;
+        const col = assign.slice(0, eqIdx).trim();
+        const valStr = assign.slice(eqIdx + 1).trim();
+
+        if (valStr === "?") {
+          const boundVal = params[paramIdx++];
+          rowUpdaters.push((row) => {
+            row[col] = boundVal;
+          });
+          continue;
+        }
+
+        if (/^NULL$/i.test(valStr)) {
+          rowUpdaters.push((row) => {
+            row[col] = null;
+          });
+          continue;
+        }
+
+        if (/^-?\d+$/.test(valStr)) {
+          const numVal = Number(valStr);
+          rowUpdaters.push((row) => {
+            row[col] = numVal;
+          });
+          continue;
+        }
+
+        const addMatch = valStr.match(/^([a-z0-9_]+)\s*\+\s*(\d+)$/i);
+        if (addMatch && addMatch[1] && addMatch[2]) {
+          const refCol = addMatch[1];
+          const delta = Number(addMatch[2]);
+          rowUpdaters.push((row) => {
+            row[col] = (Number(row[refCol]) || 0) + delta;
+          });
+          continue;
+        }
+
+        const coalesceParamColMatch = valStr.match(
+          /^COALESCE\(\s*\?\s*,\s*([a-z0-9_]+)\s*\)$/i,
+        );
+        if (coalesceParamColMatch && coalesceParamColMatch[1]) {
+          const boundVal = params[paramIdx++];
+          const fallbackCol = coalesceParamColMatch[1];
+          rowUpdaters.push((row) => {
+            row[col] =
+              boundVal !== null && boundVal !== undefined
+                ? boundVal
+                : row[fallbackCol];
+          });
+          continue;
+        }
+
+        const coalesceColLitMatch = valStr.match(
+          /^COALESCE\(\s*([a-z0-9_]+)\s*,\s*'([^']*)'\s*\)$/i,
+        );
+        if (coalesceColLitMatch && coalesceColLitMatch[1]) {
+          const refCol = coalesceColLitMatch[1];
+          const fallbackLit = coalesceColLitMatch[2] ?? "";
+          rowUpdaters.push((row) => {
+            row[col] =
+              row[refCol] !== null && row[refCol] !== undefined
+                ? row[refCol]
+                : fallbackLit;
+          });
+          continue;
+        }
+
+        const literalVal = valStr ? valStr.replace(/^'|'$/g, "") : "";
+        rowUpdaters.push((row) => {
+          row[col] = literalVal;
+        });
       }
 
       const { matchRow } = parseWhereConditions(whereClause, params, paramIdx);
@@ -521,7 +664,9 @@ export class MemoryDatabaseAdapter implements DatabaseAdapter {
       let changes = 0;
       for (const row of table) {
         if (matchRow(row)) {
-          Object.assign(row, updates);
+          for (const applyUpdate of rowUpdaters) {
+            applyUpdate(row);
+          }
           changes++;
         }
       }

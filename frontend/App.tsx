@@ -294,9 +294,11 @@ export default function App() {
   ) => {
     const all = await listLocalEntries(database, uId);
     const seenContent = new Map<string, string>();
+    const keptIds = new Set<string>();
     const toDeleteIds: string[] = [];
 
     for (const entry of all) {
+      if (keptIds.has(entry.id)) continue;
       const trimmed = (entry.content || "").trim();
       if (!trimmed) continue;
 
@@ -324,10 +326,12 @@ export default function App() {
         toDeleteIds.push(entry.id);
       } else {
         seenContent.set(trimmed, entry.id);
+        keptIds.add(entry.id);
       }
     }
 
     for (const delId of toDeleteIds) {
+      if (keptIds.has(delId)) continue;
       await database.runAsync(
         `DELETE FROM entries WHERE id = ? AND user_id = ?;`,
         [delId, uId],
@@ -342,6 +346,7 @@ export default function App() {
     for (const entry of all) {
       if (
         entry.task_status &&
+        (entry.task_status as unknown) !== "NULL" &&
         entry.occurred_at === null &&
         !toDeleteIds.includes(entry.id)
       ) {
@@ -365,15 +370,21 @@ export default function App() {
           text.includes("hay que") ||
           text.includes("debo ") ||
           text.includes("revisar") ||
+          text.includes("revisión") ||
+          text.includes("revision") ||
+          text.includes("acabar") ||
+          text.includes("arreglar") ||
+          text.includes("quiero ver") ||
+          text.includes("quiero revisar") ||
           text.includes("seguir con") ||
           text.includes("hacer lo que") ||
           text.includes("el artículo") ||
           text.includes("el articulo") ||
           text.includes("buscar nuevos");
 
-        if (hasTaskIntent && (!entry.title || !entry.reminder_enabled)) {
+        if (hasTaskIntent && !entry.title) {
           await database.runAsync(
-            `UPDATE entries SET category_id = ?, task_status = 'PENDING', reminder_enabled = 0, version = version + 1, sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ?;`,
+            `UPDATE entries SET category_id = ?, task_status = 'PENDING', task_priority = COALESCE(task_priority, 'MEDIUM'), task_recurrence = COALESCE(task_recurrence, 'ONCE'), reminder_enabled = 0, version = version + 1, sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ?;`,
             [CANONICAL_TAREAS_ID, entry.id, uId],
           );
         }

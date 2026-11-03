@@ -318,13 +318,18 @@ export async function listLocalEntries(
   }
 
   const seenKeys = new Set<string>();
+  const keptIds = new Set<string>();
   const uniqueRows: typeof allRows = [];
   const duplicateIdsToRemove: string[] = [];
 
   for (const row of allRows) {
+    if (keptIds.has(row.id)) {
+      continue;
+    }
     const key = `${row.category_id}:::${row.content.trim()}:::${row.occurred_at ?? ""}`;
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
+      keptIds.add(row.id);
       uniqueRows.push(row);
     } else {
       duplicateIdsToRemove.push(row.id);
@@ -333,6 +338,7 @@ export async function listLocalEntries(
 
   if (duplicateIdsToRemove.length > 0) {
     for (const dupId of duplicateIdsToRemove) {
+      if (keptIds.has(dupId)) continue;
       await db.runAsync(`DELETE FROM entries WHERE id = ? AND user_id = ?;`, [
         dupId,
         userId,
@@ -347,15 +353,21 @@ export async function listLocalEntries(
   let filtered = uniqueRows;
 
   if (filters.start_at || filters.end_at) {
+    const normStart = filters.start_at
+      ? filters.start_at.replace(" ", "T")
+      : null;
+    const normEnd = filters.end_at ? filters.end_at.replace(" ", "T") : null;
+
     filtered = filtered.filter((e) => {
       if (!e.occurred_at) return false;
       if (filters.include_yearly && e.reminder_recurrence === "YEARLY") {
         return true;
       }
-      if (filters.start_at && e.occurred_at < filters.start_at) {
+      const normOcc = e.occurred_at.replace(" ", "T");
+      if (normStart && normOcc < normStart) {
         return false;
       }
-      if (filters.end_at && e.occurred_at > filters.end_at) {
+      if (normEnd && normOcc > normEnd) {
         return false;
       }
       return true;
@@ -409,6 +421,7 @@ export async function listPendingDatelessTasks(
     [userId],
   );
   const taskCatIds = new Set(taskCategories.map((c) => c.id));
+  taskCatIds.add(CANONICAL_CATEGORIES.TAREAS.id);
 
   const allEntries = await db.getAllAsync<Omit<Entry, "tag_ids">>(
     `SELECT * FROM entries WHERE user_id = ? ORDER BY created_at DESC;`,
@@ -417,7 +430,10 @@ export async function listPendingDatelessTasks(
 
   const pendingDateless = allEntries.filter(
     (e) =>
-      taskCatIds.has(e.category_id) &&
+      e.category_id !== CANONICAL_CATEGORIES.ALERTA.id &&
+      (taskCatIds.has(e.category_id) ||
+        e.task_status === "PENDING" ||
+        e.task_status === "IN_PROGRESS") &&
       e.occurred_at === null &&
       (e.task_status === "PENDING" || e.task_status === "IN_PROGRESS"),
   );
@@ -455,6 +471,7 @@ export async function listDatelessTasks(
     [userId],
   );
   const taskCatIds = new Set(taskCategories.map((c) => c.id));
+  taskCatIds.add(CANONICAL_CATEGORIES.TAREAS.id);
 
   const allEntries = await db.getAllAsync<Omit<Entry, "tag_ids">>(
     `SELECT * FROM entries WHERE user_id = ? ORDER BY created_at DESC;`,
@@ -462,7 +479,11 @@ export async function listDatelessTasks(
   );
 
   const datelessTasks = allEntries.filter(
-    (e) => taskCatIds.has(e.category_id) && e.task_status !== null,
+    (e) =>
+      e.category_id !== CANONICAL_CATEGORIES.ALERTA.id &&
+      taskCatIds.has(e.category_id) &&
+      e.task_status !== null &&
+      (e.task_status as unknown) !== "NULL",
   );
 
   if (datelessTasks.length === 0) {

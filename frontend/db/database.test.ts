@@ -205,5 +205,74 @@ describe("SQLite Local Database Setup & Migrations", () => {
       expect(res.length).toBe(1);
       expect(res[0].id).toBe("safe-entry");
     });
+
+    it("enforces primary key uniqueness on INSERT and evaluates NULL, numeric literals, COALESCE, and version + 1 in UPDATE", async () => {
+      const db = new MemoryDatabaseAdapter();
+      await runMigrations(db);
+
+      await db.runAsync(
+        "INSERT INTO entries (id, user_id, category_id, content, task_status, reminder_enabled, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1)",
+        [
+          "e-1",
+          "u-1",
+          "cat-1",
+          "Tarea 1",
+          "PENDING",
+          "2026-10-01",
+          "2026-10-01",
+        ],
+      );
+      // Duplicate PK insert replaces rather than duplicating row
+      await db.runAsync(
+        "INSERT INTO entries (id, user_id, category_id, content, task_status, reminder_enabled, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1)",
+        [
+          "e-1",
+          "u-1",
+          "cat-1",
+          "Tarea 1",
+          "PENDING",
+          "2026-10-01",
+          "2026-10-01",
+        ],
+      );
+
+      const allAfterInsert = await db.getAllAsync<{ id: string }>(
+        "SELECT * FROM entries WHERE user_id = ?",
+        ["u-1"],
+      );
+      expect(allAfterInsert.length).toBe(1);
+
+      await db.runAsync(
+        "UPDATE entries SET category_id = ?, task_status = 'PENDING', task_priority = COALESCE(task_priority, 'MEDIUM'), reminder_enabled = 0, version = version + 1 WHERE id = ? AND user_id = ?;",
+        ["cat-tareas", "e-1", "u-1"],
+      );
+
+      const updated = await db.getFirstAsync<{
+        category_id: string;
+        task_status: string | null;
+        task_priority: string | null;
+        reminder_enabled: number;
+        version: number;
+      }>("SELECT * FROM entries WHERE id = ? AND user_id = ?", ["e-1", "u-1"]);
+
+      expect(updated?.category_id).toBe("cat-tareas");
+      expect(updated?.task_status).toBe("PENDING");
+      expect(updated?.task_priority).toBe("MEDIUM");
+      expect(updated?.reminder_enabled).toBe(0);
+      expect(updated?.version).toBe(2);
+
+      await db.runAsync(
+        "UPDATE entries SET task_status = NULL, task_priority = NULL WHERE id = ? AND user_id = ?;",
+        ["e-1", "u-1"],
+      );
+
+      const cleared = await db.getFirstAsync<{
+        task_status: string | null;
+        task_priority: string | null;
+      }>("SELECT * FROM entries WHERE id = ? AND user_id = ?", ["e-1", "u-1"]);
+
+      expect(cleared?.task_status).toBeNull();
+      expect(cleared?.task_priority).toBeNull();
+    });
   });
 });

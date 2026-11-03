@@ -932,7 +932,14 @@ def process_sync_pull(
         (TombstoneEntity.CAPTURE_CORRECTION, CaptureCorrection),
     ]
 
+    active_ids_by_type: dict[TombstoneEntity, set[uuid.UUID]] = {}
     for entity_type, model_cls in models:
+        all_user_ids: set[uuid.UUID] = set(
+            db.execute(select(model_cls.id).where(model_cls.user_id == user_id))
+            .scalars()
+            .all()
+        )
+        active_ids_by_type[entity_type] = all_user_ids
         stmt = select(model_cls).where(model_cls.user_id == user_id)
         if cursor_dt is not None:
             stmt = stmt.where(model_cls.updated_at > cursor_dt)
@@ -945,6 +952,8 @@ def process_sync_pull(
         stmt_tb = stmt_tb.where(DeletionTombstone.deleted_at > cursor_dt)
     tbs = db.execute(stmt_tb).scalars().all()
     for tb in tbs:
+        if tb.entity_id in active_ids_by_type.get(tb.entity_type, set()):
+            continue
         events.append((tb.deleted_at, True, tb, tb.entity_type))
 
     events.sort(key=lambda x: (_to_comparable_dt(x[0]), str(getattr(x[2], "id", ""))))

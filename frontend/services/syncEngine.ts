@@ -945,11 +945,21 @@ export async function applyRemoteChanges(
     }
   }
 
+  const pulledActiveIds = new Set(
+    changes.map((c) => `${c.entity_type}:${c.entity_id}`),
+  );
+
   // Process tombstones (DELETE)
   for (const tb of tombstones) {
-    pulledTombstonesCount++;
     const entityType = tb.entity_type;
     const entityId = tb.entity_id;
+
+    // Never allow an older tombstone in the same batch to delete an entity that is currently active
+    if (pulledActiveIds.has(`${entityType}:${entityId}`)) {
+      continue;
+    }
+
+    pulledTombstonesCount++;
 
     if (
       entityType === "CATEGORY" ||
@@ -976,7 +986,34 @@ export async function applyRemoteChanges(
   };
 }
 
+const activeSyncByDb = new WeakMap<
+  DatabaseAdapter,
+  Map<string, Promise<SyncResult>>
+>();
+
 export async function syncEngine(
+  db: DatabaseAdapter,
+  config: SyncConfig,
+): Promise<SyncResult> {
+  let userSyncMap = activeSyncByDb.get(db);
+  if (!userSyncMap) {
+    userSyncMap = new Map<string, Promise<SyncResult>>();
+    activeSyncByDb.set(db, userSyncMap);
+  }
+
+  const inflight = userSyncMap.get(config.userId);
+  if (inflight) {
+    return inflight;
+  }
+
+  const syncPromise = executeSyncEngineInternal(db, config).finally(() => {
+    userSyncMap?.delete(config.userId);
+  });
+  userSyncMap.set(config.userId, syncPromise);
+  return syncPromise;
+}
+
+async function executeSyncEngineInternal(
   db: DatabaseAdapter,
   config: SyncConfig,
 ): Promise<SyncResult> {
@@ -1053,6 +1090,25 @@ export async function syncEngine(
       [config.userId],
     );
     let cursor = cursorRow?.cursor ?? null;
+
+    // Self-healing cursor: if a cursor exists but the local entries table is completely empty
+    // (and the user has no local entry deletion tombstones), reset cursor to null to pull all entries.
+    if (cursor) {
+      const anyLocalEntry = await db.getFirstAsync<{ id: string }>(
+        `SELECT id FROM entries WHERE user_id = ?;`,
+        [config.userId],
+      );
+      if (!anyLocalEntry) {
+        const anyEntryTombstone = await db.getFirstAsync<{ entity_id: string }>(
+          `SELECT entity_id FROM deletion_tombstones WHERE user_id = ? AND entity_type = 'ENTRY';`,
+          [config.userId],
+        );
+        if (!anyEntryTombstone) {
+          cursor = null;
+        }
+      }
+    }
+
     let hasMore = true;
 
     while (hasMore) {
