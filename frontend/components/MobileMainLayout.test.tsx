@@ -128,6 +128,16 @@ describe("MobileMainLayout Component", () => {
       );
 
       await waitFor(() => {
+        const mainLayout = getByTestId("mobile-main-layout");
+        const layoutStyle = Array.isArray(mainLayout.props.style)
+          ? Object.assign({}, ...mainLayout.props.style.filter(Boolean))
+          : mainLayout.props.style;
+
+        expect(layoutStyle.height).toBe("100%");
+        expect(layoutStyle.maxHeight).toBe("100%");
+        expect(layoutStyle.minHeight).toBe(0);
+        expect(layoutStyle.overflow).toBe("hidden");
+
         const contentArea = getByTestId("mobile-content-area");
         const contentStyle = Array.isArray(contentArea.props.style)
           ? Object.assign({}, ...contentArea.props.style.filter(Boolean))
@@ -140,6 +150,14 @@ describe("MobileMainLayout Component", () => {
         expect(contentStyle.paddingBottom).toBe(
           "calc(max(8px, env(safe-area-inset-bottom, 0px)) + 68px)",
         );
+
+        const swipeContainer = getByTestId("mobile-swipe-container");
+        const swipeStyle = Array.isArray(swipeContainer.props.style)
+          ? Object.assign({}, ...swipeContainer.props.style.filter(Boolean))
+          : swipeContainer.props.style;
+        expect(swipeStyle.flex).toBe(1);
+        expect(swipeStyle.minHeight).toBe(0);
+        expect(swipeStyle.height).toBeUndefined();
       });
     } finally {
       Object.defineProperty(Platform, "OS", {

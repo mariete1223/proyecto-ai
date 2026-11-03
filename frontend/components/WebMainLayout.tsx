@@ -90,7 +90,17 @@ export function WebMainLayout({
   return (
     <View style={styles.container} testID="web-main-layout">
       {/* Top Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          Platform.OS === "web"
+            ? ({
+                paddingTop:
+                  "max(14px, calc(env(safe-area-inset-top, 0px) + 8px))",
+              } as any)
+            : undefined,
+        ]}
+      >
         <View
           style={[
             styles.headerInner,

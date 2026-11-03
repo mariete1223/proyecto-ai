@@ -420,13 +420,17 @@ const styles = StyleSheet.create({
     borderColor: "#334155",
     borderWidth: 1,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 8,
   },
   tagHeader: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 10,
+    flexShrink: 1,
   },
   tagName: {
     fontSize: 16,
@@ -496,6 +500,7 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     marginTop: 16,
     justifyContent: "flex-end",

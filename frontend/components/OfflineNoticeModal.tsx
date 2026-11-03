@@ -137,6 +137,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(245, 158, 11, 0.35)",
     padding: 24,
+    maxHeight: "92%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,

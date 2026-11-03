@@ -415,11 +415,13 @@ const styles = StyleSheet.create({
   },
   variantsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
     marginBottom: 14,
   },
   variantBox: {
     flex: 1,
+    minWidth: 220,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
@@ -444,6 +446,7 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   btnLocal: {

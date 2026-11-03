@@ -18,6 +18,29 @@ import { notificationService } from "../services/notificationService";
 export const MOBILE_NOTIF_BANNER_DISMISSED_KEY =
   "voxdaily_notif_banner_dismissed";
 
+export function isStandaloneDisplayMode(): boolean {
+  try {
+    if (typeof window !== "undefined") {
+      if (
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(display-mode: standalone)").matches
+      ) {
+        return true;
+      }
+      if (
+        typeof window.navigator !== "undefined" &&
+        (window.navigator as unknown as { standalone?: boolean }).standalone ===
+          true
+      ) {
+        return true;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
 function getStorage(): Storage | null {
   try {
     if (typeof window !== "undefined" && window.localStorage) {
@@ -231,7 +254,9 @@ export function MobileHomeVoiceView({
                       {notifStatus === "denied"
                         ? "🚫 Notificaciones bloqueadas"
                         : showUnsupportedGuidance
-                          ? "📲 Añade la web a Inicio (iOS y Android)"
+                          ? isStandaloneDisplayMode()
+                            ? "⚙️ Permiso del sistema requerido"
+                            : "📲 Añade la web a Inicio (iOS y Android)"
                           : "🔔 Notificaciones inactivas"}
                     </Text>
                     {(notifStatus === "denied" || showUnsupportedGuidance) && (
@@ -252,7 +277,9 @@ export function MobileHomeVoiceView({
                     {notifStatus === "denied"
                       ? "• En Android (Chrome): pulsa el icono 🔒 en la barra de Chrome y activa «Permitir notificaciones».\n• En iPhone/iPad (Safari): pulsa Compartir (⬆️) → «Añadir a pantalla de inicio» y actívalas en Ajustes."
                       : showUnsupportedGuidance
-                        ? "• En iPhone/iPad (Safari): pulsa Compartir (⬆️) y selecciona «Añadir a pantalla de inicio».\n• En Android (Chrome): pulsa el menú (⋮) → «Instalar aplicación» o «Añadir a pantalla de inicio» y activa «Permitir notificaciones» en el icono 🔒."
+                        ? isStandaloneDisplayMode()
+                          ? "Ya has abierto VoxDaily como aplicación de inicio.\n• En iPhone/iPad: ve a Ajustes → Notificaciones → VoxDaily (requiere iOS 16.4+).\n• En Android: mantén pulsado el icono de la app → Info de la aplicación → Notificaciones."
+                          : "• En iPhone/iPad (Safari): pulsa Compartir (⬆️) y selecciona «Añadir a pantalla de inicio».\n• En Android (Chrome): pulsa el menú (⋮) → «Instalar aplicación» o «Añadir a pantalla de inicio» y activa «Permitir notificaciones» en el icono 🔒."
                         : "Actívalas para que tus avisos y alertas te despierten incluso con la pantalla apagada."}
                   </Text>
                 </View>

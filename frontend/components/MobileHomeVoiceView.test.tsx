@@ -137,6 +137,46 @@ describe("MobileHomeVoiceView Component", () => {
     expect(mockStorage[MOBILE_NOTIF_BANNER_DISMISSED_KEY]).toBe("true");
   });
 
+  it("shows tailored system settings guidance when running as an anchored Home Screen PWA (standalone mode) and notifications are unsupported", async () => {
+    jest
+      .spyOn(notificationService, "getPermissionStatus")
+      .mockReturnValue("unsupported");
+    jest
+      .spyOn(notificationService, "requestPermissions")
+      .mockResolvedValue("unsupported");
+
+    const win = (globalThis as unknown as { window: Record<string, unknown> })
+      .window;
+    const originalNavigator = win.navigator;
+    win.navigator = { standalone: true };
+
+    try {
+      const { getByTestId, findByTestId } = await render(
+        <MobileHomeVoiceView
+          db={db}
+          userId={userId}
+          onOpenManualForm={jest.fn()}
+          onOpenLlmImport={jest.fn()}
+        />,
+      );
+
+      expect(await findByTestId("mobile-notif-status-banner")).toBeTruthy();
+      const activateBtn = getByTestId("btn-activate-notif-banner");
+      fireEvent.press(activateBtn);
+
+      await waitFor(() => {
+        expect(getByTestId("mobile-notif-banner-title").props.children).toBe(
+          "⚙️ Permiso del sistema requerido",
+        );
+        expect(
+          getByTestId("mobile-notif-banner-desc").props.children,
+        ).toContain("Ya has abierto VoxDaily como aplicación de inicio");
+      });
+    } finally {
+      win.navigator = originalNavigator;
+    }
+  });
+
   it("does not render notification banner on mount if previously dismissed in localStorage (#152)", async () => {
     mockStorage[MOBILE_NOTIF_BANNER_DISMISSED_KEY] = "true";
     jest

@@ -251,6 +251,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         contentContainerStyle={[
           styles.scrollContent,
           { padding: isSmallScreen ? 14 : 24 },
+          Platform.OS === "web"
+            ? ({
+                paddingTop: isSmallScreen
+                  ? "max(16px, calc(env(safe-area-inset-top, 0px) + 12px))"
+                  : "max(24px, calc(env(safe-area-inset-top, 0px) + 16px))",
+                paddingBottom: isSmallScreen
+                  ? "max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px))"
+                  : "max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))",
+              } as any)
+            : undefined,
         ]}
         keyboardShouldPersistTaps="handled"
       >

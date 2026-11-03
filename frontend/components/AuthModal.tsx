@@ -406,6 +406,7 @@ const styles = StyleSheet.create({
     padding: 24,
     width: "100%",
     maxWidth: 420,
+    maxHeight: "92%",
     borderWidth: 1,
     borderColor: "#334155",
     shadowColor: "#000",

@@ -148,9 +148,9 @@ export function MobileMainLayout({
   const webContainerStyle =
     Platform.OS === "web"
       ? ({
-          minHeight: "100vh",
-          height: "100dvh",
-          maxHeight: "100dvh",
+          height: "100%",
+          maxHeight: "100%",
+          minHeight: 0,
           overflow: "hidden",
         } as any)
       : undefined;
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f172a",
     width: "100%",
     maxWidth: "100%",
-    minHeight: "100%",
+    minHeight: 0,
     overflow: "hidden",
   },
   topHeader: {
@@ -637,7 +637,6 @@ const styles = StyleSheet.create({
     minHeight: 0,
     overflow: "hidden",
     width: "100%",
-    height: "100%",
   },
   bottomTabBar: {
     position: (Platform.OS === "web" ? "fixed" : "absolute") as any,
