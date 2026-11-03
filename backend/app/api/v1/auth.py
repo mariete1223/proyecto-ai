@@ -17,6 +17,7 @@ from app.core.auth import (
     decode_token_for_refresh,
     decode_verification_token,
 )
+from app.core.rate_limit import RateLimiter
 from app.core.security import verify_password
 from app.models.domain import User
 from app.schemas.auth import (
@@ -38,6 +39,10 @@ from app.services.user_service import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+login_limiter = RateLimiter(max_requests=5, window_seconds=60, scope="auth:login")
+register_limiter = RateLimiter(max_requests=5, window_seconds=60, scope="auth:register")
+resend_limiter = RateLimiter(max_requests=3, window_seconds=60, scope="auth:resend")
 
 
 def _execute_email_verification(token: str, db: Session) -> MessageResponse:
@@ -84,6 +89,7 @@ def _execute_email_verification(token: str, db: Session) -> MessageResponse:
     response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user",
+    dependencies=[Depends(register_limiter)],
 )
 def register(
     request: LoginRequest, db: Annotated[Session, Depends(get_db)]
@@ -116,7 +122,11 @@ def register(
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(login_limiter)],
+)
 def login(
     request: LoginRequest, db: Annotated[Session, Depends(get_db)]
 ) -> TokenResponse:
@@ -156,7 +166,11 @@ def verify_email_get(
     return _execute_email_verification(token, db)
 
 
-@router.post("/resend-verification", response_model=MessageResponse)
+@router.post(
+    "/resend-verification",
+    response_model=MessageResponse,
+    dependencies=[Depends(resend_limiter)],
+)
 def resend_verification(
     request: ResendVerificationRequest, db: Annotated[Session, Depends(get_db)]
 ) -> MessageResponse:
