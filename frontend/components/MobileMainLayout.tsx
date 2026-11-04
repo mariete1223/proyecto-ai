@@ -17,6 +17,7 @@ import { StatusBar } from "expo-status-bar";
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
 import { LegalNoticeModal } from "./LegalNoticeModal";
+import { AccountModal } from "./AccountModal";
 
 const appLogo = require("../assets/logo-small.png");
 
@@ -102,6 +103,8 @@ export interface MobileMainLayoutProps {
   isSessionExpired?: boolean;
   onOpenAuth?: () => void;
   onLogout?: () => void;
+  onExportBackup?: () => void | Promise<void>;
+  onDeleteAccount?: () => void | Promise<void>;
   onOpenOnboarding?: () => void;
   onOpenOfflineNotice?: () => void;
   children: React.ReactNode;
@@ -118,6 +121,8 @@ export function MobileMainLayout({
   isSessionExpired,
   onOpenAuth,
   onLogout,
+  onExportBackup,
+  onDeleteAccount,
   onOpenOnboarding,
   onOpenOfflineNotice,
   children,
@@ -443,96 +448,16 @@ export function MobileMainLayout({
       </View>
 
       {/* Account & Connection Modal */}
-      <Modal
+      <AccountModal
         visible={showAccountModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAccountModal(false)}
-        testID="modal-account-status"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.accountCard}>
-            <View style={styles.accountCardHeader}>
-              <Text style={styles.accountCardTitle}>Conexión y Cuenta</Text>
-              <Pressable
-                style={styles.closeCardBtn}
-                onPress={() => setShowAccountModal(false)}
-                testID="btn-close-account-modal"
-              >
-                <Text style={styles.closeCardBtnText}>✕</Text>
-              </Pressable>
-            </View>
-
-            {/* Connection status section */}
-            <View style={styles.statusDetailRow}>
-              <View
-                style={[
-                  styles.statusDotLarge,
-                  isBackendConnected === true
-                    ? styles.dotConnected
-                    : styles.dotDisconnected,
-                ]}
-              />
-              <View style={styles.statusDetailCol}>
-                <Text style={styles.statusDetailTitle}>
-                  {isBackendConnected === true
-                    ? "Conectado al servidor"
-                    : isBackendConnected === false
-                      ? "Operando en Modo Local"
-                      : "Comprobando conexión..."}
-                </Text>
-                <Text style={styles.statusDetailSubtitle}>
-                  {isBackendConnected === true
-                    ? "Sincronización en tiempo real activa"
-                    : "Servidor no disponible. Tus datos se guardan en este dispositivo y se sincronizarán al reconectar."}
-                </Text>
-              </View>
-            </View>
-
-            {/* User section */}
-            {currentUserEmail && (
-              <View style={styles.userEmailRow}>
-                <Text style={styles.userLabelText}>Sesión activa:</Text>
-                <Text style={styles.userEmailText}>{currentUserEmail}</Text>
-              </View>
-            )}
-
-            {/* Actions */}
-            <View style={styles.accountActionsRow}>
-              <Pressable
-                style={styles.legalBtn}
-                onPress={() => {
-                  setShowAccountModal(false);
-                  setShowLegalModal(true);
-                }}
-                testID="btn-open-legal-from-mobile-account"
-              >
-                <Text style={styles.legalBtnText}>
-                  🛡️ Privacidad y Términos
-                </Text>
-              </Pressable>
-              {currentUserEmail && (
-                <Pressable
-                  style={styles.logoutBtn}
-                  onPress={() => {
-                    setShowAccountModal(false);
-                    onLogout?.();
-                  }}
-                  testID="btn-confirm-logout"
-                >
-                  <Text style={styles.logoutBtnText}>🚪 Cerrar Sesión</Text>
-                </Pressable>
-              )}
-              <Pressable
-                style={styles.closeModalBtn}
-                onPress={() => setShowAccountModal(false)}
-              >
-                <Text style={styles.closeModalBtnText}>Volver</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowAccountModal(false)}
+        isBackendConnected={isBackendConnected}
+        currentUserEmail={currentUserEmail}
+        onOpenLegal={() => setShowLegalModal(true)}
+        onLogout={onLogout}
+        onExportBackup={onExportBackup}
+        onDeleteAccount={onDeleteAccount}
+      />
 
       <LegalNoticeModal
         visible={showLegalModal}
@@ -732,142 +657,5 @@ const styles = StyleSheet.create({
   statusChipOffline: {
     backgroundColor: "rgba(239, 68, 68, 0.15)",
     borderColor: "rgba(239, 68, 68, 0.4)",
-  },
-  statusDotLarge: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginTop: 3,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  accountCard: {
-    width: "100%",
-    maxWidth: 380,
-    backgroundColor: "#1e293b",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  accountCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.08)",
-  },
-  accountCardTitle: {
-    color: "#f8fafc",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  closeCardBtn: {
-    padding: 6,
-  },
-  closeCardBtnText: {
-    color: "#94a3b8",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  statusDetailRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
-    marginBottom: 14,
-  },
-  statusDetailCol: {
-    flex: 1,
-  },
-  statusDetailTitle: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  statusDetailSubtitle: {
-    color: "#94a3b8",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  userEmailRow: {
-    marginBottom: 18,
-    paddingHorizontal: 4,
-  },
-  userLabelText: {
-    color: "#64748b",
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  userEmailText: {
-    color: "#38bdf8",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  accountActionsRow: {
-    flexDirection: "column",
-    gap: 10,
-    marginTop: 6,
-  },
-  legalBtn: {
-    backgroundColor: "rgba(56, 189, 248, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.3)",
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  legalBtnText: {
-    color: "#38bdf8",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  logoutBtn: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.4)",
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoutBtnText: {
-    color: "#f87171",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  closeModalBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  closeModalBtnText: {
-    color: "#cbd5e1",
-    fontSize: 13,
-    fontWeight: "600",
   },
 });

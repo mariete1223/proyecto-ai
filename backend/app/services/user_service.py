@@ -73,3 +73,42 @@ def create_user(
     db.add(user)
     db.flush()
     return user
+
+
+def delete_user_account(db: Session, user_id: uuid.UUID) -> None:
+    """Delete a user and all related personal data atomically (GDPR Art. 17)."""
+    from sqlalchemy import delete
+
+    from app.models.domain import (
+        CaptureCorrection,
+        Category,
+        DeletionTombstone,
+        Entry,
+        EntryTag,
+        PushSubscription,
+        SavePreference,
+        Tag,
+    )
+
+    # 1. Delete push subscriptions
+    db.execute(delete(PushSubscription).where(PushSubscription.user_id == user_id))
+    # 2. Delete capture corrections
+    db.execute(delete(CaptureCorrection).where(CaptureCorrection.user_id == user_id))
+    # 3. Delete entry tags
+    entry_ids_subq = select(Entry.id).where(Entry.user_id == user_id)
+    db.execute(delete(EntryTag).where(EntryTag.entry_id.in_(entry_ids_subq)))
+    tag_ids_subq = select(Tag.id).where(Tag.user_id == user_id)
+    db.execute(delete(EntryTag).where(EntryTag.tag_id.in_(tag_ids_subq)))
+    # 4. Delete entries
+    db.execute(delete(Entry).where(Entry.user_id == user_id))
+    # 5. Delete tags
+    db.execute(delete(Tag).where(Tag.user_id == user_id))
+    # 6. Delete categories
+    db.execute(delete(Category).where(Category.user_id == user_id))
+    # 7. Delete save preferences
+    db.execute(delete(SavePreference).where(SavePreference.user_id == user_id))
+    # 8. Delete deletion tombstones
+    db.execute(delete(DeletionTombstone).where(DeletionTombstone.user_id == user_id))
+    # 9. Delete user
+    db.execute(delete(User).where(User.id == user_id))
+    db.commit()

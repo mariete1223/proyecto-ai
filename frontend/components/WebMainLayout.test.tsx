@@ -1,22 +1,39 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
 import React from "react";
 import { WebMainLayout } from "./WebMainLayout";
+import { checkBackendHealth } from "../services/webApi";
+
+jest.mock("../services/webApi", () => {
+  const actual = jest.requireActual("../services/webApi");
+  return {
+    ...actual,
+    checkBackendHealth: jest.fn(),
+  };
+});
 
 describe("WebMainLayout Component (Task 42)", () => {
-  const configConnected = {
-    baseUrl: "http://localhost:8000",
-    fetchFn: jest.fn().mockResolvedValue({ ok: true, status: 200 } as Response),
-  };
+  const config = { baseUrl: "http://localhost:8000" };
 
-  const configDisconnected = {
-    baseUrl: "http://localhost:8000",
-    fetchFn: jest.fn().mockRejectedValue(new TypeError("Failed to fetch")),
-  };
+  beforeEach(() => {
+    (checkBackendHealth as jest.Mock).mockReset();
+    (checkBackendHealth as jest.Mock).mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    cleanup();
+    jest.clearAllMocks();
+  });
 
   it("renders web layout header, stats bar, and tabs", async () => {
     const { getByTestId, getByText } = await render(
       <WebMainLayout
-        apiConfig={configConnected}
+        apiConfig={config}
         stats={{ totalEntries: 42, pendingTasks: 5, totalCategories: 3 }}
       />,
     );
@@ -33,8 +50,10 @@ describe("WebMainLayout Component (Task 42)", () => {
   });
 
   it("shows backend unreachable banner when backend fails health check", async () => {
+    (checkBackendHealth as jest.Mock).mockResolvedValue(false);
+
     const { getByTestId, getByText } = await render(
-      <WebMainLayout apiConfig={configDisconnected} />,
+      <WebMainLayout apiConfig={config} />,
     );
 
     await waitFor(() => {
@@ -51,17 +70,76 @@ describe("WebMainLayout Component (Task 42)", () => {
     const onTabChange = jest.fn();
 
     const { getByTestId } = await render(
-      <WebMainLayout apiConfig={configConnected} onTabChange={onTabChange} />,
+      <WebMainLayout apiConfig={config} onTabChange={onTabChange} />,
     );
 
     await waitFor(() => {
       expect(getByTestId("nav-pending-tasks")).toBeTruthy();
     });
 
-    fireEvent.press(getByTestId("nav-pending-tasks"));
+    await act(async () => {
+      fireEvent.press(getByTestId("nav-pending-tasks"));
+    });
     expect(onTabChange).toHaveBeenCalledWith("PENDING_TASKS");
 
-    fireEvent.press(getByTestId("nav-explorer"));
+    await act(async () => {
+      fireEvent.press(getByTestId("nav-explorer"));
+    });
     expect(onTabChange).toHaveBeenCalledWith("EXPLORER");
+  });
+
+  describe("Account management: Backup & GDPR Deletion", () => {
+    it("triggers onExportBackup and shows feedback message", async () => {
+      const onExportBackup = jest.fn().mockResolvedValue(undefined);
+      const { findByTestId } = await render(
+        <WebMainLayout
+          apiConfig={{ baseUrl: "http://localhost:8000" }}
+          activeTab="CALENDAR"
+          currentUserEmail="user@example.com"
+          onExportBackup={onExportBackup}
+        />,
+      );
+
+      // Open account modal
+      const userBadge = await findByTestId("btn-user-auth");
+      fireEvent.press(userBadge);
+
+      const exportBtn = await findByTestId("btn-export-backup");
+      await act(async () => {
+        fireEvent.press(exportBtn);
+      });
+
+      expect(onExportBackup).toHaveBeenCalledTimes(1);
+      const successText = await findByTestId("backup-success-text");
+      expect(successText).toBeTruthy();
+    });
+
+    it("handles delete account confirmation flow", async () => {
+      const onDeleteAccount = jest.fn().mockResolvedValue(undefined);
+      const { findByTestId } = await render(
+        <WebMainLayout
+          apiConfig={{ baseUrl: "http://localhost:8000" }}
+          activeTab="CALENDAR"
+          currentUserEmail="user@example.com"
+          onDeleteAccount={onDeleteAccount}
+        />,
+      );
+
+      // Open account modal
+      const userBadge = await findByTestId("btn-user-auth");
+      fireEvent.press(userBadge);
+
+      // Click start delete account
+      const startDeleteBtn = await findByTestId("btn-start-delete-account");
+      fireEvent.press(startDeleteBtn);
+
+      // Confirmation box appears
+      const confirmBtn = await findByTestId("btn-confirm-delete-account");
+      await act(async () => {
+        fireEvent.press(confirmBtn);
+      });
+
+      expect(onDeleteAccount).toHaveBeenCalledTimes(1);
+    });
   });
 });

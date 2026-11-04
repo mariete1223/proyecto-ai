@@ -497,3 +497,38 @@ export async function refreshToken(
     };
   }
 }
+
+export async function deleteAccount(
+  baseUrl: string,
+  token: string,
+  fetchFn?: typeof fetch,
+): Promise<{ success: boolean; error?: string }> {
+  const fetchImpl =
+    fetchFn || (globalThis.fetch ? globalThis.fetch.bind(globalThis) : fetch);
+  try {
+    const res = await fetchImpl(`${baseUrl}/api/v1/auth/me`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "ngrok-skip-browser-warning": "true",
+      },
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => null);
+      const detail =
+        errorData?.detail || `Error al eliminar cuenta (HTTP ${res.status})`;
+      return { success: false, error: detail };
+    }
+
+    authStorage.clearSession();
+    authStorage.clearLastAccount();
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      error: `Error de red al intentar eliminar la cuenta: ${msg}`,
+    };
+  }
+}

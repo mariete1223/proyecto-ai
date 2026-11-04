@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 from collections.abc import Generator
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Table, create_engine, event
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_db
 from app.core.auth import create_access_token
 from app.main import app
+from app.models.base import Base
 from app.models.domain import User
 from app.services.user_service import create_user
 
@@ -35,7 +36,7 @@ def test_db_session() -> Generator[Session, None, None]:
             "char_length", 1, lambda val: len(val) if val is not None else 0
         )
 
-    User.metadata.create_all(bind=engine, tables=[cast(Table, User.__table__)])
+    Base.metadata.create_all(bind=engine)
     TestingSessionLocal = sessionmaker(
         bind=engine, autoflush=False, expire_on_commit=False
     )
@@ -350,3 +351,31 @@ def test_register_invalid_email(client: TestClient, test_db_session: Session) ->
     }
     response = client.post("/api/v1/auth/register", json=payload)
     assert response.status_code == 422
+
+
+def test_delete_account_success(client: TestClient, test_db_session: Session) -> None:
+    user = create_user(
+        test_db_session,
+        "delete_me@example.com",
+        "Password123!",
+        is_verified=True,
+    )
+    token = create_access_token(user_id=str(user.id), email=user.email)
+
+    # Deleting account
+    resp = client.delete(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 200
+    assert "eliminados de forma permanente" in resp.json()["message"]
+
+    # Verify user no longer exists
+    get_resp = client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert get_resp.status_code == 401
+
+
+def test_delete_account_unauthorized(client: TestClient) -> None:
+    resp = client.delete("/api/v1/auth/me")
+    assert resp.status_code == 401

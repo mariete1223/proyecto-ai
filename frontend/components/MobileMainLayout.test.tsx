@@ -413,4 +413,62 @@ describe("MobileMainLayout Component", () => {
       expect(onTabChange).not.toHaveBeenCalled();
     });
   });
+
+  describe("Account management: Backup & GDPR Deletion", () => {
+    it("triggers onExportBackup and shows feedback message", async () => {
+      const onExportBackup = jest.fn().mockResolvedValue(undefined);
+      const { getByTestId, findByTestId } = await render(
+        <MobileMainLayout
+          apiConfig={defaultApiConfig}
+          activeTab="CALENDAR"
+          onTabChange={jest.fn()}
+          currentUserEmail="user@example.com"
+          onExportBackup={onExportBackup}
+        >
+          <Text>Content</Text>
+        </MobileMainLayout>,
+      );
+
+      // Open account modal
+      fireEvent.press(getByTestId("btn-connection-status"));
+      const exportBtn = await findByTestId("btn-export-backup");
+      await act(async () => {
+        fireEvent.press(exportBtn);
+      });
+
+      expect(onExportBackup).toHaveBeenCalledTimes(1);
+      const successText = await findByTestId("backup-success-text");
+      expect(successText).toBeTruthy();
+    });
+
+    it("handles delete account confirmation flow", async () => {
+      const onDeleteAccount = jest.fn().mockResolvedValue(undefined);
+      const { getByTestId, findByTestId } = await render(
+        <MobileMainLayout
+          apiConfig={defaultApiConfig}
+          activeTab="CALENDAR"
+          onTabChange={jest.fn()}
+          currentUserEmail="user@example.com"
+          onDeleteAccount={onDeleteAccount}
+        >
+          <Text>Content</Text>
+        </MobileMainLayout>,
+      );
+
+      // Open account modal
+      fireEvent.press(getByTestId("btn-connection-status"));
+
+      // Click start delete account
+      const startDeleteBtn = await findByTestId("btn-start-delete-account");
+      fireEvent.press(startDeleteBtn);
+
+      // Confirmation box appears
+      const confirmBtn = await findByTestId("btn-confirm-delete-account");
+      await act(async () => {
+        fireEvent.press(confirmBtn);
+      });
+
+      expect(onDeleteAccount).toHaveBeenCalledTimes(1);
+    });
+  });
 });

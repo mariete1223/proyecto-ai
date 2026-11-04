@@ -42,6 +42,7 @@ from app.services.user_service import (
     InvalidUserDataError,
     UserAlreadyExistsError,
     create_user,
+    delete_user_account,
     normalize_email,
 )
 
@@ -291,6 +292,21 @@ def reset_password(
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: Annotated[User, Depends(get_current_user)]) -> UserResponse:
     return UserResponse(id=current_user.id, email=current_user.email)
+
+
+@router.delete(
+    "/me",
+    response_model=MessageResponse,
+    summary="Delete user account and all personal data (GDPR Art. 17)",
+)
+def delete_me(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    delete_user_account(db, current_user.id)
+    return MessageResponse(
+        message="Tu cuenta y todos tus datos personales han sido eliminados de forma permanente."
+    )
 
 
 @router.post("/logout", response_model=MessageResponse)

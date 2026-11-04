@@ -71,8 +71,10 @@ import {
 import {
   AuthSession,
   authStorage,
+  deleteAccount,
   onSessionExpired,
 } from "./services/authService";
+import { downloadBackupFile, exportUserData } from "./services/backupService";
 import appConfig from "./app.json";
 
 const PRODUCTION_BACKEND_URL = "https://proyecto-ai-api-oi2n.onrender.com";
@@ -780,6 +782,37 @@ export default function App() {
     loadDatabaseState();
   };
 
+  const handleExportBackup = async () => {
+    try {
+      const backup = await exportUserData(
+        db,
+        userId,
+        authSession ? authSession.email : undefined,
+      );
+      downloadBackupFile(backup);
+    } catch (err) {
+      console.error("[App] Error al exportar copia de seguridad:", err);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!authSession?.token) return;
+    try {
+      const res = await deleteAccount(getBackendUrl(), authSession.token);
+      if (res.success) {
+        authStorage.clearSession();
+        setAuthSession(null);
+        await loadDatabaseState(true);
+      } else {
+        if (typeof window !== "undefined" && window.alert) {
+          window.alert(res.error || "No se pudo eliminar la cuenta.");
+        }
+      }
+    } catch (err) {
+      console.error("[App] Error al eliminar cuenta:", err);
+    }
+  };
+
   if (!isInitialized || isColdStarting) {
     return (
       <View style={styles.loadingContainer} testID="loading-screen">
@@ -1185,6 +1218,8 @@ export default function App() {
         onOpenAuth={() => setShowAuthModal(true)}
         onOpenOnboarding={() => setShowOnboardingModal(true)}
         onOpenOfflineNotice={() => setShowOfflineNoticeModal(true)}
+        onExportBackup={handleExportBackup}
+        onDeleteAccount={handleDeleteAccount}
         onLogout={() => {
           authStorage.clearSession();
           setAuthSession(null);
@@ -1232,6 +1267,8 @@ export default function App() {
       isSessionExpired={isSessionExpired}
       onOpenAuth={() => setShowAuthModal(true)}
       onOpenOnboarding={() => setShowOnboardingModal(true)}
+      onExportBackup={handleExportBackup}
+      onDeleteAccount={handleDeleteAccount}
       onLogout={() => {
         authStorage.clearSession();
         setAuthSession(null);

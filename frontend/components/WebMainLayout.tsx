@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +14,7 @@ import {
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
 import { LegalNoticeModal } from "./LegalNoticeModal";
+import { AccountModal } from "./AccountModal";
 
 const appLogo = require("../assets/logo-small.png");
 
@@ -34,6 +36,8 @@ export interface WebMainLayoutProps {
   isSessionExpired?: boolean;
   onOpenAuth?: () => void;
   onLogout?: () => void;
+  onExportBackup?: () => void | Promise<void>;
+  onDeleteAccount?: () => void | Promise<void>;
   onOpenOnboarding?: () => void;
   children?: React.ReactNode;
 }
@@ -49,6 +53,8 @@ export function WebMainLayout({
   isSessionExpired,
   onOpenAuth,
   onLogout,
+  onExportBackup,
+  onDeleteAccount,
   onOpenOnboarding,
   children,
 }: WebMainLayoutProps) {
@@ -69,6 +75,7 @@ export function WebMainLayout({
     null,
   );
   const [showLegalModal, setShowLegalModal] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -221,16 +228,21 @@ export function WebMainLayout({
             </Pressable>
           ) : (
             <Pressable
-              style={({ pressed }) => [
-                styles.authBadge,
-                pressed && { opacity: 0.7 },
-              ]}
-              onPress={currentUserEmail ? onLogout : onOpenAuth}
+              style={styles.authBadge}
+              onPress={() => {
+                if (currentUserEmail) {
+                  setShowAccountModal(true);
+                } else {
+                  onOpenAuth?.();
+                }
+              }}
               testID="btn-user-auth"
+              accessible={true}
+              accessibilityRole="button"
             >
               <Text style={styles.authBadgeText}>
                 {currentUserEmail
-                  ? `👤 ${currentUserEmail} (Salir)`
+                  ? `👤 ${currentUserEmail}`
                   : "👤 Iniciar Sesión"}
               </Text>
             </Pressable>
@@ -397,6 +409,18 @@ export function WebMainLayout({
       >
         {children}
       </View>
+
+      {/* Account & Connection Modal */}
+      <AccountModal
+        visible={showAccountModal}
+        onClose={() => setShowAccountModal(false)}
+        isBackendConnected={isBackendConnected}
+        currentUserEmail={currentUserEmail}
+        onOpenLegal={() => setShowLegalModal(true)}
+        onLogout={onLogout}
+        onExportBackup={onExportBackup}
+        onDeleteAccount={onDeleteAccount}
+      />
 
       <LegalNoticeModal
         visible={showLegalModal}

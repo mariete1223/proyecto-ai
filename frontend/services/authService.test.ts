@@ -1,5 +1,6 @@
 import {
   authStorage,
+  deleteAccount,
   loginUser,
   notifySessionExpired,
   onSessionExpired,
@@ -282,5 +283,43 @@ describe("authService", () => {
     unsubscribe();
     notifySessionExpired();
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles successful account deletion and clears session", async () => {
+    authStorage.saveSession({
+      token: "valid-token",
+      email: "del@example.com",
+      userId: "u-del",
+    });
+
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ message: "Cuenta eliminada correctamente" }),
+    });
+
+    const res = await deleteAccount(
+      "http://test-server",
+      "valid-token",
+      mockFetch as any,
+    );
+    expect(res.success).toBe(true);
+    expect(authStorage.loadSession()).toBeNull();
+  });
+
+  it("handles failed account deletion on error response", async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({ detail: "Database error" }),
+    });
+
+    const res = await deleteAccount(
+      "http://test-server",
+      "valid-token",
+      mockFetch as any,
+    );
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("Database error");
   });
 });
