@@ -48,7 +48,7 @@ El repositorio está preconfigurado como **Infraestructura como Código (IaC)** 
    - El servicio web del backend con [`backend/Dockerfile`](../backend/Dockerfile).
    - Generará una clave secreta segura `SECRET_KEY`.
    - Ejecutará automáticamente las migraciones `alembic upgrade head`.
-5. Obtendrás una URL fija pública: `https://proyecto-ai-api.onrender.com`.
+5. Obtendrás una URL fija pública: `https://proyecto-ai-api-oi2n.onrender.com`.
 
 ### B. Despliegue del Frontend Web en Vercel (Gratuito)
 1. Inicia sesión en [Vercel](https://vercel.com/) con tu cuenta de GitHub.
@@ -56,7 +56,7 @@ El repositorio está preconfigurado como **Infraestructura como Código (IaC)** 
 3. Selecciona el subdirectorio **`frontend`** como directorio raíz.
 4. Vercel detectará automáticamente el archivo [`frontend/vercel.json`](../frontend/vercel.json) configurado con el comando `npx expo export -p web` y carpeta de salida `dist`.
 5. En la sección **Environment Variables**, añade:
-   - `EXPO_PUBLIC_BACKEND_URL`: la URL de tu backend en Render (ej. `https://proyecto-ai-api.onrender.com`).
+   - `EXPO_PUBLIC_BACKEND_URL`: la URL de tu backend en Render (`https://proyecto-ai-api-oi2n.onrender.com`).
 6. Pulsa **Deploy**. Tendrás la app web funcionando públicamente con certificado SSL en `https://proyecto-ai.vercel.app`.
 
 ---

@@ -75,7 +75,7 @@ import {
 } from "./services/authService";
 import appConfig from "./app.json";
 
-const PRODUCTION_BACKEND_URL = "https://proyecto-ai-api.onrender.com";
+const PRODUCTION_BACKEND_URL = "https://proyecto-ai-api-oi2n.onrender.com";
 const ACTIVE_BACKEND_TUNNEL = "https://raging-degraded-reptile.ngrok-free.dev";
 
 const getBackendUrl = (): string => {
@@ -101,7 +101,7 @@ const getBackendUrl = (): string => {
         const clean = savedBackend.trim().replace(/\/+$/, "");
         if (
           clean.includes("trycloudflare.com") ||
-          clean.includes("onrender.com") ||
+          clean.includes("proyecto-ai-api.onrender.com") ||
           clean.includes("explorer-server-forgot-engineering")
         ) {
           window.localStorage?.removeItem("custom_backend_url");
@@ -133,11 +133,12 @@ const getBackendUrl = (): string => {
         fromEnv &&
         fromEnv.trim() &&
         !fromEnv.includes("trycloudflare.com") &&
-        !fromEnv.includes("explorer-server-forgot-engineering")
+        !fromEnv.includes("explorer-server-forgot-engineering") &&
+        !fromEnv.includes("proyecto-ai-api.onrender.com")
       ) {
         return fromEnv.trim();
       }
-      return ACTIVE_BACKEND_TUNNEL;
+      return PRODUCTION_BACKEND_URL;
     }
   }
 
@@ -147,7 +148,8 @@ const getBackendUrl = (): string => {
     fromEnv &&
     fromEnv.trim() &&
     !fromEnv.includes("trycloudflare.com") &&
-    !fromEnv.includes("explorer-server-forgot-engineering")
+    !fromEnv.includes("explorer-server-forgot-engineering") &&
+    !fromEnv.includes("proyecto-ai-api.onrender.com")
   ) {
     return fromEnv.trim();
   }
@@ -157,13 +159,14 @@ const getBackendUrl = (): string => {
     fromAppJson &&
     fromAppJson.trim() &&
     !fromAppJson.includes("trycloudflare.com") &&
-    !fromAppJson.includes("explorer-server-forgot-engineering")
+    !fromAppJson.includes("explorer-server-forgot-engineering") &&
+    !fromAppJson.includes("proyecto-ai-api.onrender.com")
   ) {
     return fromAppJson.trim();
   }
 
-  // 3. Fallback a la URL estática permanente para backend
-  return ACTIVE_BACKEND_TUNNEL;
+  // 3. Fallback a la URL en la nube de producción
+  return PRODUCTION_BACKEND_URL;
 };
 
 const defaultApiConfig = {
