@@ -133,7 +133,7 @@ const getBackendUrl = (): string => {
       ) {
         return fromEnv.trim();
       }
-      return PRODUCTION_BACKEND_URL;
+      return ACTIVE_BACKEND_TUNNEL;
     }
   }
 
