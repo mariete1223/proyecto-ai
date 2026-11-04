@@ -41,3 +41,12 @@ class ResendVerificationRequest(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     token: str | None = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)

@@ -403,8 +403,9 @@ describe("CalendarMonthView Component (Task 35)", () => {
 
   it("configures and saves quick reminder preset directly from calendar", async () => {
     const futureDate = new Date(Date.now() + 86400000 * 3);
+    futureDate.setHours(12, 0, 0, 0);
     const futureIso = futureDate.toISOString();
-    const dateKey = futureIso.slice(0, 10);
+    const dateKey = toLocalDateString(futureDate);
 
     const reminderEntry = await createLocalEntry(db, userId, {
       category_id: catId,
@@ -995,7 +996,7 @@ describe("CalendarMonthView Component (Task 35)", () => {
       <CalendarMonthView db={db} userId={userId} initialDate={pastDate} />,
     );
 
-    const dateKey = pastIso.slice(0, 10);
+    const dateKey = toLocalDateString(pastDate);
     await waitFor(() => {
       expect(getByTestId(`day-cell-${dateKey}`)).toBeTruthy();
     });

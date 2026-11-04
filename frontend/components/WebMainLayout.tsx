@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
+import { LegalNoticeModal } from "./LegalNoticeModal";
 
 const appLogo = require("../assets/logo-small.png");
 
@@ -67,6 +68,7 @@ export function WebMainLayout({
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(
     null,
   );
+  const [showLegalModal, setShowLegalModal] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -166,6 +168,26 @@ export function WebMainLayout({
           >
             <Text style={[styles.authBadgeText, { color: "#38BDF8" }]}>
               💡 Guía
+            </Text>
+          </Pressable>
+
+          {/* Privacidad y Términos Button */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.authBadge,
+              {
+                borderColor: "rgba(148, 163, 184, 0.4)",
+                backgroundColor: "rgba(148, 163, 184, 0.1)",
+              },
+              pressed && { opacity: 0.7 },
+            ]}
+            onPress={() => setShowLegalModal(true)}
+            testID="btn-open-legal-web"
+            accessibilityRole="button"
+            accessibilityLabel="Abrir política de privacidad y términos"
+          >
+            <Text style={[styles.authBadgeText, { color: "#94A3B8" }]}>
+              🛡️ Privacidad
             </Text>
           </Pressable>
 
@@ -365,6 +387,11 @@ export function WebMainLayout({
       >
         {children}
       </View>
+
+      <LegalNoticeModal
+        visible={showLegalModal}
+        onClose={() => setShowLegalModal(false)}
+      />
     </View>
   );
 }

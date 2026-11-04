@@ -139,7 +139,7 @@ def decode_token_for_refresh(
     if now >= exp + max_grace_seconds:
         raise InvalidTokenError("Token refresh window expired. Please re-authenticate.")
 
-    if payload.get("type") == "verify_email":
+    if payload.get("type") in ("verify_email", "reset_password"):
         raise InvalidTokenError("Invalid token type.")
 
     return payload
@@ -185,4 +185,47 @@ def decode_verification_token(
     payload = decode_access_token(token, secret_key=secret_key)
     if payload.get("type") != "verify_email":
         raise InvalidTokenError("Token is not an email verification token.")
+    return payload
+
+
+def create_password_reset_token(
+    user_id: str,
+    email: str,
+    expires_in_seconds: int = 3600,
+    secret_key: str | None = None,
+) -> str:
+    """Create a signed JWT token for password reset (valid 1h by default)."""
+    if secret_key is None:
+        secret_key = get_secret_key()
+
+    header = {"alg": "HS256", "typ": "JWT"}
+    now = int(time.time())
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "type": "reset_password",
+        "iat": now,
+        "exp": now + expires_in_seconds,
+    }
+
+    header_bytes = json.dumps(header, separators=(",", ":")).encode("utf-8")
+    payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+    unsigned_token = f"{_b64encode(header_bytes)}.{_b64encode(payload_bytes)}"
+    signature = hmac.new(
+        secret_key.encode("utf-8"),
+        unsigned_token.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+
+    return f"{unsigned_token}.{_b64encode(signature)}"
+
+
+def decode_password_reset_token(
+    token: str, secret_key: str | None = None
+) -> dict[str, Any]:
+    """Decode and verify a signed password reset token."""
+    payload = decode_access_token(token, secret_key=secret_key)
+    if payload.get("type") != "reset_password":
+        raise InvalidTokenError("Token is not a password reset token.")
     return payload

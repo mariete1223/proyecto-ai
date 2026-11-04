@@ -23,6 +23,8 @@ import {
 } from "../services/authService";
 import { theme } from "../styles/theme";
 import { isDeviceOffline } from "../services/webApi";
+import { ForgotPasswordModal } from "./ForgotPasswordModal";
+import { LegalNoticeModal } from "./LegalNoticeModal";
 import { VerificationModal } from "./VerificationModal";
 
 const appLogo = require("../assets/logo-small.png");
@@ -65,6 +67,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [verificationInitialMessage, setVerificationInitialMessage] = useState<
     string | null
   >(null);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [resetToken, setResetToken] = useState("");
+  const [showLegalModal, setShowLegalModal] = useState(false);
+  const [legalInitialTab, setLegalInitialTab] = useState<"privacy" | "terms">(
+    "privacy",
+  );
 
   const [offlineDetected, setOfflineDetected] = useState<boolean>(() => {
     if (typeof isOffline === "boolean") return isOffline;
@@ -101,6 +109,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     if (Platform.OS === "web" && typeof window !== "undefined") {
       try {
         const params = new URLSearchParams(window.location.search);
+        const resetParam =
+          params.get("reset_token") || params.get("resetToken");
+        if (resetParam && resetParam.trim()) {
+          setResetToken(resetParam.trim());
+          setShowForgotPasswordModal(true);
+        }
+
         const tokenParam = params.get("token");
         if (tokenParam && tokenParam.trim()) {
           const cleanToken = tokenParam.trim();
@@ -490,17 +505,49 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           )}
 
           {mode === "login" && (
+            <>
+              <Pressable
+                style={styles.verifyLinkButton}
+                onPress={() => {
+                  setShowForgotPasswordModal(true);
+                }}
+                testID="btn-open-forgot-modal"
+              >
+                <Text style={styles.verifyLinkText}>
+                  ¿Has olvidado tu contraseña? Restablecer
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.verifyLinkButton}
+                onPress={() => {
+                  setVerificationInitialError(null);
+                  setVerificationInitialMessage(null);
+                  setShowVerificationModal(true);
+                }}
+                testID="btn-open-verify-modal"
+              >
+                <Text style={styles.verifyLinkText}>
+                  ¿Tienes un código de verificación pendiente? Verificar cuenta
+                </Text>
+              </Pressable>
+            </>
+          )}
+
+          {mode === "register" && (
             <Pressable
-              style={styles.verifyLinkButton}
+              style={styles.legalNoticeBtn}
               onPress={() => {
-                setVerificationInitialError(null);
-                setVerificationInitialMessage(null);
-                setShowVerificationModal(true);
+                setLegalInitialTab("privacy");
+                setShowLegalModal(true);
               }}
-              testID="btn-open-verify-modal"
+              testID="btn-open-legal-terms-register"
             >
-              <Text style={styles.verifyLinkText}>
-                ¿Tienes un código de verificación pendiente? Verificar cuenta
+              <Text style={styles.legalNoticeText}>
+                Al crear tu cuenta aceptas los{" "}
+                <Text style={styles.legalNoticeUnderline}>
+                  Términos del Servicio y la Política de Privacidad (RGPD)
+                </Text>
               </Text>
             </Pressable>
           )}
@@ -511,9 +558,41 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               Cada usuario dispone de cifrado y aislamiento completo. Nadie más
               puede ver lo que guardas.
             </Text>
+            <Pressable
+              style={styles.footerLegalBtn}
+              onPress={() => {
+                setLegalInitialTab("privacy");
+                setShowLegalModal(true);
+              }}
+              testID="btn-open-legal-footer"
+            >
+              <Text style={styles.footerLegalText}>
+                🛡️ Política de Privacidad y Términos Legales
+              </Text>
+            </Pressable>
           </View>
         </View>
       </ScrollView>
+
+      <ForgotPasswordModal
+        visible={showForgotPasswordModal}
+        baseUrl={baseUrl}
+        initialEmail={email}
+        initialToken={resetToken}
+        onClose={() => setShowForgotPasswordModal(false)}
+        onSuccess={() => {
+          setInfoMessage(
+            "Tu contraseña ha sido restablecida con éxito. Inicia sesión con tu nueva contraseña.",
+          );
+          setMode("login");
+        }}
+      />
+
+      <LegalNoticeModal
+        visible={showLegalModal}
+        onClose={() => setShowLegalModal(false)}
+        initialTab={legalInitialTab}
+      />
 
       <VerificationModal
         visible={showVerificationModal}
@@ -810,5 +889,31 @@ const styles = StyleSheet.create({
     color: "#38BDF8",
     fontSize: 14,
     fontWeight: "600",
+  },
+  legalNoticeBtn: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+    alignItems: "center",
+  },
+  legalNoticeText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
+  },
+  legalNoticeUnderline: {
+    color: "#38BDF8",
+    textDecorationLine: "underline",
+  },
+  footerLegalBtn: {
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  footerLegalText: {
+    color: "#38BDF8",
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });

@@ -337,6 +337,90 @@ export async function resendVerification(
   }
 }
 
+export async function requestPasswordReset(
+  baseUrl: string,
+  email: string,
+  fetchFn?: typeof fetch,
+): Promise<{ success: boolean; message?: string; error?: string }> {
+  const fetchImpl =
+    fetchFn || (globalThis.fetch ? globalThis.fetch.bind(globalThis) : fetch);
+  try {
+    const res = await fetchImpl(`${baseUrl}/api/v1/auth/forgot-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: JSON.stringify({ email: email.trim() }),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const detail =
+        data?.detail ||
+        `Error al solicitar restablecimiento (HTTP ${res.status})`;
+      return { success: false, error: detail };
+    }
+
+    return {
+      success: true,
+      message:
+        data?.message ||
+        "Si el correo está registrado, recibirás un enlace de restablecimiento.",
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      error: `No se pudo conectar con el servidor: ${msg}`,
+    };
+  }
+}
+
+export async function resetPassword(
+  baseUrl: string,
+  token: string,
+  newPassword: string,
+  fetchFn?: typeof fetch,
+): Promise<{ success: boolean; message?: string; error?: string }> {
+  const fetchImpl =
+    fetchFn || (globalThis.fetch ? globalThis.fetch.bind(globalThis) : fetch);
+  try {
+    const res = await fetchImpl(`${baseUrl}/api/v1/auth/reset-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: JSON.stringify({
+        token: token.trim(),
+        new_password: newPassword,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const detail =
+        data?.detail ||
+        `Error al restablecer la contraseña (HTTP ${res.status})`;
+      return { success: false, error: detail };
+    }
+
+    return {
+      success: true,
+      message:
+        data?.message ||
+        "Contraseña restablecida con éxito. Ya puedes iniciar sesión.",
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      error: `No se pudo conectar con el servidor: ${msg}`,
+    };
+  }
+}
+
 type SessionExpiredListener = () => void;
 const sessionExpiredListeners = new Set<SessionExpiredListener>();
 

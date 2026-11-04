@@ -75,6 +75,7 @@ import {
 } from "./services/authService";
 import appConfig from "./app.json";
 
+const PRODUCTION_BACKEND_URL = "https://proyecto-ai-api.onrender.com";
 const ACTIVE_BACKEND_TUNNEL = "https://raging-degraded-reptile.ngrok-free.dev";
 
 const getBackendUrl = (): string => {
@@ -132,7 +133,7 @@ const getBackendUrl = (): string => {
       ) {
         return fromEnv.trim();
       }
-      return ACTIVE_BACKEND_TUNNEL;
+      return PRODUCTION_BACKEND_URL;
     }
   }
 

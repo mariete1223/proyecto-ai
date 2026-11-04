@@ -16,6 +16,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { checkBackendHealth, WebApiConfig } from "../services/webApi";
 import { theme } from "../styles/theme";
+import { LegalNoticeModal } from "./LegalNoticeModal";
 
 const appLogo = require("../assets/logo-small.png");
 
@@ -125,6 +126,7 @@ export function MobileMainLayout({
     null,
   );
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showLegalModal, setShowLegalModal] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -487,6 +489,18 @@ export function MobileMainLayout({
 
             {/* Actions */}
             <View style={styles.accountActionsRow}>
+              <Pressable
+                style={styles.legalBtn}
+                onPress={() => {
+                  setShowAccountModal(false);
+                  setShowLegalModal(true);
+                }}
+                testID="btn-open-legal-from-mobile-account"
+              >
+                <Text style={styles.legalBtnText}>
+                  🛡️ Privacidad y Términos
+                </Text>
+              </Pressable>
               {currentUserEmail && (
                 <Pressable
                   style={styles.logoutBtn}
@@ -509,6 +523,11 @@ export function MobileMainLayout({
           </View>
         </View>
       </Modal>
+
+      <LegalNoticeModal
+        visible={showLegalModal}
+        onClose={() => setShowLegalModal(false)}
+      />
     </View>
   );
 }
@@ -796,12 +815,25 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   accountActionsRow: {
-    flexDirection: "row",
+    flexDirection: "column",
     gap: 10,
     marginTop: 6,
   },
+  legalBtn: {
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  legalBtnText: {
+    color: "#38bdf8",
+    fontSize: 13,
+    fontWeight: "700",
+  },
   logoutBtn: {
-    flex: 1,
     backgroundColor: "rgba(239, 68, 68, 0.15)",
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.4)",
