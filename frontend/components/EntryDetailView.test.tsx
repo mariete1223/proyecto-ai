@@ -300,4 +300,62 @@ describe("EntryDetailView Component (Task 38)", () => {
     expect(queryByText("PENDING")).toBeNull();
     expect(queryByText("🔴 Prioridad Alta")).toBeNull();
   });
+
+  it("successfully converts a task entry to Alerta category when selected in edit mode", async () => {
+    const taskCat = await createLocalCategory(db, userId, {
+      name: "Tareas",
+      voice_command: "tarea",
+      kind: "TASK",
+    });
+    const alertCat = await createLocalCategory(db, userId, {
+      name: "Alerta",
+      voice_command: "alerta",
+      kind: "STANDARD",
+    });
+
+    const taskEntry = await createLocalEntry(db, userId, {
+      category_id: taskCat.id,
+      content: "revisar lo de Skármeta y enviarle un correo",
+      task_status: "PENDING",
+      task_priority: "HIGH",
+      task_recurrence: "ONCE",
+    });
+
+    const onUpdated = jest.fn();
+    const { getByTestId, findByTestId, getByText } = await render(
+      <EntryDetailView
+        db={db}
+        userId={userId}
+        entryId={taskEntry.id}
+        onUpdated={onUpdated}
+      />,
+    );
+
+    expect(await findByTestId("entry-detail-view")).toBeTruthy();
+
+    // Click edit
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-start-edit-entry"));
+    });
+
+    // Select Alerta chip
+    await act(async () => {
+      fireEvent.press(getByTestId(`edit-cat-${alertCat.id}`));
+    });
+
+    // Save
+    await act(async () => {
+      fireEvent.press(getByTestId("btn-save-edit-entry"));
+    });
+
+    await waitFor(() => {
+      expect(onUpdated).toHaveBeenCalled();
+    });
+
+    const updatedRow = await getEntryById(db, userId, taskEntry.id);
+    expect(updatedRow?.category_id).toBe(alertCat.id);
+    expect(updatedRow?.task_status).toBeNull();
+    expect(updatedRow?.task_priority).toBeNull();
+    expect(Boolean(updatedRow?.reminder_enabled)).toBe(true);
+  });
 });

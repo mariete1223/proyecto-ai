@@ -366,39 +366,6 @@ export default function App() {
       }
     }
 
-    // 3b. Sanear entradas que fueron erróneamente reasignadas a categoría Alerta al sincronizar (#140)
-    for (const entry of all) {
-      if (
-        entry.category_id === CANONICAL_ALERTA_ID &&
-        !toDeleteIds.includes(entry.id)
-      ) {
-        const text = (entry.content || "").toLowerCase();
-        const hasTaskIntent =
-          text.includes("tengo que") ||
-          text.includes("hay que") ||
-          text.includes("debo ") ||
-          text.includes("revisar") ||
-          text.includes("revisión") ||
-          text.includes("revision") ||
-          text.includes("acabar") ||
-          text.includes("arreglar") ||
-          text.includes("quiero ver") ||
-          text.includes("quiero revisar") ||
-          text.includes("seguir con") ||
-          text.includes("hacer lo que") ||
-          text.includes("el artículo") ||
-          text.includes("el articulo") ||
-          text.includes("buscar nuevos");
-
-        if (hasTaskIntent && !entry.title) {
-          await database.runAsync(
-            `UPDATE entries SET category_id = ?, task_status = 'PENDING', task_priority = COALESCE(task_priority, 'MEDIUM'), task_recurrence = COALESCE(task_recurrence, 'ONCE'), reminder_enabled = 0, version = version + 1, sync_status = 'PENDING_PUSH' WHERE id = ? AND user_id = ?;`,
-            [CANONICAL_TAREAS_ID, entry.id, uId],
-          );
-        }
-      }
-    }
-
     // 3c. Sanear entradas cuyo category_id sea nulo o huérfano (#147, #151)
     const existingCats = await database.getAllAsync<Category>(
       `SELECT * FROM categories WHERE user_id = ?;`,
@@ -674,9 +641,18 @@ export default function App() {
             setBypassAuth(false);
           }
         } else {
-          // El usuario dispone de sesión previa: si el backend no responde, mostrar aviso de modo local
-          if (!isHealthy) {
+          // El usuario dispone de sesión previa: si el dispositivo carece de conexión a internet, mostrar aviso de modo local
+          if (deviceOffline) {
             setShowOfflineNoticeModal(true);
+          } else if (!isHealthy) {
+            // Backend arrancando en frío en Render: reintentar en segundo plano para sincronizar cuando despierte
+            setTimeout(async () => {
+              const retryHealthy = await checkBackendHealth(defaultApiConfig);
+              if (retryHealthy) {
+                setIsBackendOffline(false);
+                syncSilentlyInBackground();
+              }
+            }, 6000);
           } else if (!isOnboardingCompleted(authSession.userId)) {
             // Solo mostrar la guía automáticamente la primera vez que se inicia sesión
             setShowOnboardingModal(true);

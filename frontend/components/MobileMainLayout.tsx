@@ -130,13 +130,23 @@ export function MobileMainLayout({
 
   useEffect(() => {
     let mounted = true;
-    checkBackendHealth(apiConfig).then((healthy) => {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const check = async () => {
+      const healthy = await checkBackendHealth(apiConfig);
       if (mounted) {
         setIsBackendConnected(healthy);
+        if (!healthy) {
+          retryTimer = setTimeout(check, 6000);
+        }
       }
-    });
+    };
+
+    check();
+
     return () => {
       mounted = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [apiConfig]);
 
@@ -288,7 +298,7 @@ export function MobileMainLayout({
                     ? "Online"
                     : isBackendConnected === false
                       ? "Offline"
-                      : "..."}
+                      : "Conectando..."}
               </Text>
             </Pressable>
           ) : (

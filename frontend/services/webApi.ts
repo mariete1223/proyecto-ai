@@ -34,7 +34,7 @@ export async function checkBackendHealth(
   try {
     const controller =
       typeof AbortController !== "undefined" ? new AbortController() : null;
-    timeoutId = controller ? setTimeout(() => controller.abort(), 7000) : null;
+    timeoutId = controller ? setTimeout(() => controller.abort(), 20000) : null;
     const res = await fetchImpl(`${config.baseUrl}/health`, {
       method: "GET",
       headers: { "ngrok-skip-browser-warning": "true" },

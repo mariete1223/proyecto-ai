@@ -855,17 +855,6 @@ def _update_domain_model(
             item.title = str(t_val).strip() if t_val else None
         if "content" in payload:
             item.content = str(payload["content"]).strip()
-        if "category_id" in payload:
-            is_task_entry = bool(item.task_status or payload.get("task_status"))
-            has_occ_at = bool(item.occurred_at or payload.get("occurred_at"))
-            item.category_id = _resolve_category_id_for_user(
-                db,
-                item.user_id,
-                payload["category_id"],
-                item.category_id,
-                is_task=is_task_entry,
-                has_occurred_at=has_occ_at,
-            )
         if "occurred_at" in payload:
             item.occurred_at = _parse_dt(payload["occurred_at"])
         if "task_status" in payload:
@@ -885,6 +874,17 @@ def _update_domain_model(
             item.task_priority = None
         elif item.task_status and not item.task_priority:
             item.task_priority = TaskPriority.MEDIUM
+        if "category_id" in payload:
+            is_task_entry = bool(item.task_status)
+            has_occ_at = bool(item.occurred_at)
+            item.category_id = _resolve_category_id_for_user(
+                db,
+                item.user_id,
+                payload["category_id"],
+                item.category_id,
+                is_task=is_task_entry,
+                has_occurred_at=has_occ_at,
+            )
         if "reminder_enabled" in payload:
             item.reminder_enabled = bool(payload["reminder_enabled"])
         if "reminder_time" in payload:
