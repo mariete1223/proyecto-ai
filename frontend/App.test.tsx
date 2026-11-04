@@ -144,4 +144,35 @@ describe("App", () => {
       });
     }
   });
+
+  it("displays cold-start loading screen while server is booting up during initial authenticated load", async () => {
+    let resolveHealth: (val: boolean) => void = () => {};
+    const healthPromise = new Promise<boolean>((res) => {
+      resolveHealth = res;
+    });
+    jest
+      .spyOn(webApi, "checkBackendHealth")
+      .mockImplementationOnce(() => healthPromise);
+
+    const { getByTestId, queryByTestId, getByText } = await render(<App />);
+
+    // Fast-forward past the 1200ms cold timer
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1300));
+    });
+
+    expect(getByTestId("loading-screen")).toBeTruthy();
+    expect(getByText(/Conectando con tu nube segura/)).toBeTruthy();
+    expect(queryByTestId("calendar-month-view")).toBeNull();
+
+    // Now server finishes booting up
+    await act(async () => {
+      resolveHealth(true);
+    });
+
+    await waitFor(() => {
+      expect(queryByTestId("loading-screen")).toBeNull();
+      expect(getByTestId("mobile-main-layout")).toBeTruthy();
+    });
+  });
 });

@@ -197,6 +197,7 @@ export default function App() {
     : offlineUserId || "user-demo-123";
   const userToken = authSession?.token;
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isColdStarting, setIsColdStarting] = useState(false);
   const { width } = useWindowDimensions();
   const isMobileScreen = Platform.OS !== "web" || width < 768;
 
@@ -625,7 +626,24 @@ export default function App() {
 
         let isHealthy = false;
         if (!deviceOffline) {
-          isHealthy = await checkBackendHealth(defaultApiConfig);
+          if (authSession) {
+            // Si tarda más de 1200ms, informar al usuario de que el servidor está en arranque en frío
+            const coldTimer = setTimeout(() => {
+              if (isMounted) setIsColdStarting(true);
+            }, 1200);
+
+            isHealthy = await checkBackendHealth(defaultApiConfig);
+            let attempts = 0;
+            // Si el backend aún no responde y el dispositivo está online, reintentar durante el arranque en frío
+            while (!isHealthy && attempts < 2 && isMounted) {
+              attempts++;
+              await new Promise((res) => setTimeout(res, 3000));
+              isHealthy = await checkBackendHealth(defaultApiConfig);
+            }
+            clearTimeout(coldTimer);
+          } else {
+            isHealthy = await checkBackendHealth(defaultApiConfig);
+          }
         }
 
         setIsBackendOffline(!isHealthy);
@@ -645,21 +663,19 @@ export default function App() {
           if (deviceOffline) {
             setShowOfflineNoticeModal(true);
           } else if (!isHealthy) {
-            // Backend arrancando en frío en Render: reintentar en segundo plano para sincronizar cuando despierte
-            setTimeout(async () => {
-              const retryHealthy = await checkBackendHealth(defaultApiConfig);
-              if (retryHealthy) {
-                setIsBackendOffline(false);
-                syncSilentlyInBackground();
-              }
-            }, 6000);
+            // Si tras reintentos Render sigue sin responder, permitir modo local con aviso
+            setShowOfflineNoticeModal(true);
           } else if (!isOnboardingCompleted(authSession.userId)) {
             // Solo mostrar la guía automáticamente la primera vez que se inicia sesión
             setShowOnboardingModal(true);
           }
         }
+
         await loadDatabaseState(true);
-        setIsInitialized(true);
+        if (isMounted) {
+          setIsColdStarting(false);
+          setIsInitialized(true);
+        }
       }
     }
 
@@ -764,11 +780,21 @@ export default function App() {
     loadDatabaseState();
   };
 
-  if (!isInitialized) {
+  if (!isInitialized || isColdStarting) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.loadingContainer} testID="loading-screen">
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Iniciando VoxDaily Hub...</Text>
+        <Text style={styles.loadingText}>
+          {isColdStarting
+            ? "Conectando con tu nube segura..."
+            : "Iniciando VoxDaily Hub..."}
+        </Text>
+        {isColdStarting && (
+          <Text style={styles.coldStartSubtext}>
+            El servidor se está reactivando tras reposo. En unos segundos se
+            cargarán todas tus notas, tareas y alertas.
+          </Text>
+        )}
       </View>
     );
   }
@@ -1256,12 +1282,21 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.bgApp,
     alignItems: "center",
     justifyContent: "center",
-    gap: 16,
+    paddingHorizontal: 24,
+    gap: 12,
   },
   loadingText: {
     color: theme.colors.textSecondary,
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  coldStartSubtext: {
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    textAlign: "center",
+    maxWidth: 320,
+    lineHeight: 20,
   },
   topActionsBar: {
     flexDirection: "row",
