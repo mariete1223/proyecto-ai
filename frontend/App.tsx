@@ -99,7 +99,11 @@ const getBackendUrl = (): string => {
       const savedBackend = window.localStorage?.getItem("custom_backend_url");
       if (savedBackend && savedBackend.trim()) {
         const clean = savedBackend.trim().replace(/\/+$/, "");
-        if (clean.includes("trycloudflare.com")) {
+        if (
+          clean.includes("trycloudflare.com") ||
+          clean.includes("onrender.com") ||
+          clean.includes("explorer-server-forgot-engineering")
+        ) {
           window.localStorage?.removeItem("custom_backend_url");
         } else {
           return clean;
