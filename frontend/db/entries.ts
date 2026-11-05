@@ -136,7 +136,7 @@ export async function createLocalEntry(
   const title = data.title ? data.title.trim() : null;
   let occurredAt = data.occurred_at ?? null;
   if (isAlertCategory && !occurredAt) {
-    occurredAt = now;
+    occurredAt = data.reminder_time ?? now;
   }
   const tagIds = Array.from(new Set(data.tag_ids ?? []));
 
@@ -145,18 +145,9 @@ export async function createLocalEntry(
   let reminderOffsetsMinutes = data.reminder_offsets_minutes ?? null;
 
   if (isAlertCategory) {
-    if (reminderEnabled === undefined || reminderEnabled === null) {
-      reminderEnabled = true;
-    }
-    if (reminderOffsetMinutes === undefined || reminderOffsetMinutes === null) {
-      reminderOffsetMinutes =
-        reminderOffsetsMinutes && reminderOffsetsMinutes.length > 0
-          ? reminderOffsetsMinutes[0]
-          : 0;
-    }
-    if (reminderOffsetsMinutes === null && reminderEnabled) {
-      reminderOffsetsMinutes = [reminderOffsetMinutes ?? 0];
-    }
+    reminderEnabled = true;
+    reminderOffsetMinutes = 0;
+    reminderOffsetsMinutes = [0];
   } else if (occurredAt) {
     // Para cualquier otra categoría con fecha, el recordatorio por defecto es 1 día antes (1440 min)
     if (reminderEnabled === undefined || reminderEnabled === null) {
@@ -178,7 +169,9 @@ export async function createLocalEntry(
     : null;
 
   let reminderTime = data.reminder_time ?? null;
-  if (!reminderTime && reminderEnabled && occurredAt) {
+  if (isAlertCategory && !reminderTime) {
+    reminderTime = occurredAt ?? now;
+  } else if (!reminderTime && reminderEnabled && occurredAt) {
     const occDate = new Date(occurredAt);
     if (!isNaN(occDate.getTime())) {
       const offsetMs = (reminderOffsetMinutes ?? 0) * 60 * 1000;
@@ -625,7 +618,9 @@ export async function updateLocalEntry(
     data.reminder_time !== undefined
       ? data.reminder_time
       : (existing.reminder_time ?? null);
-  if (!reminderTime && reminderEnabled && occurredAt) {
+  if (isAlertCategory && !reminderTime) {
+    reminderTime = occurredAt ?? now;
+  } else if (!reminderTime && reminderEnabled && occurredAt) {
     const occDate = new Date(occurredAt);
     if (!isNaN(occDate.getTime())) {
       const offsetMs = (reminderOffsetMinutes ?? 0) * 60 * 1000;

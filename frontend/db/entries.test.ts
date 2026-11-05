@@ -1,4 +1,4 @@
-import { createLocalCategory } from "./categories";
+import { CANONICAL_CATEGORIES, createLocalCategory } from "./categories";
 import { MemoryDatabaseAdapter, runMigrations } from "./database";
 import {
   adoptGuestData,
@@ -222,15 +222,16 @@ describe("Local Entries and Tasks Storage Layer", () => {
       expect(entry.reminder_offsets_minutes).toEqual([0]);
       expect(entry.reminder_time).toBe("2026-10-15T08:00:00.000Z");
 
-      // Si el usuario especificó explícitamente desactivarlo, se respeta false
-      const disabledEntry = await createLocalEntry(db, userId, {
+      // Para la categoría Alerta se fuerza siempre reminder_enabled=true de forma estricta (#155)
+      const forcedAlertEntry = await createLocalEntry(db, userId, {
         category_id: alertaCat.id,
-        content: "Alerta sin notificacion",
+        content: "Alerta creada con reminder_enabled false",
         occurred_at: "2026-10-15T09:00:00.000Z",
         reminder_enabled: false,
       });
 
-      expect(disabledEntry.reminder_enabled).toBe(false);
+      expect(forcedAlertEntry.reminder_enabled).toBe(true);
+      expect(forcedAlertEntry.reminder_offset_minutes).toBe(0);
     });
 
     it("automatically defaults occurred_at to now, sets reminder, and clears task fields for Alerta even with null occurred_at (#92)", async () => {
@@ -533,6 +534,81 @@ describe("Local Entries and Tasks Storage Layer", () => {
         expect.arrayContaining([tagId, tag2.id]),
       );
       expect(e3Fetched?.tag_ids).toEqual([]);
+    });
+  });
+
+  describe("Issue #155: Deterministic Canonical Alerta persistence", () => {
+    let alertaCatId: string;
+
+    beforeEach(async () => {
+      const alertaCat = await createLocalCategory(db, userId, {
+        id: CANONICAL_CATEGORIES.ALERTA.id,
+        name: CANONICAL_CATEGORIES.ALERTA.name,
+        voice_command: CANONICAL_CATEGORIES.ALERTA.voice_command,
+        kind: CANONICAL_CATEGORIES.ALERTA.kind,
+        color: CANONICAL_CATEGORIES.ALERTA.color,
+      });
+      alertaCatId = alertaCat.id;
+    });
+
+    it("forces reminder_enabled=true, offset=0, offsets=[0] and null task fields when creating an Alerta entry (#155)", async () => {
+      const entry = await createLocalEntry(db, userId, {
+        category_id: alertaCatId,
+        content: "Alerta de medicación a las 15:00",
+        reminder_enabled: false,
+        reminder_offset_minutes: 15,
+        reminder_offsets_minutes: [15, 30],
+        task_status: "PENDING",
+        task_recurrence: "ONCE",
+        task_priority: "HIGH",
+      });
+
+      expect(entry.reminder_enabled).toBe(true);
+      expect(entry.reminder_offset_minutes).toBe(0);
+      expect(entry.reminder_offsets_minutes).toEqual([0]);
+      expect(entry.task_status).toBeNull();
+      expect(entry.task_recurrence).toBeNull();
+      expect(entry.task_priority).toBeNull();
+      expect(entry.reminder_time).toBeTruthy();
+
+      const fetched = await getEntryById(db, userId, entry.id);
+      expect(fetched?.reminder_enabled).toBe(true);
+      expect(fetched?.reminder_offset_minutes).toBe(0);
+      expect(fetched?.reminder_offsets_minutes).toEqual([0]);
+      expect(fetched?.task_status).toBeNull();
+      expect(fetched?.task_recurrence).toBeNull();
+      expect(fetched?.task_priority).toBeNull();
+    });
+
+    it("forces reminder_enabled=true, offset=0, offsets=[0] and null task fields when updating an entry under Alerta category (#155)", async () => {
+      const initialEntry = await createLocalEntry(db, userId, {
+        category_id: alertaCatId,
+        content: "Alarma inicial",
+      });
+
+      const updated = await updateLocalEntry(db, userId, initialEntry.id, {
+        content: "Alarma modificada",
+        reminder_enabled: false,
+        reminder_offset_minutes: 20,
+        reminder_offsets_minutes: [20],
+        task_status: "DONE",
+        task_priority: "LOW",
+      });
+
+      expect(updated.reminder_enabled).toBe(true);
+      expect(updated.reminder_offset_minutes).toBe(0);
+      expect(updated.reminder_offsets_minutes).toEqual([0]);
+      expect(updated.task_status).toBeNull();
+      expect(updated.task_recurrence).toBeNull();
+      expect(updated.task_priority).toBeNull();
+
+      const fetched = await getEntryById(db, userId, initialEntry.id);
+      expect(fetched?.reminder_enabled).toBe(true);
+      expect(fetched?.reminder_offset_minutes).toBe(0);
+      expect(fetched?.reminder_offsets_minutes).toEqual([0]);
+      expect(fetched?.task_status).toBeNull();
+      expect(fetched?.task_recurrence).toBeNull();
+      expect(fetched?.task_priority).toBeNull();
     });
   });
 });

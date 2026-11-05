@@ -1,5 +1,6 @@
 import { notificationService } from "./notificationService";
 import { Entry } from "../types/domain";
+import { CANONICAL_CATEGORIES } from "../db/categories";
 
 describe("NotificationService", () => {
   const originalFetch = (globalThis as any).fetch;
@@ -44,7 +45,8 @@ describe("NotificationService", () => {
     expect(result).toBe(false);
   });
 
-  it("does not fire duplicate local notification when reminder time has elapsed (in the past)", () => {
+  it("does not fire duplicate local notification when reminder was already notified", () => {
+    notificationService.clearNotifiedHistory();
     const sendSpy = jest.spyOn(notificationService, "sendNotification");
     const pastEntry = {
       id: "past-entry-1",
@@ -58,8 +60,13 @@ describe("NotificationService", () => {
       version: 1,
     } as Entry;
 
+    (notificationService as any).notifiedEntryIds.add(
+      "entry-reminder-past-entry-1",
+    );
+
     notificationService.scheduleForEntry(pastEntry);
     expect(sendSpy).not.toHaveBeenCalled();
+    notificationService.clearNotifiedHistory();
   });
 
   it("schedules reminder subtracting reminder_offset_minutes from event time", () => {
@@ -339,7 +346,7 @@ describe("NotificationService", () => {
       notificationService.clearNotifiedHistory();
     });
 
-    it("discards local notification when timer callback fires late (> 5000ms) IF online with active Web Push backend to prevent duplicates (#138)", () => {
+    it("fires local notification and sound when timer callback fires late (> 5000ms) even IF online with active Web Push backend (preventing silence when backend Render sleeps) (#155)", () => {
       notificationService.clearNotifiedHistory();
       notificationService.setAuth("http://localhost:8000", "mock-token");
       notificationService.setPushSubscriptionActive(true);
@@ -359,7 +366,7 @@ describe("NotificationService", () => {
         user_id: "user-1",
         category_id: "cat-1",
         title: "Aviso entregado en lock screen",
-        content: "Aviso entregado en lock screen por Web Push",
+        content: "Aviso que debe sonar aunque Render esté suspendido",
         reminder_enabled: true,
         reminder_time: new Date(Date.now() + 2000).toISOString(),
         reminder_offset_minutes: 0,
@@ -387,8 +394,15 @@ describe("NotificationService", () => {
 
       callback();
 
-      // sendNotification should NOT be called because backend Web Push handles it online
-      expect(sendSpy).not.toHaveBeenCalled();
+      // sendNotification MUST be called because no confirmed push exists in notifiedEntryIds
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      expect(sendSpy).toHaveBeenCalledWith(
+        "🔔 Aviso entregado en lock screen",
+        "Aviso que debe sonar aunque Render esté suspendido",
+        undefined,
+        true,
+        "entry-reminder-late-suspended-entry-1",
+      );
 
       Date.now = realNow;
       Object.defineProperty(navigator, "onLine", {
@@ -398,6 +412,227 @@ describe("NotificationService", () => {
       notificationService.clearNotifiedHistory();
       notificationService.setAuth(null, null);
       notificationService.setPushSubscriptionActive(false);
+    });
+
+    it("silences late timer callback IF push delivery was confirmed by PUSH_DELIVERED in notifiedEntryIds (#155)", () => {
+      notificationService.clearNotifiedHistory();
+      notificationService.setAuth("http://localhost:8000", "mock-token");
+      notificationService.setPushSubscriptionActive(true);
+
+      const sendSpy = jest
+        .spyOn(notificationService, "sendNotification")
+        .mockReturnValue(true);
+      const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+
+      const entry = {
+        id: "push-confirmed-entry-1",
+        user_id: "user-1",
+        category_id: "cat-1",
+        title: "Aviso entregado remotamente",
+        content: "Aviso ya entregado por push",
+        reminder_enabled: true,
+        reminder_time: new Date(Date.now() + 2000).toISOString(),
+        reminder_offset_minutes: 0,
+        reminder_recurrence: "NONE",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      notificationService.scheduleForEntry(entry);
+
+      expect(setTimeoutSpy).toHaveBeenCalled();
+      const callback = setTimeoutSpy.mock.calls[
+        setTimeoutSpy.mock.calls.length - 1
+      ][0] as () => void;
+
+      notificationService.cancelNotification(entry.id);
+
+      // Simulate Service Worker confirming push delivery
+      (notificationService as any).notifiedEntryIds.add(
+        "entry-reminder-push-confirmed-entry-1",
+      );
+
+      const realNow = Date.now;
+      jest
+        .spyOn(Date, "now")
+        .mockReturnValue(new Date(entry.reminder_time!).getTime() + 15000);
+
+      callback();
+
+      // Should be silenced because it was confirmed in notifiedEntryIds
+      expect(sendSpy).not.toHaveBeenCalled();
+
+      Date.now = realNow;
+      notificationService.clearNotifiedHistory();
+      notificationService.setAuth(null, null);
+      notificationService.setPushSubscriptionActive(false);
+    });
+
+    it("discards late timer callback if elapsed time exceeds 2 hours window (#155)", () => {
+      notificationService.clearNotifiedHistory();
+
+      const sendSpy = jest
+        .spyOn(notificationService, "sendNotification")
+        .mockReturnValue(true);
+      const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+
+      const entry = {
+        id: "obsolete-late-entry-1",
+        user_id: "user-1",
+        category_id: "cat-1",
+        title: "Aviso muy antiguo",
+        content: "Aviso con más de 2 horas de retraso",
+        reminder_enabled: true,
+        reminder_time: new Date(Date.now() + 2000).toISOString(),
+        reminder_offset_minutes: 0,
+        reminder_recurrence: "NONE",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      notificationService.scheduleForEntry(entry);
+
+      expect(setTimeoutSpy).toHaveBeenCalled();
+      const callback = setTimeoutSpy.mock.calls[
+        setTimeoutSpy.mock.calls.length - 1
+      ][0] as () => void;
+
+      notificationService.cancelNotification(entry.id);
+
+      // 2 hours + 1 minute late
+      const realNow = Date.now;
+      jest
+        .spyOn(Date, "now")
+        .mockReturnValue(
+          new Date(entry.reminder_time!).getTime() +
+            (2 * 60 * 60 * 1000 + 60000),
+        );
+
+      callback();
+
+      expect(sendSpy).not.toHaveBeenCalled();
+
+      Date.now = realNow;
+      notificationService.clearNotifiedHistory();
+    });
+
+    it("fires overdue entry immediately when calling scheduleForEntry if overdue within 2 hours window (#155)", () => {
+      notificationService.clearNotifiedHistory();
+      const sendSpy = jest
+        .spyOn(notificationService, "sendNotification")
+        .mockReturnValue(true);
+
+      const entry = {
+        id: "recent-overdue-entry-1",
+        user_id: "user-1",
+        category_id: "cat-1",
+        title: "Alerta pasada reciente",
+        content: "Alerta pasada hace 10 minutos",
+        reminder_enabled: true,
+        // 10 minutes in the past
+        reminder_time: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        reminder_offset_minutes: 0,
+        reminder_recurrence: "NONE",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      notificationService.scheduleForEntry(entry);
+
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      expect(sendSpy).toHaveBeenCalledWith(
+        "🔔 Alerta pasada reciente",
+        "Alerta pasada hace 10 minutos",
+        undefined,
+        true,
+        "entry-reminder-recent-overdue-entry-1",
+      );
+
+      notificationService.clearNotifiedHistory();
+    });
+
+    it("discards overdue entry without firing if overdue more than 2 hours (#155)", () => {
+      notificationService.clearNotifiedHistory();
+      const sendSpy = jest
+        .spyOn(notificationService, "sendNotification")
+        .mockReturnValue(true);
+
+      const entry = {
+        id: "ancient-overdue-entry-1",
+        user_id: "user-1",
+        category_id: "cat-1",
+        title: "Alerta obsoleta",
+        content: "Alerta de hace 3 horas",
+        reminder_enabled: true,
+        // 3 hours in the past
+        reminder_time: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        reminder_offset_minutes: 0,
+        reminder_recurrence: "NONE",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      notificationService.scheduleForEntry(entry);
+
+      expect(sendSpy).not.toHaveBeenCalled();
+
+      notificationService.clearNotifiedHistory();
+    });
+
+    it("schedules canonical Alerta category unconditionally even if reminder_enabled is false (#155)", () => {
+      notificationService.clearNotifiedHistory();
+      const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+
+      const alertEntry = {
+        id: "canonical-alert-1",
+        user_id: "user-1",
+        category_id: CANONICAL_CATEGORIES.ALERTA.id,
+        title: "Alarma crítica",
+        content: "Esta alerta debe sonar siempre",
+        reminder_enabled: false, // Arrives as false
+        reminder_time: new Date(Date.now() + 60000).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      notificationService.scheduleForEntry(alertEntry);
+
+      expect(setTimeoutSpy).toHaveBeenCalled();
+      notificationService.cancelNotification(alertEntry.id);
+    });
+
+    it("syncAllReminders schedules canonical Alerta entries even if reminder_enabled is false (#155)", async () => {
+      notificationService.clearNotifiedHistory();
+      const scheduleSpy = jest.spyOn(notificationService, "scheduleForEntry");
+
+      const alertEntry = {
+        id: "canonical-alert-sync-1",
+        user_id: "user-1",
+        category_id: "cat-alerta",
+        title: "Alerta sync",
+        content: "Alerta en syncAllReminders con reminder_enabled falso",
+        reminder_enabled: false,
+        reminder_time: new Date(Date.now() + 60000).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: 1,
+      } as Entry;
+
+      const mockDb = {
+        getAllAsync: jest.fn().mockResolvedValue([alertEntry]),
+      } as any;
+
+      await notificationService.syncAllReminders(mockDb, "user-1");
+
+      expect(scheduleSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "canonical-alert-sync-1" }),
+      );
+      notificationService.cancelNotification(alertEntry.id);
     });
 
     it("fires local notification when timer callback fires late IF push subscription is NOT confirmed/active on server (#145)", () => {

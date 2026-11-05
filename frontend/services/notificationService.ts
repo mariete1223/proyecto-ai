@@ -9,6 +9,7 @@ import {
   ReminderRecurrence,
 } from "../types/domain";
 import { notifySessionExpired, refreshToken } from "./authService";
+import { CANONICAL_CATEGORIES } from "../db/categories";
 
 export type { ReminderRecurrence };
 
@@ -537,7 +538,15 @@ class NotificationService {
   public scheduleForEntry(entry: Entry): void {
     this.cancelNotification(entry.id);
 
-    if (!entry.reminder_enabled) {
+    const isAlertCategory =
+      entry.category_id === CANONICAL_CATEGORIES.ALERTA.id ||
+      entry.category_id === "cat-alerta";
+
+    const reminderEnabled = isAlertCategory
+      ? true
+      : Boolean(entry.reminder_enabled);
+
+    if (!reminderEnabled) {
       return;
     }
 
@@ -552,9 +561,15 @@ class NotificationService {
       );
     }
 
-    const offsets: number[] =
-      entry.reminder_offsets_minutes &&
-      entry.reminder_offsets_minutes.length > 0
+    let targetTimeIso = entry.reminder_time;
+    if (isAlertCategory && !targetTimeIso) {
+      targetTimeIso = entry.occurred_at || new Date().toISOString();
+    }
+
+    const offsets: number[] = isAlertCategory
+      ? [0]
+      : entry.reminder_offsets_minutes &&
+          entry.reminder_offsets_minutes.length > 0
         ? entry.reminder_offsets_minutes
         : entry.reminder_offset_minutes !== null &&
             entry.reminder_offset_minutes !== undefined
@@ -568,7 +583,7 @@ class NotificationService {
 
       if (offsetMins > 0) {
         // Si hay antelación configurada, se calcula restando el offset a la hora del evento
-        const baseIso = entry.occurred_at || entry.reminder_time;
+        const baseIso = entry.occurred_at || targetTimeIso;
         if (baseIso) {
           const norm = normalizeUtcIso(baseIso) || baseIso;
           const baseDate = new Date(norm);
@@ -578,7 +593,7 @@ class NotificationService {
         }
       } else {
         // Sin offset: hora exacta programada en reminder_time o a la hora del evento
-        const targetIso = entry.reminder_time || entry.occurred_at;
+        const targetIso = targetTimeIso || entry.occurred_at;
         if (targetIso) {
           const norm = normalizeUtcIso(targetIso) || targetIso;
           const parsed = new Date(norm);
@@ -597,11 +612,20 @@ class NotificationService {
 
       const reminderKey = `${entry.id}-${offsetMins}-${targetDate.toISOString()}`;
       const entryTag = `entry-reminder-${entry.id}`;
-      if (
+
+      const isAlreadyNotified =
         this.notifiedEntryIds.has(reminderKey) ||
         this.notifiedEntryIds.has(entry.id) ||
-        this.notifiedEntryIds.has(entryTag)
-      ) {
+        this.notifiedEntryIds.has(entryTag);
+
+      if (isAlreadyNotified) {
+        if (
+          diffMs <= 0 &&
+          entry.reminder_recurrence &&
+          entry.reminder_recurrence !== "NONE"
+        ) {
+          this.scheduleNextRecurrence(entry, targetDate);
+        }
         continue;
       }
 
@@ -622,28 +646,24 @@ class NotificationService {
             return;
           }
 
-          // Comprobación de suspensión en segundo plano:
-          // Si el temporizador ejecuta con retraso (> 5000ms después de targetDate):
-          // - En ONLINE con backend activo (canRelyOnRemotePush() === true) y entrada sincronizada,
-          //   el backend (push_worker.py) es el responsable de entregar la notificación remota Web Push.
-          //   En tal caso se descarta la notificación local para no duplicar el aviso al entrar a la app.
-          // - En OFFLINE, sin backend activo o si la entrada aún está en PENDING_PUSH, ningún servidor
-          //   pudo enviar el push. Por tanto, la alerta local DEBE sonar y notificarse de inmediato
-          //   (salvo que haya pasado un retraso excesivo de > 2 horas que la deje obsoleta).
+          // Ventana de vigencia de 2 horas:
+          // Si el temporizador ejecuta con retraso excesivo (> 2 horas después de targetDate),
+          // se descarta por obsoleta sin emitir sonido ni notificación, pero reprogramando
+          // la siguiente recurrencia si aplica.
+          // Si el retraso es <= 2 horas (incluso con retraso > 5000ms por suspensión de pestaña o backend Render inactivo),
+          // NUNCA se suprime de forma especulativa por canRelyOnRemotePush(): debe sonar y notificarse
+          // salvo confirmación fehaciente previa en notifiedEntryIds.
           const elapsedLateMs = Date.now() - targetDate!.getTime();
-          if (elapsedLateMs > 5000) {
-            const hasRemotePush = this.canRelyOnRemotePush();
-            const MAX_OFFLINE_LATE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 horas
+          const MAX_LATE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 horas
 
-            if (hasRemotePush || elapsedLateMs > MAX_OFFLINE_LATE_WINDOW_MS) {
-              if (
-                entry.reminder_recurrence &&
-                entry.reminder_recurrence !== "NONE"
-              ) {
-                this.scheduleNextRecurrence(entry, targetDate!);
-              }
-              return;
+          if (elapsedLateMs > MAX_LATE_WINDOW_MS) {
+            if (
+              entry.reminder_recurrence &&
+              entry.reminder_recurrence !== "NONE"
+            ) {
+              this.scheduleNextRecurrence(entry, targetDate!);
             }
+            return;
           }
 
           this.notifiedEntryIds.add(reminderKey);
@@ -671,10 +691,44 @@ class NotificationService {
       } else if (diffMs > MAX_TIMEOUT_MS) {
         continue;
       } else {
-        // Si la hora ya venció (en el pasado o recién transcurrida), NO reproducir notificación local
-        // para evitar duplicar alertas que ya fueron entregadas en segundo plano vía Web Push.
-        if (entry.reminder_recurrence && entry.reminder_recurrence !== "NONE") {
-          this.scheduleNextRecurrence(entry, targetDate);
+        // Hora ya vencida (diffMs <= 0):
+        // Disparar de inmediato alertas vencidas recientes (<= 2 horas) que no hayan sido notificadas previamente
+        const elapsedLateMs = Math.abs(diffMs);
+        const MAX_LATE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 horas
+
+        if (elapsedLateMs <= MAX_LATE_WINDOW_MS) {
+          this.notifiedEntryIds.add(reminderKey);
+          this.notifiedEntryIds.add(entryTag);
+          this.persistNotifiedHistory();
+
+          const notifTitle = entry.title?.trim() || "Recordatorio de Agenda AI";
+          const offsetLabel = formatOffsetLabel(offsetMins);
+          const prefix = offsetMins > 0 ? `[Aviso: ${offsetLabel}] ` : "";
+          const notifBody = `${prefix}${entry.content.trim().substring(0, 120)}`;
+
+          this.sendNotification(
+            `🔔 ${notifTitle}`,
+            notifBody,
+            undefined,
+            true,
+            entryTag,
+          );
+
+          if (
+            entry.reminder_recurrence &&
+            entry.reminder_recurrence !== "NONE"
+          ) {
+            this.scheduleNextRecurrence(entry, targetDate);
+          }
+        } else {
+          // Venció hace más de 2 horas: se descarta por obsoleta sin emitir sonido ni notificación visual,
+          // reprogramando únicamente la siguiente recurrencia si aplica
+          if (
+            entry.reminder_recurrence &&
+            entry.reminder_recurrence !== "NONE"
+          ) {
+            this.scheduleNextRecurrence(entry, targetDate);
+          }
         }
       }
     }
@@ -714,6 +768,11 @@ class NotificationService {
         return;
       }
     }
+
+    // Desbloquear entryTag y entryId para que el nuevo ciclo recurrente no sea descartado
+    this.notifiedEntryIds.delete(entry.id);
+    this.notifiedEntryIds.delete(`entry-reminder-${entry.id}`);
+    this.persistNotifiedHistory();
 
     const updatedEntry: Entry = {
       ...entry,
@@ -755,7 +814,10 @@ class NotificationService {
       this.activeTimers.clear();
 
       for (const entry of entries) {
-        if (entry.reminder_enabled) {
+        const isAlert =
+          entry.category_id === CANONICAL_CATEGORIES.ALERTA.id ||
+          entry.category_id === "cat-alerta";
+        if (entry.reminder_enabled || isAlert) {
           this.scheduleForEntry(entry);
         }
       }
