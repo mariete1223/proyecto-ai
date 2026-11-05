@@ -190,6 +190,9 @@ export default function App() {
   );
   const [bypassAuth, setBypassAuth] = useState(false);
   const [isBackendOffline, setIsBackendOffline] = useState(false);
+  const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(
+    null,
+  );
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showOfflineNoticeModal, setShowOfflineNoticeModal] = useState(false);
@@ -412,13 +415,20 @@ export default function App() {
       forceReload: boolean = false,
       overrideUserId?: string,
       overrideToken?: string,
+      skipSync: boolean = false,
     ) => {
       const activeUserId = overrideUserId || userId;
       const activeToken = overrideToken || userToken;
 
       // Si hay un formulario abierto y no se fuerza recarga, solo sincronizar en background sin tocar el estado de React.
       if (isFormOpenRef.current && !forceReload) {
-        if (activeToken && activeUserId && activeUserId !== "user-demo-123") {
+        if (
+          !skipSync &&
+          !isBackendOffline &&
+          activeToken &&
+          activeUserId &&
+          activeUserId !== "user-demo-123"
+        ) {
           try {
             await performSync(db, {
               apiBaseUrl: getBackendUrl(),
@@ -445,8 +455,14 @@ export default function App() {
         await ensureCanonicalCategories(db, activeUserId);
         await deduplicateAndHealEntries(db, activeUserId);
 
-        // 2. Sincronizar con el backend SOLO si el usuario está autenticado con token válido
-        if (activeToken && activeUserId && activeUserId !== "user-demo-123") {
+        // 2. Sincronizar con el backend SOLO si el usuario está autenticado con token válido, no está offline y no se solicitó omitir la sincronización
+        if (
+          !skipSync &&
+          !isBackendOffline &&
+          activeToken &&
+          activeUserId &&
+          activeUserId !== "user-demo-123"
+        ) {
           try {
             const syncRes = await performSync(db, {
               apiBaseUrl: getBackendUrl(),
@@ -511,7 +527,7 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [db, userId, userToken],
+    [db, userId, userToken, isBackendOffline],
   );
 
   // Sincronización silenciosa en background para cambios locales granulares.
@@ -529,6 +545,11 @@ export default function App() {
         token: userToken,
         userId,
       });
+
+      // Si el usuario tiene un formulario o modal abierto, no alterar el estado de React
+      if (isFormOpenRef.current) {
+        return;
+      }
 
       // Actualizar conteos del encabezado sin parpadear
       const [allEntries, cats, allTasks] = await Promise.all([
@@ -623,57 +644,90 @@ export default function App() {
         "DELETE FROM entry_tags WHERE entry_id IN ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000013');",
       );
 
-      if (isMounted) {
-        const deviceOffline = isDeviceOffline();
+      if (!isMounted) return;
 
+      const deviceOffline = isDeviceOffline();
+
+      if (authSession) {
+        // 1. Invariante Offline-First (Regla 4 AGENTS.md):
+        // Al existir una sesión activa, cargar inmediatamente la base de datos local
+        // y marcar isInitialized = true para renderizar la UI principal de inmediato (< 200ms)
+        // sin bloquear al usuario durante el arranque en frío del backend.
+        await loadDatabaseState(true, undefined, undefined, true);
+        if (isMounted) {
+          setIsColdStarting(false);
+          setIsInitialized(true);
+        }
+
+        if (deviceOffline) {
+          setIsBackendOffline(true);
+          setIsBackendConnected(false);
+          setShowOfflineNoticeModal(true);
+        } else {
+          setIsBackendConnected(null); // Estado 'Conectando...' no bloqueante
+          setIsBackendOffline(false);
+
+          // Sondeo asíncrono de salud y reactivación en segundo plano (arranque en frío de Render).
+          // Se ejecuta completamente desacoplado del hilo principal de UI.
+          (async () => {
+            try {
+              let isHealthy = await checkBackendHealth(defaultApiConfig);
+              let attempts = 0;
+              while (!isHealthy && attempts < 2 && isMounted) {
+                attempts++;
+                await new Promise((res) => setTimeout(res, 3000));
+                if (!isMounted) break;
+                isHealthy = await checkBackendHealth(defaultApiConfig);
+              }
+              if (!isMounted) return;
+
+              setIsBackendOffline(!isHealthy);
+              setIsBackendConnected(isHealthy);
+
+              if (isHealthy) {
+                // Backend despertó y está online: sincronizar silenciosamente en segundo plano
+                // sin recargar la página ni interferir si hay un formulario abierto
+                if (!isFormOpenRef.current) {
+                  await syncSilentlyInBackground();
+                }
+                if (!isOnboardingCompleted(authSession.userId)) {
+                  setShowOnboardingModal(true);
+                }
+              } else {
+                setShowOfflineNoticeModal(true);
+              }
+            } catch {
+              if (isMounted) {
+                setIsBackendOffline(true);
+                setIsBackendConnected(false);
+              }
+            }
+          })();
+        }
+      } else {
+        // Sin sesión previa activa
         let isHealthy = false;
         if (!deviceOffline) {
-          if (authSession) {
-            // Si tarda más de 1200ms, informar al usuario de que el servidor está en arranque en frío
-            const coldTimer = setTimeout(() => {
-              if (isMounted) setIsColdStarting(true);
-            }, 1200);
+          // Si tarda más de 1200ms en el primer arranque, informar de arranque en frío
+          const coldTimer = setTimeout(() => {
+            if (isMounted) setIsColdStarting(true);
+          }, 1200);
 
-            isHealthy = await checkBackendHealth(defaultApiConfig);
-            let attempts = 0;
-            // Si el backend aún no responde y el dispositivo está online, reintentar durante el arranque en frío
-            while (!isHealthy && attempts < 2 && isMounted) {
-              attempts++;
-              await new Promise((res) => setTimeout(res, 3000));
-              isHealthy = await checkBackendHealth(defaultApiConfig);
-            }
-            clearTimeout(coldTimer);
-          } else {
-            isHealthy = await checkBackendHealth(defaultApiConfig);
-          }
+          isHealthy = await checkBackendHealth(defaultApiConfig);
+          clearTimeout(coldTimer);
         }
 
         setIsBackendOffline(!isHealthy);
+        setIsBackendConnected(deviceOffline ? false : isHealthy);
 
-        if (!authSession) {
-          // SOLO si el dispositivo carece por completo de conexión a internet (sin wifi ni datos)
-          // se autoriza el modo local offline sin sesión
-          if (deviceOffline) {
-            setBypassAuth(true);
-            setShowOfflineNoticeModal(true);
-          } else {
-            // Si el dispositivo tiene conexión a internet (wifi o datos), NUNCA se elude el login a modo invitado
-            setBypassAuth(false);
-          }
+        if (deviceOffline) {
+          setBypassAuth(true);
+          setShowOfflineNoticeModal(true);
         } else {
-          // El usuario dispone de sesión previa: si el dispositivo carece de conexión a internet, mostrar aviso de modo local
-          if (deviceOffline) {
-            setShowOfflineNoticeModal(true);
-          } else if (!isHealthy) {
-            // Si tras reintentos Render sigue sin responder, permitir modo local con aviso
-            setShowOfflineNoticeModal(true);
-          } else if (!isOnboardingCompleted(authSession.userId)) {
-            // Solo mostrar la guía automáticamente la primera vez que se inicia sesión
-            setShowOnboardingModal(true);
-          }
+          setBypassAuth(false);
         }
 
-        await loadDatabaseState(true);
+        await loadDatabaseState(true, undefined, undefined, true);
         if (isMounted) {
           setIsColdStarting(false);
           setIsInitialized(true);
@@ -699,6 +753,7 @@ export default function App() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const handleOffline = () => {
         setIsBackendOffline(true);
+        setIsBackendConnected(false);
         if (!authSession) {
           setBypassAuth(true);
           setShowOfflineNoticeModal(true);
@@ -706,6 +761,7 @@ export default function App() {
       };
       const handleOnline = () => {
         setIsBackendOffline(false);
+        setIsBackendConnected(true);
         // Si el usuario estaba en modo local sin sesión previa, al recuperar la conexión a internet (wifi/datos)
         // requerimos que inicie sesión o se registre para no operar como invitado online
         if (!authSession) {
@@ -828,6 +884,25 @@ export default function App() {
             cargarán todas tus notas, tareas y alertas.
           </Text>
         )}
+        <Pressable
+          style={styles.bypassColdStartButton}
+          onPress={() => {
+            if (!authSession) {
+              setBypassAuth(true);
+              setShowOfflineNoticeModal(true);
+            }
+            setIsColdStarting(false);
+            setIsInitialized(true);
+            loadDatabaseState(true, undefined, undefined, true);
+          }}
+          testID="btn-bypass-cold-start"
+          accessibilityRole="button"
+          accessibilityLabel="Continuar en modo local"
+        >
+          <Text style={styles.bypassColdStartText}>
+            Continuar en modo local
+          </Text>
+        </Pressable>
       </View>
     );
   }
@@ -840,6 +915,8 @@ export default function App() {
         onSuccess={async (session) => {
           setAuthSession(session);
           setOfflineUserId(session.userId);
+          setIsBackendOffline(false);
+          setIsBackendConnected(true);
           if (session?.userId && session.userId !== "user-demo-123") {
             try {
               await adoptGuestData(db, session.userId);
@@ -857,17 +934,20 @@ export default function App() {
             "user-demo-123";
           setOfflineUserId(effectiveUserId);
           setBypassAuth(true);
+          setIsBackendConnected(false);
           setShowOfflineNoticeModal(true);
-          loadDatabaseState(true, effectiveUserId);
+          loadDatabaseState(true, effectiveUserId, undefined, true);
         }}
         onOfflineDetected={() => {
           const deviceOffline = isDeviceOffline();
           if (deviceOffline) {
             setIsBackendOffline(true);
+            setIsBackendConnected(false);
             setBypassAuth(true);
             setShowOfflineNoticeModal(true);
           } else {
             setIsBackendOffline(true);
+            setIsBackendConnected(false);
           }
         }}
         isOffline={isBackendOffline}
@@ -1202,6 +1282,7 @@ export default function App() {
     return (
       <MobileMainLayout
         apiConfig={defaultApiConfig}
+        isBackendConnected={isBackendConnected}
         activeTab={
           (activeTab === "CONFLICTS" ? "EXPLORER" : activeTab) as MobileTab
         }
@@ -1254,6 +1335,7 @@ export default function App() {
   return (
     <WebMainLayout
       apiConfig={defaultApiConfig}
+      isBackendConnected={isBackendConnected}
       activeTab={activeTab === "VOICE_CAPTURE" ? "CALENDAR" : activeTab}
       onTabChange={handleTabChange}
       stats={{
@@ -1316,11 +1398,16 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
+    minHeight: 0,
     backgroundColor: theme.colors.bgApp,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
-    gap: 12,
+    paddingBottom:
+      Platform.OS === "web"
+        ? ("max(24px, env(safe-area-inset-bottom, 24px))" as any)
+        : 24,
+    gap: 16,
   },
   loadingText: {
     color: theme.colors.textSecondary,
@@ -1334,6 +1421,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 320,
     lineHeight: 20,
+  },
+  bypassColdStartButton: {
+    minHeight: 44,
+    minWidth: 44,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.bgSurface,
+    borderWidth: 1,
+    borderColor: theme.colors.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  bypassColdStartText: {
+    color: theme.colors.primary,
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "center",
   },
   topActionsBar: {
     flexDirection: "row",

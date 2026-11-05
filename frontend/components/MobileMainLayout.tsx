@@ -101,6 +101,7 @@ export interface MobileMainLayoutProps {
   isSyncing?: boolean;
   currentUserEmail?: string | null;
   isSessionExpired?: boolean;
+  isBackendConnected?: boolean | null;
   onOpenAuth?: () => void;
   onLogout?: () => void;
   onExportBackup?: () => void | Promise<void>;
@@ -119,6 +120,7 @@ export function MobileMainLayout({
   isSyncing,
   currentUserEmail,
   isSessionExpired,
+  isBackendConnected: isBackendConnectedProp,
   onOpenAuth,
   onLogout,
   onExportBackup,
@@ -127,20 +129,28 @@ export function MobileMainLayout({
   onOpenOfflineNotice,
   children,
 }: MobileMainLayoutProps) {
-  const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(
-    null,
-  );
+  const [internalBackendConnected, setInternalBackendConnected] = useState<
+    boolean | null
+  >(null);
+  const isBackendConnected =
+    isBackendConnectedProp !== undefined
+      ? isBackendConnectedProp
+      : internalBackendConnected;
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showLegalModal, setShowLegalModal] = useState(false);
 
   useEffect(() => {
+    if (isBackendConnectedProp !== undefined) {
+      return;
+    }
+
     let mounted = true;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const check = async () => {
       const healthy = await checkBackendHealth(apiConfig);
       if (mounted) {
-        setIsBackendConnected(healthy);
+        setInternalBackendConnected(healthy);
         if (!healthy) {
           retryTimer = setTimeout(check, 6000);
         }
@@ -153,11 +163,11 @@ export function MobileMainLayout({
       mounted = false;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [apiConfig]);
+  }, [apiConfig, isBackendConnectedProp]);
 
   const handleManualSync = () => {
     checkBackendHealth(apiConfig).then((healthy) => {
-      setIsBackendConnected(healthy);
+      setInternalBackendConnected(healthy);
     });
     onSync?.();
   };
